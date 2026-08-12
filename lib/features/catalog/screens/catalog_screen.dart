@@ -227,7 +227,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 }
                 return RefreshIndicator(
                   onRefresh: () async => _apply(),
-                  child: ListView.builder(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(3),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,      // 2 карточки в ряд
+                      mainAxisSpacing: 5,     // отступ между рядами
+                      crossAxisSpacing: 5,    // отступ между колонками
+                      childAspectRatio: 0.80, // пропорции карточки (ниже — меньше пустоты снизу)
+                    ),
                     itemCount: cars.length,
                     itemBuilder: (context, i) => _CarCard(
                       car: cars[i],
@@ -257,6 +265,17 @@ class _CarCard extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
 
+  // Собираем строку характеристик из заданных полей: пробег · кузов · КПП · топливо
+  String _specsLine(CarModel c) {
+    final parts = <String>[
+      if (c.mileage != null) '${c.mileage} км',
+      if (c.bodyType != null) c.bodyType!.value,
+      if (c.transmission != null) c.transmission!.value,
+      if (c.fuel != null) c.fuel!.value,
+    ];
+    return parts.isEmpty ? '—' : parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     // Показываем цену по типу назначения
@@ -271,19 +290,94 @@ class _CarCard extends StatelessWidget {
         ? ' · ⭐ ${car.ratingAvg.toStringAsFixed(1)}'
         : '';
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        onTap: () => context.push('/car/${car.id}'),
-        leading: _CarThumb(carId: car.id),
-        title: Text('${car.brand} ${car.model}, ${car.year}'),
-        subtitle: Text('${car.city} · $priceText$rating'),
-        trailing: IconButton(
-          icon: Icon(
-            isFavorite ? Icons.favorite : Icons.favorite_border,
-            color: isFavorite ? Colors.red : null,
-          ),
-          onPressed: onToggleFavorite,
+    return InkWell(
+      onTap: () => context.push('/car/${car.id}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(3), // радиус 3px
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+          // Тень для эффекта «парения» над фоном
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Фото на всю ширину (4:3) + сердечко поверх
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: _CarThumb(carId: car.id),
+                ),
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: InkWell(
+                    onTap: onToggleFavorite,
+                    child: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.black26,
+                      child: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        size: 18,
+                        color: isFavorite ? Colors.red : Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Инфо-блок под фото
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Заголовок + год (жирным, одна строка)
+                  Text(
+                    '${car.brand} ${car.model}, ${car.year}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  // Цена (крупно, основным цветом)
+                  Text(
+                    priceText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Характеристики: пробег · кузов · КПП (что задано)
+                  Text(
+                    _specsLine(car),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 2),
+                  // Город (+ рейтинг), мелко серым
+                  Text(
+                    '${car.city}$rating',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -344,19 +438,20 @@ class _CarThumbState extends State<_CarThumb> {
 
   @override
   Widget build(BuildContext context) {
-    if (_url == null) {
-      return const CircleAvatar(child: Icon(Icons.directions_car));
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        _url!,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) =>
-            const CircleAvatar(child: Icon(Icons.directions_car)),
-      ),
+    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto.RS
+    // на фоне под цвет логотипа, во всю область фото.
+    final placeholder = Container(
+      color: const Color(0xFFFEFEFE),
+      alignment: Alignment.center,
+      child: Image.asset('assets/images/logo.png', fit: BoxFit.cover),
+    );
+    if (_url == null) return placeholder;
+    return Image.network(
+      _url!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => placeholder,
     );
   }
 }
