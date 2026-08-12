@@ -152,12 +152,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Панель модерации (админ)
+                // Панели администратора
                 if (_isAdmin) ...[
                   FilledButton.icon(
                     onPressed: () => context.push('/moderation'),
+                    icon: const Icon(Icons.fact_check),
+                    label: const Text('Модерация объявлений'),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: () => context.push('/kyc-moderation'),
                     icon: const Icon(Icons.verified_user),
-                    label: const Text('Панель модерации'),
+                    label: const Text('Верификация KYC'),
                   ),
                   const SizedBox(height: 16),
                 ],

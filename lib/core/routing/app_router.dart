@@ -8,11 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/auth_repository.dart';
+import '../../features/admin/screens/kyc_moderation_screen.dart';
 import '../../features/admin/screens/moderation_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/catalog/screens/car_detail_screen.dart';
 import '../../features/chat/screens/chat_room_screen.dart';
 import '../../features/chat/screens/chats_list_screen.dart';
+import '../../features/favorites/screens/favorites_screen.dart';
+import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/bookings/screens/bookings_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
@@ -55,10 +58,25 @@ class AppRouter {
         path: '/kyc',
         builder: (context, state) => const KycScreen(),
       ),
+      // KYC-модерация (админ) — требует авторизации; данные закрыты RLS/RPC
+      GoRoute(
+        path: '/kyc-moderation',
+        builder: (context, state) => const KycModerationScreen(),
+      ),
       // Список диалогов — требует авторизации
       GoRoute(
         path: '/chats',
         builder: (context, state) => const ChatsListScreen(),
+      ),
+      // Избранное — требует авторизации
+      GoRoute(
+        path: '/favorites',
+        builder: (context, state) => const FavoritesScreen(),
+      ),
+      // Уведомления — требует авторизации
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
       // Чат-комната — требует авторизации. peerName передаётся через extra.
       GoRoute(
@@ -98,7 +116,9 @@ class AppRouter {
           state.matchedLocation.startsWith('/create-car') ||
           state.matchedLocation.startsWith('/moderation') ||
           state.matchedLocation.startsWith('/kyc') ||
-          state.matchedLocation.startsWith('/chat');
+          state.matchedLocation.startsWith('/chat') ||
+          state.matchedLocation.startsWith('/favorites') ||
+          state.matchedLocation.startsWith('/notifications');
 
       // Гость на защищённом экране → на логин
       if (!loggedIn && protected) return '/login';
