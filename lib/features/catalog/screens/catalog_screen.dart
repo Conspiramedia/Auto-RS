@@ -35,6 +35,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Множество ID машин в избранном (для сердечек). Обновляется оптимистично.
   Set<String> _favoriteIds = {};
 
+  // Тип пользователя ('customer'|'vendor'). Влияет на видимость FAB
+  // создания объявления: показываем только продавцу (vendor).
+  String _userType = 'customer';
+
   late Future<List<CarModel>> _future;
 
   @override
@@ -51,10 +55,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
     if (_auth.currentUser == null) return;
     try {
       final profile = await _profileRepo.fetchMyProfile();
-      if (profile != null && !profile.roleSelected && mounted) {
+      if (profile == null) return;
+      // Сохраняем тип пользователя для видимости FAB
+      if (mounted) setState(() => _userType = profile.userType);
+      if (!profile.roleSelected && mounted) {
         // Ждём построения первого кадра, затем показываем sheet
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) RoleSelectionSheet.show(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (mounted) {
+            await RoleSelectionSheet.show(context);
+            // После выбора роли перечитываем тип (FAB обновится)
+            final updated = await _profileRepo.fetchMyProfile();
+            if (updated != null && mounted) {
+              setState(() => _userType = updated.userType);
+            }
+          }
         });
       }
     } catch (_) {
@@ -156,7 +170,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Каталог'),
+        title: Image.asset('assets/images/logo.png', height: 36),
         actions: [
           // Колокольчик уведомлений с бэйджем непрочитанных (для залогиненного)
           if (_auth.currentUser != null) const _NotifBell(),
@@ -177,16 +191,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
         ],
       ),
-      // Кнопка «подать объявление». Для гостя роутер перенаправит на логин.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Ждём возврата с экрана создания; при успехе обновляем каталог
-          final created = await context.push<String>('/create-car');
-          if (created != null) _apply();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Объявление'),
-      ),
+      // Кнопка «подать объявление» — только для продавца (vendor).
+      // Покупателю (customer) она не нужна и скрыта.
+      floatingActionButton: _userType == 'vendor'
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                // Ждём возврата с экрана создания; при успехе обновляем каталог
+                final created = await context.push<String>('/create-car');
+                if (created != null) _apply();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Объявление'),
+            )
+          : null,
       body: Column(
         children: [
           // Панель фильтров
