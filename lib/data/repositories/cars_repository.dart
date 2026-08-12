@@ -156,12 +156,17 @@ class CarsRepository {
     required String model,
     required int year,
     int? mileage,
-    required double price,
+    double? price, // null → «Договорная»
     String currency = 'EUR',
     required String city,
     double? lat,
     double? lng,
     List<String> photoUrls = const [],
+    // Характеристики (как в фильтрах). null = не указано.
+    String? bodyType,
+    String? transmission,
+    String? fuel,
+    String? description,
   }) async {
     final id = await _client.rpc('create_car_v2', params: {
       'listing_type': listingType,
@@ -175,6 +180,10 @@ class CarsRepository {
       'lat': lat,
       'lng': lng,
       'photo_urls': photoUrls,
+      'p_body_type': bodyType,
+      'p_transmission': transmission,
+      'p_fuel': fuel,
+      'p_description': description,
     });
     return id as String;
   }

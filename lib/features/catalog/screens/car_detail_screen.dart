@@ -193,18 +193,20 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
               _SpecsGrid(car: car),
               const SizedBox(height: 16),
 
-              // ---------- Цены ----------
-              if (car.isForSale && car.salePrice != null)
+              // ---------- Цены (нет цены → «Договорная») ----------
+              if (car.isForSale)
                 _PriceLine(
                   label: 'Цена продажи',
-                  value: '${car.salePrice!.toStringAsFixed(0)} '
-                      '${car.currency.value}',
+                  value: car.salePrice != null
+                      ? '${_money(car.salePrice!)} ${car.currency.value}'
+                      : 'Договорная',
                 ),
-              if (car.isForRent && car.rentPriceDaily != null)
+              if (car.isForRent)
                 _PriceLine(
                   label: 'Аренда в сутки',
-                  value: '${car.rentPriceDaily!.toStringAsFixed(0)} '
-                      '${car.currency.value}',
+                  value: car.rentPriceDaily != null
+                      ? '${_money(car.rentPriceDaily!)} ${car.currency.value}'
+                      : 'Договорная',
                 ),
 
               // ---------- Описание ----------
@@ -238,8 +240,9 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 if (_selStart != null && _selEnd != null)
                   _PriceLine(
                     label: 'Предварительно',
-                    value: '${_selTotal?.toStringAsFixed(0) ?? '-'} '
-                        '${car.currency.value}',
+                    value: _selTotal != null
+                        ? '${_money(_selTotal!)} ${car.currency.value}'
+                        : '-',
                   ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -380,4 +383,15 @@ class _PriceLine extends StatelessWidget {
       ),
     );
   }
+}
+
+// Число с разделителем разрядов пробелом: 1000000 → «1 000 000».
+String _money(num v) {
+  final s = v.toStringAsFixed(0);
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
+  }
+  return buf.toString();
 }

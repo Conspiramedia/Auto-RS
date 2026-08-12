@@ -354,7 +354,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 crossAxisCount: 2,      // 2 карточки в ряд
                 mainAxisSpacing: 5,     // отступ между рядами
                 crossAxisSpacing: 5,    // отступ между колонками
-                childAspectRatio: 0.80, // пропорции карточки
+                childAspectRatio: 0.75, // пропорции карточки (ниже — выше карточка, влезают все строки текста)
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, i) => _CarCard(
@@ -385,17 +385,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       // AppBar убран: логотип и поиск — в самом верху тела (SafeArea).
-      // Уведомления/избранное/диалоги перенесены в нижнюю навигацию.
-      // Кнопка «подать объявление» — доступна всем (для гостя роутер уведёт на логин).
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Ждём возврата с экрана создания; при успехе обновляем каталог
-          final created = await context.push<String>('/create-car');
-          if (created != null) _apply();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Объявление'),
-      ),
+      // Создание объявления — центральная «+» в нижней навигации (home_shell).
+      // «Брони» — кнопка в ряду с «Фильтры» ниже.
       body: SafeArea(
         child: Column(
         children: [
@@ -404,7 +395,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                // Логотип слева + кнопка «Фильтры» справа — в один ряд
+                // Логотип слева + кнопки «Фильтры» и «Брони» — в один ряд
                 Row(
                   children: [
                     Image.asset('assets/images/logo.png', height: 56),
@@ -421,6 +412,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // «Брони» — вынесено из нижнего меню сюда
+                    OutlinedButton.icon(
+                      onPressed: () => context.push('/bookings'),
+                      icon: const Icon(Icons.event_note_outlined),
+                      label: const Text('Брони'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 12),
                       ),
                     ),
                   ],
@@ -474,9 +476,20 @@ class _CarCard extends StatelessWidget {
   final VoidCallback onHide;      // «Не интересует это объявление»
   final VoidCallback onHideCity;  // «Не подходит город или регион»
 
+  // Число с разделителем разрядов пробелом: 1000000 → «1 000 000».
+  String _money(num v) {
+    final s = v.toStringAsFixed(0);
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
   // Километраж — отдельной строкой.
   String _mileageLine(CarModel c) =>
-      c.mileage != null ? '${c.mileage} км' : '—';
+      c.mileage != null ? '${_money(c.mileage!)} км' : '—';
 
   // Описание: кузов · КПП · топливо (что задано) — отдельной строкой.
   String _descLine(CarModel c) {
@@ -526,12 +539,13 @@ class _CarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Показываем цену по типу назначения
+    // Показываем цену по типу назначения. Нет цены → «Договорная».
+    // Сумма форматируется с разделителем разрядов: «1 000».
     final priceText = car.isForRent && car.rentPriceDaily != null
-        ? '${car.rentPriceDaily!.toStringAsFixed(0)} ${car.currency.value}/сутки'
+        ? '${_money(car.rentPriceDaily!)} ${car.currency.value}/сутки'
         : car.salePrice != null
-            ? '${car.salePrice!.toStringAsFixed(0)} ${car.currency.value}'
-            : '—';
+            ? '${_money(car.salePrice!)} ${car.currency.value}'
+            : 'Договорная';
 
     // Рейтинг в подзаголовке (если есть отзывы)
     final rating = car.reviewsCount > 0
@@ -573,31 +587,42 @@ class _CarCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Заголовок + год (слева) и сердечко (справа) — как на Avito
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${car.brand} ${car.model}, ${car.year}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: onToggleFavorite,
-                        customBorder: const CircleBorder(),
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            size: 22,
-                            color: isFavorite ? Colors.red : Colors.black54,
+                  // Заголовок + год (слева) и сердечко (справа) — как на Avito.
+                  // Высота фиксирована под 2 строки ВСЕГДА: даже если название
+                  // в одну строку, место под вторую резервируется — тогда
+                  // километраж/цена/город у всех карточек на одном уровне.
+                  SizedBox(
+                    height: 40,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${car.brand} ${car.model}, ${car.year}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              height: 1.25,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        InkWell(
+                          onTap: onToggleFavorite,
+                          customBorder: const CircleBorder(),
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Icon(
+                              isFavorite
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              size: 22,
+                              color: isFavorite ? Colors.red : Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   // Километраж — отдельной строкой
@@ -615,8 +640,6 @@ class _CarCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  // Прижимаем цену и город к низу карточки
-                  const Spacer(),
                   const SizedBox(height: 4),
                   // Цена (слева, крупно) и «три точки» (справа) — под
                   // километражом/описанием, как просили
