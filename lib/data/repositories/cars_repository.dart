@@ -86,6 +86,17 @@ class CarsRepository {
     double? userLat,
     double? userLng,
     double? radiusKm,
+    // Фильтры (все опциональны)
+    String? brand,
+    String? city,
+    int? yearFrom,
+    int? yearTo,
+    int? mileageMax,
+    double? priceFrom,
+    double? priceTo,
+    String? bodyType,
+    String? transmission,
+    String? fuel,
   }) async {
     final rows = await _client.rpc('search_cars_advanced', params: {
       'p_listing_type': listingType,
@@ -93,6 +104,16 @@ class CarsRepository {
       'p_user_lat': userLat,
       'p_user_lng': userLng,
       'p_radius_km': radiusKm,
+      'p_brand': brand,
+      'p_city': city,
+      'p_year_from': yearFrom,
+      'p_year_to': yearTo,
+      'p_mileage_max': mileageMax,
+      'p_price_from': priceFrom,
+      'p_price_to': priceTo,
+      'p_body_type': bodyType,
+      'p_transmission': transmission,
+      'p_fuel': fuel,
     });
     return _mapRows(rows);
   }

@@ -12,6 +12,8 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/notifications_repository.dart';
+import '../models/car_filters.dart';
+import 'filters_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -24,10 +26,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _repo = CarsRepository();
   final _favRepo = FavoritesRepository();
   final _auth = AuthRepository();
-  final _searchCtrl = TextEditingController();
 
   // 'sale' — купить, 'rent' — аренда
   String _listingType = 'sale';
+
+  // Выбранные фильтры (город, марка, год, пробег, цена и т.д.)
+  CarFilters _filters = CarFilters.empty;
 
   // Множество ID машин в избранном (для сердечек). Обновляется оптимистично.
   Set<String> _favoriteIds = {};
@@ -98,19 +102,37 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
   // Загрузка каталога с текущими фильтрами
   Future<List<CarModel>> _load() {
-    final q = _searchCtrl.text.trim();
     return _repo.searchAdvanced(
       listingType: _listingType,
-      query: q.isEmpty ? null : q,
+      brand: _filters.brand,
+      city: _filters.city,
+      yearFrom: _filters.yearFrom,
+      yearTo: _filters.yearTo,
+      mileageMax: _filters.mileageMax,
+      priceFrom: _filters.priceFrom,
+      priceTo: _filters.priceTo,
+      bodyType: _filters.bodyType,
+      transmission: _filters.transmission,
+      fuel: _filters.fuel,
     );
+  }
+
+  // Открыть экран фильтров и применить результат
+  Future<void> _openFilters() async {
+    final result = await Navigator.push<CarFilters>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FiltersScreen(initial: _filters),
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _filters = result;
+        _future = _load();
+      });
+    }
   }
 
   // Применить фильтры и перезапросить
@@ -154,27 +176,22 @@ class _CatalogScreenState extends State<CatalogScreen> {
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                // Логотип слева + поле поиска справа — в один ряд
+                // Логотип слева + кнопка «Фильтры» справа — в один ряд
                 Row(
                   children: [
                     Image.asset('assets/images/logo.png', height: 56),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: TextField(
-                        controller: _searchCtrl,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _apply(),
-                        decoration: InputDecoration(
-                          hintText: 'Марка, модель или город',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              _apply();
-                            },
-                          ),
-                          border: const OutlineInputBorder(),
+                      child: OutlinedButton.icon(
+                        onPressed: _openFilters,
+                        icon: const Icon(Icons.tune),
+                        label: Text(
+                          _filters.activeCount > 0
+                              ? 'Фильтры (${_filters.activeCount})'
+                              : 'Фильтры',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),
@@ -228,7 +245,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 return RefreshIndicator(
                   onRefresh: () async => _apply(),
                   child: GridView.builder(
-                    padding: const EdgeInsets.all(3),
+                    padding: const EdgeInsets.all(5),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,      // 2 карточки в ряд
@@ -335,8 +352,11 @@ class _CarCard extends StatelessWidget {
                 ),
               ],
             ),
-            // Инфо-блок под фото
-            Padding(
+            // Инфо-блок под фото — растянут до низа карточки, фон чуть темнее
+            Expanded(
+              child: Container(
+              width: double.infinity,
+              color: const Color(0xFFF0F0F0),
               padding: const EdgeInsets.all(8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,6 +396,7 @@ class _CarCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
           ],
         ),
