@@ -47,6 +47,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0          # линтер
+  flutter_launcher_icons: ^0.14.1 # генерация иконок приложения из logo.png
+
+# Конфигурация иконок приложения (запуск: dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  # Белый фон-подложка для adaptive-иконки Android (у логотипа белый фон)
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo.png"
 
 flutter:
   uses-material-design: true

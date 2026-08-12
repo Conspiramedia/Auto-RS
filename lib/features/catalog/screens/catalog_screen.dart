@@ -139,6 +139,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
     setState(() => _future = _load());
   }
 
+  // Приводим технические ошибки к понятному пользователю виду.
+  // «Failed to fetch» / таймаут обычно = нет связи или сервер «просыпается».
+  String _friendlyError(Object? e) {
+    final s = e?.toString() ?? '';
+    if (s.contains('Failed to fetch') ||
+        s.contains('SocketException') ||
+        s.contains('timeout') ||
+        s.contains('Connection')) {
+      return 'Нет связи с сервером.\nПроверьте интернет и попробуйте снова.';
+    }
+    return 'Не удалось загрузить каталог.\nПопробуйте ещё раз.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -225,7 +238,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 }
                 if (snapshot.hasError) {
                   return _ErrorState(
-                    message: '${snapshot.error}',
+                    message: _friendlyError(snapshot.error),
                     onRetry: _apply,
                   );
                 }
@@ -284,7 +297,7 @@ class _CarCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
         onTap: () => context.push('/car/${car.id}'),
-        leading: const CircleAvatar(child: Icon(Icons.directions_car)),
+        leading: _CarThumb(carId: car.id),
         title: Text('${car.brand} ${car.model}, ${car.year}'),
         subtitle: Text('${car.city} · $priceText$rating'),
         trailing: IconButton(
@@ -320,6 +333,51 @@ class _ErrorState extends StatelessWidget {
             FilledButton(onPressed: onRetry, child: const Text('Повторить')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Миниатюра первого фото машины (ленивая подгрузка из car_images).
+// Пока грузится / если фото нет — иконка машины.
+class _CarThumb extends StatefulWidget {
+  const _CarThumb({required this.carId});
+  final String carId;
+
+  @override
+  State<_CarThumb> createState() => _CarThumbState();
+}
+
+class _CarThumbState extends State<_CarThumb> {
+  final _repo = CarsRepository();
+  String? _url;
+
+  @override
+  void initState() {
+    super.initState();
+    _repo.fetchImages(widget.carId).then((imgs) {
+      if (mounted && imgs.isNotEmpty) {
+        setState(() => _url = imgs.first.imageUrl);
+      }
+    }).catchError((_) {
+      // молча — оставим иконку-плейсхолдер
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_url == null) {
+      return const CircleAvatar(child: Icon(Icons.directions_car));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        _url!,
+        width: 48,
+        height: 48,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const CircleAvatar(child: Icon(Icons.directions_car)),
       ),
     );
   }

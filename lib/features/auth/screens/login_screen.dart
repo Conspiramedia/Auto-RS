@@ -103,6 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Логотип приложения
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 120,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 16),
                 Text(
                   _isRegister ? 'Регистрация' : 'Вход',
                   style: Theme.of(context).textTheme.headlineSmall,
