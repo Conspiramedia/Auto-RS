@@ -30,6 +30,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
   String? _transmission;
   String? _fuel;
 
+  // Марки из справочника (грузятся из БД при открытии экрана)
+  List<String> _brands = [];
+
   // Модели выбранной марки (грузятся из БД)
   List<String> _models = [];
   bool _loadingModels = false;
@@ -55,8 +58,20 @@ class _FiltersScreenState extends State<FiltersScreen> {
     if (f.mileageMax != null) _mileageCtrl.text = '${f.mileageMax}';
     if (f.priceFrom != null) _priceFromCtrl.text = '${f.priceFrom!.toInt()}';
     if (f.priceTo != null) _priceToCtrl.text = '${f.priceTo!.toInt()}';
-    // Если марка уже выбрана — подгружаем её модели
+    // Марки — из справочника; если марка уже выбрана — подгружаем её модели
+    _loadBrands();
     if (_brand != null) _loadModels(_brand!);
+  }
+
+  // Загрузка марок из справочника (RPC get_car_brands)
+  Future<void> _loadBrands() async {
+    try {
+      final brands = await _repo.fetchBrands();
+      if (mounted) setState(() => _brands = brands);
+    } catch (_) {
+      // Фолбэк на статический список, если RPC недоступен
+      if (mounted) setState(() => _brands = ReferenceData.brands);
+    }
   }
 
   @override
@@ -168,7 +183,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             value: _brand,
             onTap: () => _pickFromList(
               title: 'Марка',
-              options: ReferenceData.brands,
+              options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
               current: _brand,
               onPicked: (v) {
                 setState(() {
@@ -194,7 +209,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
                 label: 'Модель',
                 value: null,
                 enabled: false,
-                hint: 'Нет объявлений этой марки',
+                hint: 'Нет моделей для этой марки',
                 onTap: () {},
               )
             else
@@ -218,25 +233,25 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _rangeRow('Цена, EUR', _priceFromCtrl, _priceToCtrl),
           const SizedBox(height: 12),
 
-          _dropdown(
+          _mapPickerField(
             label: 'Тип кузова',
             value: _bodyType,
             items: ReferenceData.bodyTypes,
-            onChanged: (v) => setState(() => _bodyType = v),
+            onPicked: (v) => setState(() => _bodyType = v),
           ),
           const SizedBox(height: 12),
-          _dropdown(
+          _mapPickerField(
             label: 'Коробка передач',
             value: _transmission,
             items: ReferenceData.transmissions,
-            onChanged: (v) => setState(() => _transmission = v),
+            onPicked: (v) => setState(() => _transmission = v),
           ),
           const SizedBox(height: 12),
-          _dropdown(
+          _mapPickerField(
             label: 'Топливо',
             value: _fuel,
             items: ReferenceData.fuels,
-            onChanged: (v) => setState(() => _fuel = v),
+            onPicked: (v) => setState(() => _fuel = v),
           ),
 
           const SizedBox(height: 24),
@@ -278,26 +293,38 @@ class _FiltersScreenState extends State<FiltersScreen> {
     );
   }
 
-  Widget _dropdown({
+  // Поле-пикер для справочника-Map (кузов/КПП/топливо). Использует ТОТ ЖЕ
+  // _pickerField и полноэкранный выбор, что «Город»/«Марка», поэтому шрифт
+  // значения «Любой» гарантированно совпадает. Хранится ключ БД (items.key),
+  // а пользователю показывается подпись (items.value).
+  Widget _mapPickerField({
     required String label,
     required String? value,
     required Map<String, String> items,
-    required ValueChanged<String?> onChanged,
+    required ValueChanged<String?> onPicked,
   }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
+    // Текущая подпись по сохранённому ключу (null → «Любой» внутри _pickerField)
+    final currentLabel = value == null ? null : items[value];
+
+    return _pickerField(
+      label: label,
+      value: currentLabel,
+      onTap: () => _pickFromList(
+        title: label,
+        options: items.values.toList(),
+        current: currentLabel,
+        onPicked: (picked) {
+          // picked — подпись (или null для «Любой»); возвращаем ключ БД
+          if (picked == null) {
+            onPicked(null);
+            return;
+          }
+          final key = items.entries
+              .firstWhere((e) => e.value == picked)
+              .key;
+          onPicked(key);
+        },
       ),
-      items: [
-        const DropdownMenuItem<String>(value: null, child: Text('Любой')),
-        ...items.entries.map(
-          (e) => DropdownMenuItem<String>(value: e.key, child: Text(e.value)),
-        ),
-      ],
-      onChanged: onChanged,
     );
   }
 

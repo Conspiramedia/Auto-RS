@@ -3,6 +3,8 @@
 // серверную RPC search_cars_advanced (фильтр по типу + поиск).
 // ============================================================
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -36,13 +38,50 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Множество ID машин в избранном (для сердечек). Обновляется оптимистично.
   Set<String> _favoriteIds = {};
 
-  late Future<List<CarModel>> _future;
+  // ---------- Бесконечная лента («крутилка», миграция 0030) ----------
+  static const int _pageSize = 20;
+  // Верхняя граница seed: < 2^31, чтобы влезало в integer на сервере.
+  static const int _maxSeed = 1 << 30;
+  final _random = Random();
+  final _scrollCtrl = ScrollController();
+
+  // Загруженные объявления (растут по мере скролла).
+  List<CarModel> _cars = [];
+  // Состояние первой загрузки / ошибки.
+  bool _loading = true;
+  Object? _error;
+
+  // Есть ли что подгружать. false ТОЛЬКО когда по фильтру совсем пусто
+  // (0 объявлений) — иначе лента бесконечна и крутится по кругу.
+  bool _hasMore = true;
+  // Идёт ли подгрузка следующей страницы (защита от двойных вызовов).
+  bool _isLoadingMore = false;
+
+  // Состояние текущего «круга»:
+  int _lapSeed = 0;    // seed круга (стабильный порядок на все его страницы)
+  int _lapOffset = 0;  // серверный offset внутри круга
+  bool _looping = false; // круги 2+: полная перетасовка (p_shuffle_all=true)
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _scrollCtrl.addListener(_onScroll);
+    _reload();
     _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  // Триггер подгрузки при приближении к концу списка.
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 600) {
+      _loadMore();
+    }
   }
 
   // Подтягиваем избранное одним запросом (только для залогиненного)
@@ -102,11 +141,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
-  // Загрузка каталога с текущими фильтрами
-  Future<List<CarModel>> _load() {
+  // Запрос одной страницы каталога с текущими фильтрами и параметрами круга.
+  Future<List<CarModel>> _fetchPage({
+    required int offset,
+    required int limit,
+    required bool shuffleAll,
+  }) {
     return _repo.searchAdvanced(
       listingType: _listingType,
       brand: _filters.brand,
+      model: _filters.model,
       city: _filters.city,
       yearFrom: _filters.yearFrom,
       yearTo: _filters.yearTo,
@@ -116,7 +160,96 @@ class _CatalogScreenState extends State<CatalogScreen> {
       bodyType: _filters.bodyType,
       transmission: _filters.transmission,
       fuel: _filters.fuel,
+      seed: _lapSeed,
+      offset: offset,
+      limit: limit,
+      shuffleAll: shuffleAll,
     );
+  }
+
+  // Загружает очередную страницу с учётом «крутилки»: если объявления
+  // текущего круга кончились, тут же начинает новый (новый seed, offset=0,
+  // полный шафл) и добирает страницу из него — без шва. За один вызов
+  // начинаем максимум ОДИН новый круг (иначе на почти пустой выдаче —
+  // вечный цикл запросов).
+  Future<List<CarModel>> _fetchLoopedPage() async {
+    final collected = <CarModel>[];
+    var startedNewLap = false;
+
+    while (collected.length < _pageSize) {
+      final want = _pageSize - collected.length;
+      final page = await _fetchPage(
+        offset: _lapOffset,
+        limit: want,
+        shuffleAll: _looping,
+      );
+
+      // Двигаем серверный offset на реально отданное число строк.
+      _lapOffset += page.length;
+
+      // На стыке кругов последний элемент старого круга может совпасть
+      // с ранним элементом нового — убираем дубль в пределах страницы.
+      final seen = collected.map((c) => c.id).toSet();
+      collected.addAll(page.where((c) => !seen.contains(c.id)));
+
+      // Сервер отдал меньше, чем просили — круг исчерпан.
+      if (page.length < want) {
+        if (startedNewLap) break; // второй круг за вызов не начинаем
+        startedNewLap = true;
+        _looping = true;                       // со 2-го круга — полный шафл
+        _lapSeed = _random.nextInt(_maxSeed);  // новый порядок круга
+        _lapOffset = 0;
+      }
+    }
+
+    return collected;
+  }
+
+  // Полная перезагрузка ленты с первого круга (новый seed, offset=0).
+  // Вызывается при старте, смене типа сделки/фильтров и pull-to-refresh.
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _lapSeed = _random.nextInt(_maxSeed);
+      _lapOffset = 0;
+      _looping = false;
+      _hasMore = true;
+    });
+    try {
+      final page = await _fetchLoopedPage();
+      if (!mounted) return;
+      setState(() {
+        _cars = page;
+        // Пусто даже после нового круга = по фильтру объявлений нет вовсе.
+        _hasMore = page.isNotEmpty;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  // Подгрузка следующей страницы при скролле вниз (без сброса списка).
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore || _loading) return;
+    _isLoadingMore = true;
+    try {
+      final page = await _fetchLoopedPage();
+      if (!mounted) return;
+      setState(() {
+        _hasMore = page.isNotEmpty;
+        _cars = [..._cars, ...page];
+      });
+    } catch (_) {
+      // Молча: старые данные не теряем, следующий скролл повторит попытку.
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 
   // Открыть экран фильтров и применить результат
@@ -128,17 +261,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
     );
     if (result != null) {
-      setState(() {
-        _filters = result;
-        _future = _load();
-      });
+      _filters = result;
+      _reload();
     }
   }
 
-  // Применить фильтры и перезапросить
-  void _apply() {
-    setState(() => _future = _load());
-  }
+  // Применить фильтры / сменить тип сделки — перезагрузка с первого круга
+  void _apply() => _reload();
 
   // Приводим технические ошибки к понятному пользователю виду.
   // «Failed to fetch» / таймаут обычно = нет связи или сервер «просыпается».
@@ -151,6 +280,64 @@ class _CatalogScreenState extends State<CatalogScreen> {
       return 'Нет связи с сервером.\nПроверьте интернет и попробуйте снова.';
     }
     return 'Не удалось загрузить каталог.\nПопробуйте ещё раз.';
+  }
+
+  // Рендер тела списка по состоянию: загрузка / ошибка / пусто / грид.
+  Widget _buildList() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return _ErrorState(message: _friendlyError(_error), onRetry: _apply);
+    }
+    // Пустой список = по фильтру объявлений нет вовсе (крутить нечего) —
+    // единственный случай заглушки при бесконечной ленте.
+    if (_cars.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          children: const [
+            SizedBox(height: 120),
+            Center(child: Text('Пока нет объявлений по этому фильтру')),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: CustomScrollView(
+        controller: _scrollCtrl,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.all(5),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,      // 2 карточки в ряд
+                mainAxisSpacing: 5,     // отступ между рядами
+                crossAxisSpacing: 5,    // отступ между колонками
+                childAspectRatio: 0.80, // пропорции карточки
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => _CarCard(
+                  car: _cars[i],
+                  isFavorite: _favoriteIds.contains(_cars[i].id),
+                  onToggleFavorite: () => _toggleFavorite(_cars[i].id),
+                ),
+                childCount: _cars.length,
+              ),
+            ),
+          ),
+          // Подвал: спиннер подгрузки следующего «круга»/страницы.
+          if (_hasMore)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -223,47 +410,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
 
           // Список результатов
-          Expanded(
-            child: FutureBuilder<List<CarModel>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return _ErrorState(
-                    message: _friendlyError(snapshot.error),
-                    onRetry: _apply,
-                  );
-                }
-                final cars = snapshot.data ?? [];
-                if (cars.isEmpty) {
-                  return const Center(
-                    child: Text('Пока нет объявлений по этому фильтру'),
-                  );
-                }
-                return RefreshIndicator(
-                  onRefresh: () async => _apply(),
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(5),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,      // 2 карточки в ряд
-                      mainAxisSpacing: 5,     // отступ между рядами
-                      crossAxisSpacing: 5,    // отступ между колонками
-                      childAspectRatio: 0.80, // пропорции карточки (ниже — меньше пустоты снизу)
-                    ),
-                    itemCount: cars.length,
-                    itemBuilder: (context, i) => _CarCard(
-                      car: cars[i],
-                      isFavorite: _favoriteIds.contains(cars[i].id),
-                      onToggleFavorite: () => _toggleFavorite(cars[i].id),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildList()),
         ],
         ),
       ),

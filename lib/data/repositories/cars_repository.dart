@@ -98,6 +98,13 @@ class CarsRepository {
     String? bodyType,
     String? transmission,
     String? fuel,
+    // Бесконечная лента (миграция 0030): seed круга, смещение, размер
+    // страницы и флаг полного шафла (круги 2+). По умолчанию — первый
+    // круг, страница 20, свежие/близкие сверху.
+    int seed = 0,
+    int offset = 0,
+    int limit = 20,
+    bool shuffleAll = false,
   }) async {
     final rows = await _client.rpc('search_cars_advanced', params: {
       'p_listing_type': listingType,
@@ -116,6 +123,10 @@ class CarsRepository {
       'p_body_type': bodyType,
       'p_transmission': transmission,
       'p_fuel': fuel,
+      'p_seed': seed,
+      'p_offset': offset,
+      'p_limit': limit,
+      'p_shuffle_all': shuffleAll,
     });
     return _mapRows(rows);
   }
@@ -229,25 +240,37 @@ class CarsRepository {
   }
 
   // ----------------------------------------------------------
-  // Модели конкретной марки, реально присутствующие в объявлениях.
-  // SELECT DISTINCT model WHERE brand = ... среди active-объявлений.
-  // Возвращает отсортированный список уникальных моделей.
+  // Марки из справочника car_brands (RPC get_car_brands).
+  // Полный каталог марок, а не только те, что есть в объявлениях.
+  // ----------------------------------------------------------
+  Future<List<String>> fetchBrands() async {
+    final rows = await _client.rpc('get_car_brands');
+
+    final list = <String>[];
+    for (final r in (rows as List)) {
+      final n = (r as Map<String, dynamic>)['name'] as String?;
+      if (n != null && n.trim().isNotEmpty) list.add(n.trim());
+    }
+    return list; // RPC уже сортирует по name
+  }
+
+  // ----------------------------------------------------------
+  // Модели конкретной марки из справочника car_models (RPC get_car_models).
+  // Берём по НАЗВАНИЮ марки (нормализация на стороне БД), поэтому список
+  // не зависит от наличия объявлений — виден весь модельный ряд.
   // ----------------------------------------------------------
   Future<List<String>> fetchModelsByBrand(String brand) async {
-    final rows = await _client
-        .from('cars')
-        .select('model')
-        .eq('brand', brand)
-        .eq('status', 'active');
+    final rows = await _client.rpc(
+      'get_car_models',
+      params: {'p_brand_name': brand},
+    );
 
-    // Уникальные модели, отсортированные
-    final set = <String>{};
+    final list = <String>[];
     for (final r in (rows as List)) {
-      final m = (r as Map<String, dynamic>)['model'] as String?;
-      if (m != null && m.trim().isNotEmpty) set.add(m.trim());
+      final m = (r as Map<String, dynamic>)['name'] as String?;
+      if (m != null && m.trim().isNotEmpty) list.add(m.trim());
     }
-    final list = set.toList()..sort();
-    return list;
+    return list; // RPC уже сортирует по name
   }
 
   List<CarModel> _mapRows(dynamic rows) {

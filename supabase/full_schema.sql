@@ -3378,3 +3378,324 @@ comment on column public.profiles.user_type
 comment on column public.profiles.role_selected
   is 'true, если пользователь прошёл онбординг выбора роли';
 
+-- ============================================================
+-- AUTO.RS — Миграция 0029: Справочник марок и моделей
+-- ============================================================
+-- Раньше марка/модель хранились только текстом в public.cars, а списки
+-- в фильтрах собирались distinct'ом из объявлений — пустой каталог до
+-- появления объявлений и уязвимость к опечаткам.
+--
+-- Вводим два справочника:
+--   car_brands  — марки (Audi, BMW, Zastava…)
+--   car_models  — модели, привязанные к марке (brand_id → car_brands.id)
+--
+-- Автопополнение: триггер на public.cars при вставке/обновлении заносит
+-- новую марку/модель в справочник, если её там ещё нет. Так каталог
+-- растёт «по факту» новых объявлений — как и просил заказчик.
+--
+-- Нормализация (f_normalize = unaccent+lower) обеспечивает двуалфавитность
+-- и защиту от дублей по регистру/диакритике. Уникальность — по *_norm.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. ТАБЛИЦА МАРОК
+-- ------------------------------------------------------------
+create table public.car_brands (
+  id         uuid        primary key default uuid_generate_v4(),
+  name       text        not null,                              -- отображаемое название (латиница как в источнике)
+  -- Нормализованное имя. GENERATED — считается самой БД, руками не задать,
+  -- всегда согласовано с name. На нём держится уникальность и поиск.
+  name_norm  text        generated always as (public.f_normalize(name)) stored,
+  created_at timestamptz not null default now(),
+
+  constraint uq_car_brands_norm unique (name_norm)
+);
+
+comment on table public.car_brands is 'Справочник марок авто (нормализованная уникальность name_norm)';
+
+-- ------------------------------------------------------------
+-- 2. ТАБЛИЦА МОДЕЛЕЙ
+-- ------------------------------------------------------------
+create table public.car_models (
+  id         uuid        primary key default uuid_generate_v4(),
+  brand_id   uuid        not null references public.car_brands (id) on delete cascade,
+  name       text        not null,
+  name_norm  text        generated always as (public.f_normalize(name)) stored,
+  created_at timestamptz not null default now(),
+
+  -- Модель уникальна В ПРЕДЕЛАХ марки: 'RX' есть и у Lexus, и у Exeed.
+  constraint uq_car_models_brand_norm unique (brand_id, name_norm)
+);
+
+comment on table public.car_models is 'Справочник моделей авто, привязанных к марке';
+
+-- Индексы под выборки: модели марки + триграммный нечёткий поиск.
+create index idx_car_models_brand_id  on public.car_models (brand_id);
+create index idx_car_brands_name_trgm on public.car_brands using gin (name_norm gin_trgm_ops);
+create index idx_car_models_name_trgm on public.car_models using gin (name_norm gin_trgm_ops);
+
+-- ------------------------------------------------------------
+-- 3. RLS: справочник читают все, пишут только через триггер/админ
+-- ------------------------------------------------------------
+alter table public.car_brands enable row level security;
+alter table public.car_models enable row level security;
+
+-- Чтение доступно гостям и авторизованным (нужно для фильтров каталога).
+create policy "car_brands_select_all" on public.car_brands
+  for select using (true);
+create policy "car_models_select_all" on public.car_models
+  for select using (true);
+
+-- Прямых INSERT/UPDATE/DELETE политик НЕ создаём: обычные пользователи
+-- не правят справочник напрямую. Наполнение идёт через SECURITY DEFINER
+-- триггер (обходит RLS) и через сид/админ-скрипты под service_role.
+
+-- ------------------------------------------------------------
+-- 4. АВТОПОПОЛНЕНИЕ СПРАВОЧНИКА ИЗ ОБЪЯВЛЕНИЙ
+-- ------------------------------------------------------------
+-- При создании/изменении объявления гарантируем наличие его марки и
+-- модели в справочнике. Работает как «расширение по факту»: продавец
+-- ввёл новую модель — она сразу появляется в каталоге фильтров.
+--
+-- SECURITY DEFINER — чтобы вставка в справочник прошла в обход RLS.
+-- on conflict do nothing — идемпотентно, гонок не боится (уник-констрейнт).
+create or replace function public.f_ensure_brand_model()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_brand_id uuid;
+begin
+  -- Пустые/пробельные значения игнорируем (в cars они not null, но перестрахуемся).
+  if new.brand is null or btrim(new.brand) = '' then
+    return new;
+  end if;
+
+  -- Марка: вставляем при отсутствии, затем достаём id по нормализованному имени.
+  insert into public.car_brands (name)
+  values (btrim(new.brand))
+  on conflict (name_norm) do nothing;
+
+  select id into v_brand_id
+  from public.car_brands
+  where name_norm = public.f_normalize(new.brand);
+
+  -- Модель: только если задана и марка найдена.
+  if v_brand_id is not null and new.model is not null and btrim(new.model) <> '' then
+    insert into public.car_models (brand_id, name)
+    values (v_brand_id, btrim(new.model))
+    on conflict (brand_id, name_norm) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+comment on function public.f_ensure_brand_model()
+  is 'Триггерная: заносит марку/модель объявления в справочник (идемпотентно)';
+
+-- Триггер срабатывает только когда марка/модель заданы или изменились,
+-- чтобы не дёргать справочник на каждом апдейте цены/статуса.
+create trigger trg_cars_ensure_brand_model
+  after insert or update of brand, model on public.cars
+  for each row
+  execute function public.f_ensure_brand_model();
+
+-- ------------------------------------------------------------
+-- 5. RPC ДЛЯ ФРОНТА: списки марок и моделей
+-- ------------------------------------------------------------
+-- Фронт FlutterFlow вызывает эти функции для выпадающих списков фильтров,
+-- вместо сбора distinct из объявлений.
+
+-- Список всех марок (алфавит). Возвращаем id — удобно для каскада моделей.
+create or replace function public.get_car_brands()
+returns table (id uuid, name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select b.id, b.name
+  from public.car_brands b
+  order by b.name;
+$$;
+
+comment on function public.get_car_brands() is 'Список марок для фильтров каталога';
+
+-- Модели выбранной марки. Марку принимаем и по id, и по названию —
+-- что удобнее фронту. Хотя бы один параметр должен быть задан.
+create or replace function public.get_car_models(
+  p_brand_id   uuid default null,
+  p_brand_name text default null
+)
+returns table (id uuid, name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select m.id, m.name
+  from public.car_models m
+  join public.car_brands b on b.id = m.brand_id
+  where
+    (p_brand_id   is not null and b.id = p_brand_id)
+    or (p_brand_name is not null
+        and b.name_norm = public.f_normalize(p_brand_name))
+  order by m.name;
+$$;
+
+comment on function public.get_car_models(uuid, text)
+  is 'Модели выбранной марки (по id или названию) для каскадных фильтров';
+
+-- Права на чтение справочника — гостям и авторизованным.
+grant execute on function public.get_car_brands()            to anon, authenticated;
+grant execute on function public.get_car_models(uuid, text)  to anon, authenticated;
+
+-- ============================================================
+-- AUTO.RS — Миграция 0030: Бесконечная лента каталога («крутилка»)
+-- ============================================================
+-- ЗАЧЕМ:
+--   Каталог не должен «заканчиваться». Когда клиент долистал все
+--   объявления текущего круга, он начинает новый круг: новый seed,
+--   offset = 0, полная перетасовка — и продолжает подгрузку тех же
+--   объявлений в новом случайном порядке. Заглушка нужна только когда
+--   объявлений вообще нет (0 строк по фильтру).
+--
+-- ЧТО МЕНЯЕМ в search_cars_advanced:
+--   + p_seed        integer  — seed круга (стабильный псевдослучайный порядок)
+--   + p_offset      integer  — смещение пагинации внутри круга
+--   + p_limit       integer  — размер страницы (было жёстко 100)
+--   + p_shuffle_all boolean  — true → полная перетасовка (круги 2+),
+--                              false → свежие сверху + хвост по seed (круг 1)
+--
+--   Порядок при одном seed СТАБИЛЕН (md5 от id+seed) — offset-пагинация
+--   не «плывёт»: ни дублей, ни пропусков при скролле внутри круга.
+--
+--   Гео-сортировка (по близости) при p_shuffle_all=false и заданных
+--   координатах сохраняется приоритетной — «рядом со мной» важнее рандома.
+--
+-- Сигнатура меняется → удаляем старую 16-параметровую версию (перегрузка).
+-- ============================================================
+drop function if exists public.search_cars_advanced(
+  text, text, double precision, double precision, double precision,
+  text, text, text, integer, integer, integer, numeric, numeric, text, text, text
+);
+
+create or replace function public.search_cars_advanced(
+  p_listing_type text default null,             -- 'sale' | 'rent' | null
+  p_search_query text default null,             -- строка поиска | null
+  p_user_lat     double precision default null,
+  p_user_lng     double precision default null,
+  p_radius_km    double precision default null,
+  p_brand        text default null,
+  p_model        text default null,
+  p_city         text default null,
+  p_year_from    integer default null,
+  p_year_to      integer default null,
+  p_mileage_max  integer default null,
+  p_price_from   numeric default null,
+  p_price_to     numeric default null,
+  p_body_type    text default null,
+  p_transmission text default null,
+  p_fuel         text default null,
+  -- НОВОЕ: бесконечная лента
+  p_seed         integer default 0,             -- seed круга
+  p_offset       integer default 0,             -- смещение пагинации
+  p_limit        integer default 20,            -- размер страницы
+  p_shuffle_all  boolean default false          -- true → полный шафл (круги 2+)
+)
+returns setof public.cars
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with params as (
+    select
+      nullif(trim(coalesce(p_search_query, '')), '') as raw_query,
+      public.f_normalize(p_search_query)             as norm,
+      case
+        when p_user_lat is not null and p_user_lng is not null
+        then st_setsrid(st_makepoint(p_user_lng, p_user_lat), 4326)::geography
+        else null
+      end as user_point
+  )
+  select c.*
+  from public.cars c, params p
+  where
+    c.status = 'active'
+    and (
+      p_listing_type is null
+      or (p_listing_type = 'sale' and c.is_for_sale)
+      or (p_listing_type = 'rent' and c.is_for_rent)
+    )
+    and (
+      p.raw_query is null
+      or public.f_normalize(c.brand) % p.norm
+      or public.f_normalize(c.model) % p.norm
+      or public.f_normalize(c.city)  % p.norm
+      or public.f_normalize(c.brand) ilike '%' || p.norm || '%'
+      or public.f_normalize(c.model) ilike '%' || p.norm || '%'
+      or public.f_normalize(c.city)  ilike '%' || p.norm || '%'
+    )
+    and (
+      p.user_point is null
+      or p_radius_km is null
+      or p_radius_km <= 0
+      or (c.location is not null
+          and st_dwithin(c.location, p.user_point, p_radius_km * 1000))
+    )
+    -- Фильтры
+    and (p_brand is null or public.f_normalize(c.brand) = public.f_normalize(p_brand))
+    and (p_model is null or public.f_normalize(c.model) = public.f_normalize(p_model))
+    and (p_city  is null or public.f_normalize(c.city)  = public.f_normalize(p_city))
+    and (p_year_from is null or c.year >= p_year_from)
+    and (p_year_to   is null or c.year <= p_year_to)
+    and (p_mileage_max is null or c.mileage is null or c.mileage <= p_mileage_max)
+    and (p_price_from is null
+         or coalesce(case when c.is_for_rent then c.rent_price_daily else c.sale_price end, 0) >= p_price_from)
+    and (p_price_to is null
+         or coalesce(case when c.is_for_rent then c.rent_price_daily else c.sale_price end, 0) <= p_price_to)
+    and (p_body_type    is null or c.body_type::text    = p_body_type)
+    and (p_transmission is null or c.transmission::text = p_transmission)
+    and (p_fuel         is null or c.fuel::text         = p_fuel)
+
+  order by
+    -- 1) Гео-близость (если заданы координаты и это НЕ круг полного шафла).
+    --    «Рядом со мной» приоритетнее рандома на первом круге.
+    case
+      when not p_shuffle_all
+       and (select user_point from params) is not null
+       and c.location is not null
+      then st_distance(c.location, (select user_point from params))
+    end asc nulls last,
+    -- 2) Блок «свежих» наверху — ТОЛЬКО на первом круге (p_shuffle_all=false).
+    --    На кругах 2+ выражение ложно для всех строк → ключ «выключается»,
+    --    остаётся чистый псевдослучайный порядок по seed (ключ 4).
+    (not p_shuffle_all
+      and c.created_at > now() - interval '3 days') desc,
+    -- 3) Внутри блока свежих — новые выше.
+    case
+      when not p_shuffle_all and c.created_at > now() - interval '3 days'
+      then c.created_at
+    end desc,
+    -- 4) Стабильный псевдослучайный порядок по seed: один seed — один и тот
+    --    же порядок на все страницы круга (offset-пагинация не «плывёт»),
+    --    новый seed — новая перетасовка.
+    md5(c.id::text || p_seed::text)
+  limit  p_limit
+  offset p_offset;
+$$;
+
+comment on function public.search_cars_advanced is
+  'Каталог v3: фильтры + гео + бесконечная «крутилка» (seed/offset/shuffle_all). Первый круг — свежие/близкие сверху, хвост по seed; круги 2+ — полная перетасовка.';
+
+-- Права: доступно гостям и авторизованным
+grant execute on function public.search_cars_advanced(
+  text, text, double precision, double precision, double precision,
+  text, text, text, integer, integer, integer, numeric, numeric, text, text, text,
+  integer, integer, integer, boolean
+) to anon, authenticated;
+
