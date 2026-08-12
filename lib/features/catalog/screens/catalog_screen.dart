@@ -141,6 +141,45 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
+  // Проверка авторизации для действий, требующих аккаунта.
+  bool _requireAuth(String message) {
+    if (_auth.currentUser != null) return true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    return false;
+  }
+
+  // «Не интересует это объявление» — скрыть конкретную карточку.
+  // Оптимистично убираем из списка, затем сохраняем на сервере.
+  Future<void> _hideCar(CarModel car) async {
+    if (!_requireAuth('Войдите, чтобы скрывать объявления')) return;
+    setState(() => _cars.removeWhere((c) => c.id == car.id));
+    try {
+      await _repo.hideCar(car.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось скрыть объявление')),
+        );
+      }
+    }
+  }
+
+  // «Не подходит город или регион» — скрыть все объявления города.
+  // Оптимистично убираем из списка все карточки этого города.
+  Future<void> _hideCity(CarModel car) async {
+    if (!_requireAuth('Войдите, чтобы скрывать города')) return;
+    setState(() => _cars.removeWhere((c) => c.city == car.city));
+    try {
+      await _repo.hideCity(car.city);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось скрыть город')),
+        );
+      }
+    }
+  }
+
   // Запрос одной страницы каталога с текущими фильтрами и параметрами круга.
   Future<List<CarModel>> _fetchPage({
     required int offset,
@@ -322,6 +361,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   car: _cars[i],
                   isFavorite: _favoriteIds.contains(_cars[i].id),
                   onToggleFavorite: () => _toggleFavorite(_cars[i].id),
+                  onHide: () => _hideCar(_cars[i]),
+                  onHideCity: () => _hideCity(_cars[i]),
                 ),
                 childCount: _cars.length,
               ),
@@ -424,20 +465,63 @@ class _CarCard extends StatelessWidget {
     required this.car,
     required this.isFavorite,
     required this.onToggleFavorite,
+    required this.onHide,
+    required this.onHideCity,
   });
   final CarModel car;
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
+  final VoidCallback onHide;      // «Не интересует это объявление»
+  final VoidCallback onHideCity;  // «Не подходит город или регион»
 
-  // Собираем строку характеристик из заданных полей: пробег · кузов · КПП · топливо
-  String _specsLine(CarModel c) {
+  // Километраж — отдельной строкой.
+  String _mileageLine(CarModel c) =>
+      c.mileage != null ? '${c.mileage} км' : '—';
+
+  // Описание: кузов · КПП · топливо (что задано) — отдельной строкой.
+  String _descLine(CarModel c) {
     final parts = <String>[
-      if (c.mileage != null) '${c.mileage} км',
       if (c.bodyType != null) c.bodyType!.value,
       if (c.transmission != null) c.transmission!.value,
       if (c.fuel != null) c.fuel!.value,
     ];
     return parts.isEmpty ? '—' : parts.join(' · ');
+  }
+
+  // Меню «три точки» — «Скрыть рекомендацию» (как на Avito).
+  void _openHideMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Скрыть рекомендацию',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+            ListTile(
+              title: const Text('Не интересует это объявление'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onHide();
+              },
+            ),
+            ListTile(
+              title: const Text('Не подходит город или регион'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onHideCity();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -474,30 +558,11 @@ class _CarCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Фото на всю ширину (4:3) + сердечко поверх
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: _CarThumb(carId: car.id),
-                ),
-                Positioned(
-                  right: 4,
-                  top: 4,
-                  child: InkWell(
-                    onTap: onToggleFavorite,
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.black26,
-                      child: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        size: 18,
-                        color: isFavorite ? Colors.red : Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            // Фото на всю ширину (4:3). Сердечко и «три точки» перенесены
+            // в текстовый блок ниже (как на Avito).
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: _CarThumb(carId: car.id),
             ),
             // Инфо-блок под фото — растянут до низа карточки, фон чуть темнее
             Expanded(
@@ -508,33 +573,80 @@ class _CarCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Заголовок + год (жирным, одна строка)
-                  Text(
-                    '${car.brand} ${car.model}, ${car.year}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  // Заголовок + год (слева) и сердечко (справа) — как на Avito
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${car.brand} ${car.model}, ${car.year}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: onToggleFavorite,
+                        customBorder: const CircleBorder(),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            size: 22,
+                            color: isFavorite ? Colors.red : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
-                  // Цена (крупно, основным цветом)
+                  // Километраж — отдельной строкой
                   Text(
-                    priceText,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // Характеристики: пробег · кузов · КПП (что задано)
-                  Text(
-                    _specsLine(car),
+                    _mileageLine(car),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 2),
-                  // Город (+ рейтинг), мелко серым
+                  // Описание (кузов · КПП · топливо) — отдельной строкой ниже
+                  Text(
+                    _descLine(car),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  // Прижимаем цену и город к низу карточки
+                  const Spacer(),
+                  const SizedBox(height: 4),
+                  // Цена (слева, крупно) и «три точки» (справа) — под
+                  // километражом/описанием, как просили
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          priceText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => _openHideMenu(context),
+                        customBorder: const CircleBorder(),
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(Icons.more_horiz,
+                              size: 22, color: Colors.black54),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Город (+ рейтинг), мелко серым — последним
                   Text(
                     '${car.city}$rating',
                     maxLines: 1,

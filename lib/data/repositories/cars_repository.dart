@@ -273,6 +273,22 @@ class CarsRepository {
     return list; // RPC уже сортирует по name
   }
 
+  // ----------------------------------------------------------
+  // Скрыть объявление из каталога («не интересует это объявление»).
+  // Постоянно, через RPC hide_car (миграция 0031). Требует авторизации.
+  // ----------------------------------------------------------
+  Future<void> hideCar(String carId) async {
+    await _client.rpc('hide_car', params: {'p_car_id': carId});
+  }
+
+  // ----------------------------------------------------------
+  // Скрыть все объявления города («не подходит город или регион»).
+  // Через RPC hide_city (город нормализуется на сервере). Требует авторизации.
+  // ----------------------------------------------------------
+  Future<void> hideCity(String city) async {
+    await _client.rpc('hide_city', params: {'p_city': city});
+  }
+
   List<CarModel> _mapRows(dynamic rows) {
     return (rows as List)
         .map((e) => CarModel.fromMap(e as Map<String, dynamic>))
