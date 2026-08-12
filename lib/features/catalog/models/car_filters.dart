@@ -5,6 +5,7 @@
 
 class CarFilters {
   final String? brand;
+  final String? model;
   final String? city;
   final int? yearFrom;
   final int? yearTo;
@@ -17,6 +18,7 @@ class CarFilters {
 
   const CarFilters({
     this.brand,
+    this.model,
     this.city,
     this.yearFrom,
     this.yearTo,
@@ -28,13 +30,13 @@ class CarFilters {
     this.fuel,
   });
 
-  // Пустые фильтры (ничего не выбрано)
   static const CarFilters empty = CarFilters();
 
   // Сколько фильтров активно (для бэйджа на кнопке «Фильтры»)
   int get activeCount {
     var n = 0;
     if (brand != null) n++;
+    if (model != null) n++;
     if (city != null) n++;
     if (yearFrom != null || yearTo != null) n++;
     if (mileageMax != null) n++;
@@ -47,6 +49,7 @@ class CarFilters {
 
   CarFilters copyWith({
     String? brand,
+    String? model,
     String? city,
     int? yearFrom,
     int? yearTo,
@@ -59,6 +62,7 @@ class CarFilters {
   }) {
     return CarFilters(
       brand: brand ?? this.brand,
+      model: model ?? this.model,
       city: city ?? this.city,
       yearFrom: yearFrom ?? this.yearFrom,
       yearTo: yearTo ?? this.yearTo,

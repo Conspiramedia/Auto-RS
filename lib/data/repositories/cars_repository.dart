@@ -88,6 +88,7 @@ class CarsRepository {
     double? radiusKm,
     // Фильтры (все опциональны)
     String? brand,
+    String? model,
     String? city,
     int? yearFrom,
     int? yearTo,
@@ -105,6 +106,7 @@ class CarsRepository {
       'p_user_lng': userLng,
       'p_radius_km': radiusKm,
       'p_brand': brand,
+      'p_model': model,
       'p_city': city,
       'p_year_from': yearFrom,
       'p_year_to': yearTo,
@@ -224,6 +226,28 @@ class CarsRepository {
     return (rows as List)
         .map((e) => CarImageModel.fromMap(e as Map<String, dynamic>))
         .toList();
+  }
+
+  // ----------------------------------------------------------
+  // Модели конкретной марки, реально присутствующие в объявлениях.
+  // SELECT DISTINCT model WHERE brand = ... среди active-объявлений.
+  // Возвращает отсортированный список уникальных моделей.
+  // ----------------------------------------------------------
+  Future<List<String>> fetchModelsByBrand(String brand) async {
+    final rows = await _client
+        .from('cars')
+        .select('model')
+        .eq('brand', brand)
+        .eq('status', 'active');
+
+    // Уникальные модели, отсортированные
+    final set = <String>{};
+    for (final r in (rows as List)) {
+      final m = (r as Map<String, dynamic>)['model'] as String?;
+      if (m != null && m.trim().isNotEmpty) set.add(m.trim());
+    }
+    final list = set.toList()..sort();
+    return list;
   }
 
   List<CarModel> _mapRows(dynamic rows) {
