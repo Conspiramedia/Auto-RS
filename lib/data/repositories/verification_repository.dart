@@ -4,6 +4,8 @@
 // Файлы документов лежат в ПРИВАТНОМ бакете user-documents (доступ по signed URL).
 // ============================================================
 
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
@@ -13,6 +15,33 @@ class VerificationRepository {
   final SupabaseClient _client = SupabaseConfig.client;
 
   static const String _bucket = 'user-documents';
+
+  // ----------------------------------------------------------
+  // Загрузка документа в ПРИВАТНЫЙ бакет user-documents.
+  // Путь ОБЯЗАН начинаться с auth.uid() (иначе RLS отклонит):
+  //   "<uid>/<docName>.jpg". Возвращает ПУТЬ в бакете (не URL — бакет
+  //   приватный, показ документа только через signed URL).
+  // docName: 'passport' | 'license'.
+  // ----------------------------------------------------------
+  Future<String> uploadDocument({
+    required String docName,
+    required List<int> bytes,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('Требуется авторизация');
+    }
+    final path = '$userId/$docName.jpg';
+    await _client.storage.from(_bucket).uploadBinary(
+          path,
+          Uint8List.fromList(bytes),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
+        );
+    return path;
+  }
 
   // ----------------------------------------------------------
   // Подписанный URL для приватного документа (действует ограниченное время).

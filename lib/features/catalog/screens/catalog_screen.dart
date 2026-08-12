@@ -54,7 +54,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Каталог')),
+      appBar: AppBar(
+        title: const Text('Каталог'),
+        actions: [
+          // Вход в диалоги (для гостя роутер уведёт на логин)
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Диалоги',
+            onPressed: () => context.push('/chats'),
+          ),
+        ],
+      ),
       // Кнопка «подать объявление». Для гостя роутер перенаправит на логин.
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {

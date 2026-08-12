@@ -6,12 +6,14 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/bookings_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../data/repositories/chat_repository.dart';
 import '../../rent/widgets/car_booking_calendar.dart';
 
 class CarDetailScreen extends StatefulWidget {
@@ -26,7 +28,10 @@ class CarDetailScreen extends StatefulWidget {
 class _CarDetailScreenState extends State<CarDetailScreen> {
   final _carsRepo = CarsRepository();
   final _bookingsRepo = BookingsRepository();
+  final _chatRepo = ChatRepository();
   final _auth = AuthRepository();
+
+  bool _startingChat = false;
 
   late Future<_DetailData> _future;
 
@@ -109,6 +114,26 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
       return 'Бронирование доступно только верифицированным пользователям';
     }
     return 'Ошибка: $s';
+  }
+
+  // Начать чат с продавцом (RPC start_chat) и перейти в комнату
+  Future<void> _startChat(CarModel car) async {
+    if (_auth.currentUser == null) {
+      _snack('Войдите, чтобы написать продавцу');
+      return;
+    }
+    setState(() => _startingChat = true);
+    try {
+      final chatId = await _chatRepo.startChat(car.id);
+      if (mounted) {
+        context.push('/chat/$chatId', extra: '${car.brand} ${car.model}');
+      }
+    } catch (e) {
+      // Напр.: «Нельзя начать чат с самим собой»
+      _snack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _startingChat = false);
+    }
   }
 
   @override
@@ -240,8 +265,14 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.tonal(
-                    onPressed: () => _snack('Чат с продавцом — в следующем шаге'),
-                    child: const Text('Написать продавцу'),
+                    onPressed: _startingChat ? null : () => _startChat(car),
+                    child: _startingChat
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Написать продавцу'),
                   ),
                 ),
               ],

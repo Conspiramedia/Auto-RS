@@ -11,9 +11,12 @@ import '../../data/repositories/auth_repository.dart';
 import '../../features/admin/screens/moderation_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/catalog/screens/car_detail_screen.dart';
+import '../../features/chat/screens/chat_room_screen.dart';
+import '../../features/chat/screens/chats_list_screen.dart';
 import '../../features/bookings/screens/bookings_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
+import '../../features/profile/screens/kyc_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../shared/screens/home_shell.dart';
 
@@ -47,6 +50,24 @@ class AppRouter {
         path: '/moderation',
         builder: (context, state) => const ModerationScreen(),
       ),
+      // Верификация KYC — требует авторизации
+      GoRoute(
+        path: '/kyc',
+        builder: (context, state) => const KycScreen(),
+      ),
+      // Список диалогов — требует авторизации
+      GoRoute(
+        path: '/chats',
+        builder: (context, state) => const ChatsListScreen(),
+      ),
+      // Чат-комната — требует авторизации. peerName передаётся через extra.
+      GoRoute(
+        path: '/chat/:id',
+        builder: (context, state) => ChatRoomScreen(
+          chatId: state.pathParameters['id']!,
+          peerName: state.extra as String?,
+        ),
+      ),
       // Основной каркас с нижней навигацией
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
@@ -75,7 +96,9 @@ class AppRouter {
       final protected = state.matchedLocation.startsWith('/profile') ||
           state.matchedLocation.startsWith('/bookings') ||
           state.matchedLocation.startsWith('/create-car') ||
-          state.matchedLocation.startsWith('/moderation');
+          state.matchedLocation.startsWith('/moderation') ||
+          state.matchedLocation.startsWith('/kyc') ||
+          state.matchedLocation.startsWith('/chat');
 
       // Гость на защищённом экране → на логин
       if (!loggedIn && protected) return '/login';
