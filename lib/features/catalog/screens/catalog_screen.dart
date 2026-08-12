@@ -12,6 +12,8 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/notifications_repository.dart';
+import '../../../data/repositories/profile_repository.dart';
+import '../../auth/widgets/role_selection_sheet.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -24,6 +26,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _repo = CarsRepository();
   final _favRepo = FavoritesRepository();
   final _auth = AuthRepository();
+  final _profileRepo = ProfileRepository();
   final _searchCtrl = TextEditingController();
 
   // 'sale' — купить, 'rent' — аренда
@@ -39,6 +42,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
     super.initState();
     _future = _load();
     _loadFavorites();
+    _maybeShowOnboarding();
+  }
+
+  // Онбординг выбора роли: при первом входе (role_selected == false)
+  // показываем bottom sheet. Для гостя не показываем.
+  Future<void> _maybeShowOnboarding() async {
+    if (_auth.currentUser == null) return;
+    try {
+      final profile = await _profileRepo.fetchMyProfile();
+      if (profile != null && !profile.roleSelected && mounted) {
+        // Ждём построения первого кадра, затем показываем sheet
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) RoleSelectionSheet.show(context);
+        });
+      }
+    } catch (_) {
+      // молча — онбординг не критичен для работы каталога
+    }
   }
 
   // Подтягиваем избранное одним запросом (только для залогиненного)

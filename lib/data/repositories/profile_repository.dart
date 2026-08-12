@@ -25,4 +25,17 @@ class ProfileRepository {
     if (row == null) return null;
     return ProfileModel.fromMap(row);
   }
+
+  // Выбор роли при онбординге: записывает user_type и отмечает,
+  // что онбординг пройден (role_selected = true). userType: 'customer'|'vendor'.
+  // RLS profiles_update_own разрешает менять только свою строку.
+  Future<void> selectRole(String userType) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Требуется авторизация');
+
+    await _client.from('profiles').update({
+      'user_type': userType,
+      'role_selected': true,
+    }).eq('id', userId);
+  }
 }
