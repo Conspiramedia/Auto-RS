@@ -139,18 +139,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Баланс вендора
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.account_balance_wallet),
-                    title: const Text('Баланс'),
-                    trailing: Text(
-                      '${data.balance.toStringAsFixed(2)} EUR',
-                      style: Theme.of(context).textTheme.titleMedium,
+                // Блок продавца (vendor): «Мои объявления» + баланс.
+                // Покупателю (customer) не показываем.
+                if (data.profile?.userType == 'vendor') ...[
+                  FilledButton.icon(
+                    onPressed: () async {
+                      await context.push('/my-cars');
+                      _reload();
+                    },
+                    icon: const Icon(Icons.directions_car),
+                    label: const Text('Мои объявления'),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.account_balance_wallet),
+                      title: const Text('Баланс'),
+                      trailing: Text(
+                        '${data.balance.toStringAsFixed(2)} EUR',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                ],
 
                 // Панели администратора
                 if (_isAdmin) ...[

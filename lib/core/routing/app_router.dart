@@ -19,6 +19,7 @@ import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/bookings/screens/bookings_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
+import '../../features/listings/screens/my_cars_screen.dart';
 import '../../features/profile/screens/kyc_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../shared/screens/home_shell.dart';
@@ -48,6 +49,11 @@ class AppRouter {
         path: '/create-car',
         builder: (context, state) => const CreateCarScreen(),
       ),
+      // Мои объявления (продавец) — требует авторизации
+      GoRoute(
+        path: '/my-cars',
+        builder: (context, state) => const MyCarsScreen(),
+      ),
       // Модерация — требует авторизации (доступ к данным закрыт RLS/RPC для не-админов)
       GoRoute(
         path: '/moderation',
@@ -62,16 +68,6 @@ class AppRouter {
       GoRoute(
         path: '/kyc-moderation',
         builder: (context, state) => const KycModerationScreen(),
-      ),
-      // Список диалогов — требует авторизации
-      GoRoute(
-        path: '/chats',
-        builder: (context, state) => const ChatsListScreen(),
-      ),
-      // Избранное — требует авторизации
-      GoRoute(
-        path: '/favorites',
-        builder: (context, state) => const FavoritesScreen(),
       ),
       // Уведомления — требует авторизации
       GoRoute(
@@ -95,6 +91,14 @@ class AppRouter {
             builder: (context, state) => const CatalogScreen(),
           ),
           GoRoute(
+            path: '/favorites',
+            builder: (context, state) => const FavoritesScreen(),
+          ),
+          GoRoute(
+            path: '/chats',
+            builder: (context, state) => const ChatsListScreen(),
+          ),
+          GoRoute(
             path: '/bookings',
             builder: (context, state) => const BookingsScreen(),
           ),
@@ -114,6 +118,7 @@ class AppRouter {
       final protected = state.matchedLocation.startsWith('/profile') ||
           state.matchedLocation.startsWith('/bookings') ||
           state.matchedLocation.startsWith('/create-car') ||
+          state.matchedLocation.startsWith('/my-cars') ||
           state.matchedLocation.startsWith('/moderation') ||
           state.matchedLocation.startsWith('/kyc') ||
           state.matchedLocation.startsWith('/chat') ||

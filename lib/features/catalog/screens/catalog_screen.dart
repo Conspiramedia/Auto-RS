@@ -169,28 +169,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Image.asset('assets/images/logo.png', height: 36),
-        actions: [
-          // Колокольчик уведомлений с бэйджем непрочитанных (для залогиненного)
-          if (_auth.currentUser != null) const _NotifBell(),
-          // Избранное
-          IconButton(
-            icon: const Icon(Icons.favorite_border),
-            tooltip: 'Избранное',
-            onPressed: () async {
-              await context.push('/favorites');
-              _loadFavorites(); // вернулись — обновим сердечки в каталоге
-            },
-          ),
-          // Вход в диалоги (для гостя роутер уведёт на логин)
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
-            tooltip: 'Диалоги',
-            onPressed: () => context.push('/chats'),
-          ),
-        ],
-      ),
+      // AppBar убран: логотип и поиск — в самом верху тела (SafeArea).
+      // Уведомления/избранное/диалоги перенесены в нижнюю навигацию.
       // Кнопка «подать объявление» — только для продавца (vendor).
       // Покупателю (customer) она не нужна и скрыта.
       floatingActionButton: _userType == 'vendor'
@@ -204,42 +184,60 @@ class _CatalogScreenState extends State<CatalogScreen> {
               label: const Text('Объявление'),
             )
           : null,
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           // Панель фильтров
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                TextField(
-                  controller: _searchCtrl,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _apply(),
-                  decoration: InputDecoration(
-                    hintText: 'Марка, модель или город',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        _apply();
-                      },
+                // Логотип слева + поле поиска справа — в один ряд
+                Row(
+                  children: [
+                    Image.asset('assets/images/logo.png', height: 56),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _apply(),
+                        decoration: InputDecoration(
+                          hintText: 'Марка, модель или город',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _apply();
+                            },
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
                     ),
-                    border: const OutlineInputBorder(),
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                // Переключатель типа сделки
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'sale', label: Text('Купить')),
-                    ButtonSegment(value: 'rent', label: Text('Аренда')),
+                // Переключатель типа сделки + колокольчик уведомлений справа
+                Row(
+                  children: [
+                    Expanded(
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'sale', label: Text('Продажа')),
+                          ButtonSegment(value: 'rent', label: Text('Аренда')),
+                        ],
+                        selected: {_listingType},
+                        onSelectionChanged: (s) {
+                          setState(() => _listingType = s.first);
+                          _apply();
+                        },
+                      ),
+                    ),
+                    // Колокольчик уведомлений (для залогиненного)
+                    if (_auth.currentUser != null) const _NotifBell(),
                   ],
-                  selected: {_listingType},
-                  onSelectionChanged: (s) {
-                    setState(() => _listingType = s.first);
-                    _apply();
-                  },
                 ),
               ],
             ),
@@ -280,6 +278,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

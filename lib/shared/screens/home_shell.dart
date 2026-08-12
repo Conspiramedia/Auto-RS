@@ -1,6 +1,6 @@
 // ============================================================
 // AUTO.RS — Каркас приложения с нижней навигацией.
-// Оборачивает вкладки Каталог / Профиль (ShellRoute go_router).
+// 5 вкладок: Каталог / Избранное / Диалоги / Брони / Профиль (ShellRoute).
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -15,8 +15,10 @@ class HomeShell extends StatelessWidget {
   // Индекс активной вкладки по текущему маршруту
   int _indexFor(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
-    if (loc.startsWith('/bookings')) return 1;
-    if (loc.startsWith('/profile')) return 2;
+    if (loc.startsWith('/favorites')) return 1;
+    if (loc.startsWith('/chats')) return 2;
+    if (loc.startsWith('/bookings')) return 3;
+    if (loc.startsWith('/profile')) return 4;
     return 0; // /catalog
   }
 
@@ -26,9 +28,15 @@ class HomeShell extends StatelessWidget {
         context.go('/catalog');
         break;
       case 1:
-        context.go('/bookings');
+        context.go('/favorites');
         break;
       case 2:
+        context.go('/chats');
+        break;
+      case 3:
+        context.go('/bookings');
+        break;
+      case 4:
         context.go('/profile');
         break;
     }
@@ -47,6 +55,16 @@ class HomeShell extends StatelessWidget {
             icon: Icon(Icons.directions_car_outlined),
             selectedIcon: Icon(Icons.directions_car),
             label: 'Каталог',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: 'Избранное',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Диалоги',
           ),
           NavigationDestination(
             icon: Icon(Icons.event_note_outlined),
