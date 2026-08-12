@@ -15,7 +15,8 @@ class HomeShell extends StatelessWidget {
   // Индекс активной вкладки по текущему маршруту
   int _indexFor(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
-    if (loc.startsWith('/profile')) return 1;
+    if (loc.startsWith('/bookings')) return 1;
+    if (loc.startsWith('/profile')) return 2;
     return 0; // /catalog
   }
 
@@ -25,6 +26,9 @@ class HomeShell extends StatelessWidget {
         context.go('/catalog');
         break;
       case 1:
+        context.go('/bookings');
+        break;
+      case 2:
         context.go('/profile');
         break;
     }
@@ -43,6 +47,11 @@ class HomeShell extends StatelessWidget {
             icon: Icon(Icons.directions_car_outlined),
             selectedIcon: Icon(Icons.directions_car),
             label: 'Каталог',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note),
+            label: 'Брони',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

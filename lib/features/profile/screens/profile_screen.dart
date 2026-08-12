@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,7 +18,26 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = AuthRepository();
+  final _admin = AdminRepository();
   bool _loading = false;
+  bool _isAdmin = false; // определяется через RPC is_admin()
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdmin();
+  }
+
+  // Проверяем роль администратора (для показа кнопки модерации)
+  Future<void> _checkAdmin() async {
+    if (_auth.currentUser == null) return;
+    try {
+      final res = await _admin.isAdmin();
+      if (mounted) setState(() => _isAdmin = res);
+    } catch (_) {
+      // молча: не админ / ошибка сети — кнопку просто не показываем
+    }
+  }
 
   Future<void> _signOut() async {
     setState(() => _loading = true);
@@ -48,6 +68,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 24),
+
+            // Кнопка модерации — только для админов (видимость по is_admin())
+            if (_isAdmin) ...[
+              FilledButton.icon(
+                onPressed: () => context.push('/moderation'),
+                icon: const Icon(Icons.verified_user),
+                label: const Text('Панель модерации'),
+              ),
+              const SizedBox(height: 12),
+            ],
+
             if (user != null)
               FilledButton.tonal(
                 onPressed: _loading ? null : _signOut,

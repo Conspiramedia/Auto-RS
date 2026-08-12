@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
 import '../models/booking_model.dart';
+import '../models/booking_with_car_model.dart';
 
 class BookingsRepository {
   final SupabaseClient _client = SupabaseConfig.client;
@@ -134,6 +135,37 @@ class BookingsRepository {
 
     return (rows as List)
         .map((e) => BookingModel.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ----------------------------------------------------------
+  // КАБИНЕТ БРОНЕЙ через VIEW bookings_with_car (0013).
+  // VIEW создана с security_invoker — RLS сам ограничит выборку.
+  // ----------------------------------------------------------
+
+  // Мои брони как клиента (арендатора).
+  Future<List<BookingWithCarModel>> fetchClientBookings(String customerId) async {
+    final rows = await _client
+        .from('bookings_with_car')
+        .select()
+        .eq('customer_id', customerId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((e) => BookingWithCarModel.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // Входящие брони на мои машины (как владельца).
+  Future<List<BookingWithCarModel>> fetchOwnerBookings(String ownerId) async {
+    final rows = await _client
+        .from('bookings_with_car')
+        .select()
+        .eq('owner_id', ownerId)
+        .order('start_date', ascending: true);
+
+    return (rows as List)
+        .map((e) => BookingWithCarModel.fromMap(e as Map<String, dynamic>))
         .toList();
   }
 

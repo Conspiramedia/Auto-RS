@@ -3,6 +3,8 @@
 // Все запросы к таблице cars инкапсулированы здесь.
 // ============================================================
 
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
@@ -155,6 +157,37 @@ class CarsRepository {
 
     if (row == null) return null;
     return CarModel.fromMap(row);
+  }
+
+  // ----------------------------------------------------------
+  // Загрузка одного фото в бакет car-images.
+  // Путь ОБЯЗАН начинаться с auth.uid() (иначе RLS бакета отклонит):
+  //   "<uid>/<tempCarUuid>/<index>.jpg".
+  // Возвращает публичный URL загруженного файла (бакет public).
+  // ----------------------------------------------------------
+  Future<String> uploadCarImage({
+    required String tempCarUuid,
+    required int index,
+    required List<int> bytes,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('Требуется авторизация для загрузки фото');
+    }
+    // Первый сегмент пути = uid (требование RLS car-images)
+    final path = '$userId/$tempCarUuid/$index.jpg';
+
+    await _client.storage.from('car-images').uploadBinary(
+          path,
+          Uint8List.fromList(bytes),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
+        );
+
+    // Публичная ссылка на файл (бакет car-images публичный на чтение)
+    return _client.storage.from('car-images').getPublicUrl(path);
   }
 
   // ----------------------------------------------------------

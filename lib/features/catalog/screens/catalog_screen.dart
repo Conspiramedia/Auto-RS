@@ -55,6 +55,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Каталог')),
+      // Кнопка «подать объявление». Для гостя роутер перенаправит на логин.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Ждём возврата с экрана создания; при успехе обновляем каталог
+          final created = await context.push<String>('/create-car');
+          if (created != null) _apply();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Объявление'),
+      ),
       body: Column(
         children: [
           // Панель фильтров
