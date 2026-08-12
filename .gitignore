@@ -41,3 +41,5 @@ Thumbs.db
 supabase/.branches/
 supabase/.temp/
 CLAUDE.md
+# Kotlin build logs
+android/.kotlin/
