@@ -1,0 +1,74 @@
+name: auto_rs
+description: "Auto.RS — авто-маркетплейс (продажа и посуточная аренда). Рынок: Сербия."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'         # Dart 3.3+
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:         # локализация RU / EN
+    sdk: flutter
+
+  # ---------- BACKEND: SUPABASE ----------
+  supabase_flutter: ^2.5.6       # клиент Supabase: auth, БД, RPC, storage, realtime
+
+  # ---------- STATE MANAGEMENT ----------
+  provider: ^6.1.2               # управление состоянием (базовый вариант FlutterFlow)
+
+  # ---------- НАВИГАЦИЯ ----------
+  go_router: ^14.2.0             # декларативная маршрутизация
+
+  # ---------- КОНФИГ / СЕКРЕТЫ ----------
+  flutter_dotenv: ^5.1.0         # чтение .env (SUPABASE_URL, ANON_KEY)
+
+  # ---------- UI / КАЛЕНДАРЬ АРЕНДЫ ----------
+  table_calendar: ^3.1.2         # календарь выбора дат брони (свободно/занято)
+  cached_network_image: ^3.3.1   # кэш фото авто из Supabase Storage
+  carousel_slider: ^5.0.0        # галерея фото в карточке авто
+  flutter_svg: ^2.0.10+1         # SVG-иконки (кузов, топливо)
+
+  # ---------- ФОТО / ЗАГРУЗКА ----------
+  image_picker: ^1.1.2           # выбор фото из галереи/камеры при создании объявления
+
+  # ---------- ФОРМАТИРОВАНИЕ ----------
+  intl: ^0.20.2                  # форматы дат, чисел, валют (EUR / RSD) — версия пиннится flutter_localizations
+
+  # ---------- УТИЛИТЫ ----------
+  equatable: ^2.0.5              # сравнение моделей
+  url_launcher: ^6.3.0           # звонок/переход к продавцу
+  connectivity_plus: ^6.0.3      # контроль сети
+  uuid: ^4.4.0                   # генерация временного UUID для пути загрузки фото
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0          # линтер
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/
+    - assets/icons/
+
+  # Шрифты (кириллица + латиница для сербских названий)
+  fonts:
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat-Regular.ttf
+        - asset: assets/fonts/Montserrat-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Montserrat-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Montserrat-Bold.ttf
+          weight: 700
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans_Condensed-Regular.ttf
+        - asset: assets/fonts/NotoSans_Condensed-Bold.ttf
+          weight: 700

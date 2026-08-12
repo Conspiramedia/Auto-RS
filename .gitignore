@@ -1,0 +1,43 @@
+# ============================================================
+# AUTO.RS — .gitignore
+# ============================================================
+
+# Секреты — НИКОГДА не коммитим
+.env
+
+# ---------- Flutter / Dart ----------
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# ---------- IDE ----------
+.idea/
+.vscode/
+*.iml
+
+# ---------- Android ----------
+android/.gradle/
+android/local.properties
+android/key.properties
+*.keystore
+*.jks
+
+# ---------- iOS ----------
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Supabase CLI ----------
+supabase/.branches/
+supabase/.temp/
+CLAUDE.md
