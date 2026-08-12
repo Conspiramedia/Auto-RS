@@ -139,9 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Блок продавца (vendor): «Мои объявления» + баланс.
-                // Покупателю (customer) не показываем.
-                if (data.profile?.userType == 'vendor') ...[
+                // «Мои объявления» + баланс — доступны всем.
+                ...[
                   FilledButton.icon(
                     onPressed: () async {
                       await context.push('/my-cars');

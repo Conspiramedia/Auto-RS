@@ -12,8 +12,6 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/notifications_repository.dart';
-import '../../../data/repositories/profile_repository.dart';
-import '../../auth/widgets/role_selection_sheet.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -26,7 +24,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _repo = CarsRepository();
   final _favRepo = FavoritesRepository();
   final _auth = AuthRepository();
-  final _profileRepo = ProfileRepository();
   final _searchCtrl = TextEditingController();
 
   // 'sale' — купить, 'rent' — аренда
@@ -35,10 +32,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Множество ID машин в избранном (для сердечек). Обновляется оптимистично.
   Set<String> _favoriteIds = {};
 
-  // Тип пользователя ('customer'|'vendor'). Влияет на видимость FAB
-  // создания объявления: показываем только продавцу (vendor).
-  String _userType = 'customer';
-
   late Future<List<CarModel>> _future;
 
   @override
@@ -46,34 +39,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
     super.initState();
     _future = _load();
     _loadFavorites();
-    _maybeShowOnboarding();
-  }
-
-  // Онбординг выбора роли: при первом входе (role_selected == false)
-  // показываем bottom sheet. Для гостя не показываем.
-  Future<void> _maybeShowOnboarding() async {
-    if (_auth.currentUser == null) return;
-    try {
-      final profile = await _profileRepo.fetchMyProfile();
-      if (profile == null) return;
-      // Сохраняем тип пользователя для видимости FAB
-      if (mounted) setState(() => _userType = profile.userType);
-      if (!profile.roleSelected && mounted) {
-        // Ждём построения первого кадра, затем показываем sheet
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          if (mounted) {
-            await RoleSelectionSheet.show(context);
-            // После выбора роли перечитываем тип (FAB обновится)
-            final updated = await _profileRepo.fetchMyProfile();
-            if (updated != null && mounted) {
-              setState(() => _userType = updated.userType);
-            }
-          }
-        });
-      }
-    } catch (_) {
-      // молча — онбординг не критичен для работы каталога
-    }
   }
 
   // Подтягиваем избранное одним запросом (только для залогиненного)
@@ -171,19 +136,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return Scaffold(
       // AppBar убран: логотип и поиск — в самом верху тела (SafeArea).
       // Уведомления/избранное/диалоги перенесены в нижнюю навигацию.
-      // Кнопка «подать объявление» — только для продавца (vendor).
-      // Покупателю (customer) она не нужна и скрыта.
-      floatingActionButton: _userType == 'vendor'
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                // Ждём возврата с экрана создания; при успехе обновляем каталог
-                final created = await context.push<String>('/create-car');
-                if (created != null) _apply();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Объявление'),
-            )
-          : null,
+      // Кнопка «подать объявление» — доступна всем (для гостя роутер уведёт на логин).
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Ждём возврата с экрана создания; при успехе обновляем каталог
+          final created = await context.push<String>('/create-car');
+          if (created != null) _apply();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Объявление'),
+      ),
       body: SafeArea(
         child: Column(
         children: [
