@@ -14,6 +14,9 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/notifications_repository.dart';
+import '../../../data/repositories/viewed_cars_repository.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
+import '../../../shared/widgets/metal_toggle.dart';
 import '../models/car_filters.dart';
 import 'filters_screen.dart';
 
@@ -28,6 +31,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _repo = CarsRepository();
   final _favRepo = FavoritesRepository();
   final _auth = AuthRepository();
+  // Локальный реестр просмотренных объявлений (плашка «Просмотрено»).
+  final _viewed = ViewedCarsRepository.instance;
 
   // 'sale' — купить, 'rent' — аренда
   String _listingType = 'sale';
@@ -78,6 +83,22 @@ class _CatalogScreenState extends State<CatalogScreen> {
     _scrollCtrl.addListener(_onScroll);
     _reload();
     _loadFavorites();
+    _loadViewed();
+  }
+
+  // Подтягиваем просмотренные id с диска и перерисовываем плашки.
+  Future<void> _loadViewed() async {
+    await _viewed.load();
+    if (mounted) setState(() {});
+  }
+
+  // Открыть карточку объявления, затем пометить её просмотренной.
+  // Метку ставим ПОСЛЕ возврата — «Просмотрено» появляется, когда
+  // пользователь реально заходил в объявление и вернулся в каталог.
+  Future<void> _openCar(CarModel car) async {
+    await context.push('/car/${car.id}');
+    final isNew = await _viewed.markViewed(car.id);
+    if (isNew && mounted) setState(() {});
   }
 
   @override
@@ -407,6 +428,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   (context, i) => _CarCard(
                     car: _cars[i],
                     isFavorite: _favoriteIds.contains(_cars[i].id),
+                    isViewed: _viewed.isViewed(_cars[i].id),
+                    onOpen: () => _openCar(_cars[i]),
                     onToggleFavorite: () => _toggleFavorite(_cars[i].id),
                     onHide: () => _hideCar(_cars[i]),
                     onHideCity: () => _hideCity(_cars[i]),
@@ -447,8 +470,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 Image.asset('assets/images/logo.png', height: 60),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _DarkPillButton(
+                  child: DarkPillButton(
                     icon: Icons.tune,
+                    expand: true,
                     label: _filters.activeCount > 0
                         ? 'Filteri (${_filters.activeCount})'
                         : 'Filteri',
@@ -481,8 +505,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
             child: _toggleVisible
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(5, 10, 5, 6),
-                    child: _MetalToggle(
+                    child: MetalToggle(
                       value: _listingType,
+                      segments: const [('sale', 'Prodaja'), ('rent', 'Najam')],
                       onChanged: (v) {
                         setState(() => _listingType = v);
                         _apply();
@@ -505,78 +530,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
 // Элементы шапки в стиле макета (золотой акцент + металлик)
 // ============================================================
 
-// Золотой акцент бренда
-const Color _kGold = Color(0xFFE8A73C);
 // Бренд-красный (активные сердечки, колокольчик с уведомлениями)
 const Color _kRed = Color(0xFFE01E23);
-
-// «Filteri» — тёмная «стеклянная» плашка с золотой иконкой.
-class _DarkPillButton extends StatelessWidget {
-  const _DarkPillButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    // Градиент+тень на внешнем контейнере; обрезка отдельным ClipRRect;
-    // InkWell (рябь) внутри клипа. Так на кромках нет артефактов.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF3A3A3E), Color(0xFF242427)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              height: 52,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: _kGold, size: 22),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // Квадратная кнопка-иконка (только иконка, без текста) — светлая с обводкой.
 class _IconPillButton extends StatelessWidget {
   const _IconPillButton({
@@ -673,117 +628,21 @@ class _LangToggle extends StatelessWidget {
   }
 }
 
-// Переключатель «Prodaja / Najam» — брашированный металлик-градиент.
-// Активная половина тёмная (с золотой галочкой), неактивная — светлый металл.
-class _MetalToggle extends StatelessWidget {
-  const _MetalToggle({required this.value, required this.onChanged});
-  final String value; // 'sale' | 'rent'
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    // Тень — на внешнем контейнере (той же скруглённой формы); содержимое
-    // обрезаем отдельным ClipRRect. Тень мягкая, без резкого смещения —
-    // иначе на малом радиусе углы кажутся «квадратными».
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: SizedBox(
-          height: 56,
-          child: Row(
-            children: [
-              Expanded(
-                child: _half(
-                  label: 'Prodaja',
-                  selected: value == 'sale',
-                  onTap: () => onChanged('sale'),
-                ),
-              ),
-              Expanded(
-                child: _half(
-                  label: 'Najam',
-                  selected: value == 'rent',
-                  onTap: () => onChanged('rent'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Одна половина переключателя.
-  Widget _half({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    // Тёмный металл (активная) / светлый металл (неактивная).
-    final gradient = selected
-        ? const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF4A4A4E), Color(0xFF2A2A2D)],
-          )
-        : const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFCFCFCF), Color(0xFF9C9C9C)],
-          );
-    final textColor = selected ? Colors.white : const Color(0xFF2B2B2E);
-
-    return InkWell(
-      onTap: onTap,
-      child: Ink(
-        decoration: BoxDecoration(gradient: gradient),
-        child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selected) ...[
-                const Icon(Icons.check_circle_outline,
-                    color: _kGold, size: 22),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // Карточка объявления в списке
 class _CarCard extends StatelessWidget {
   const _CarCard({
     required this.car,
     required this.isFavorite,
+    required this.isViewed,
+    required this.onOpen,
     required this.onToggleFavorite,
     required this.onHide,
     required this.onHideCity,
   });
   final CarModel car;
   final bool isFavorite;
+  final bool isViewed;            // true → показываем плашку «Просмотрено»
+  final VoidCallback onOpen;      // открыть карточку (и пометить просмотренной)
   final VoidCallback onToggleFavorite;
   final VoidCallback onHide;      // «Не интересует это объявление»
   final VoidCallback onHideCity;  // «Не подходит город или регион»
@@ -865,7 +724,7 @@ class _CarCard extends StatelessWidget {
         : '';
 
     return InkWell(
-      onTap: () => context.push('/car/${car.id}'),
+      onTap: onOpen,
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFFFFFFF),
@@ -889,7 +748,39 @@ class _CarCard extends StatelessWidget {
             // в текстовый блок ниже (как на Avito).
             AspectRatio(
               aspectRatio: 4 / 3,
-              child: _CarThumb(carId: car.id),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _CarThumb(carId: car.id),
+                  // Плашка «Просмотрено» в левом верхнем углу фото —
+                  // тёмная полупрозрачная, как на Avito.
+                  if (isViewed)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: const BorderRadius.only(
+                            bottomRight: Radius.circular(6),
+                          ),
+                        ),
+                        child: const Text(
+                          'Просмотрено',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             // Инфо-блок под фото — растянут до низа карточки, фон чуть темнее
             Expanded(

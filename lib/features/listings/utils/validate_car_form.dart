@@ -12,13 +12,14 @@
 //   * null            → форма валидна, можно публиковать;
 //   * непустая строка → текст ошибки для показа в SnackBar.
 //
-// Arguments:
+// Arguments (порядок проверок = порядок полей на экране):
 //   brand      : String   (Nullable)
 //   model      : String   (Nullable)
 //   year       : int      (Nullable)
 //   price      : double   (Nullable)
 //   city       : String   (Nullable)
 //   photoUrls  : List<String>  (Nullable)
+//   phone      : String   (Nullable)
 //
 // Примечание: возвращаем именно текст ошибки (а не bool), потому что
 // одна Custom Function во FlutterFlow отдаёт одно значение. Так удобнее:
@@ -32,9 +33,19 @@ String? validateCarForm(
   double? price,
   String? city,
   List<String>? photoUrls,
+  String? phone,
 ) {
   // Текущий год для проверки корректности года выпуска
   final int currentYear = DateTime.now().year;
+
+  // Порядок проверок соответствует порядку полей на экране «Подать
+  // объявление»: Город → Марка → Модель → Год → Цена → Телефон → Фото.
+  // Так первая же ошибка указывает на верхнее незаполненное поле.
+
+  // ---------- Город ----------
+  if (city == null || city.trim().isEmpty) {
+    return 'Укажите город';
+  }
 
   // ---------- Марка ----------
   if (brand == null || brand.trim().isEmpty) {
@@ -59,16 +70,42 @@ String? validateCarForm(
   }
 
   // ---------- Цена ----------
+  // Цена опциональна («Договорная»): на экране сюда передаётся фиктивная
+  // валидная величина, а фактическая проверка введённой цены выполняется
+  // отдельно в _publish. Блок оставлен для консистентности порядка полей.
   if (price == null || price <= 0) {
     return 'Цена должна быть больше нуля';
   }
 
-  // ---------- Город ----------
-  if (city == null || city.trim().isEmpty) {
-    return 'Укажите город';
+  // ---------- Телефон (сербский, обязательный) ----------
+  if (phone == null || phone.trim().isEmpty) {
+    return 'Укажите контактный телефон';
+  }
+  // Оставляем только цифры (убираем +, пробелы, скобки, дефисы)
+  final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  // Приводим к национальному виду без кода страны и ведущего 0:
+  //   +381 6X… → 3816XXXXXXX → 6XXXXXXX
+  //   00381…   → тоже отбрасываем
+  String national = phoneDigits;
+  if (national.startsWith('00381')) {
+    national = national.substring(5);
+  } else if (national.startsWith('381')) {
+    national = national.substring(3);
+  } else if (national.startsWith('0')) {
+    national = national.substring(1);
+  }
+  // Принимаем два вида сербских номеров:
+  //   • мобильный:  6 + 7…8 цифр  (06X → +3816…), напр. 641234567
+  //   • городской:  код зоны 1…3 + абонент, всего 8…9 цифр,
+  //                 напр. Белград 11 XXXXXXX, Нови-Сад 21 XXXXXX.
+  final isMobile = RegExp(r'^6\d{7,8}$').hasMatch(national);
+  final isLandline = RegExp(r'^[1-3]\d{7,8}$').hasMatch(national);
+  if (!isMobile && !isLandline) {
+    return 'Введите корректный сербский номер: '
+        'моб. +381 6X XXX XXX или гор. +381 11 XXX XXX';
   }
 
-  // ---------- Фотографии ----------
+  // ---------- Фотографии (последнее поле формы) ----------
   if (photoUrls == null || photoUrls.isEmpty) {
     return 'Добавьте хотя бы одно фото автомобиля';
   }

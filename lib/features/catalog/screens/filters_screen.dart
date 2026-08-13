@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
 import '../models/car_filters.dart';
 
 class FiltersScreen extends StatefulWidget {
@@ -260,9 +261,10 @@ class _FiltersScreenState extends State<FiltersScreen> {
           ),
 
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, _build()),
-            child: const Text('Показать объявления'),
+          // Тёмная плашка-пилюля (как «Опубликовать») — по контенту, по центру.
+          DarkPillButton(
+            label: 'Показать объявления',
+            onTap: () => Navigator.pop(context, _build()),
           ),
         ],
       ),

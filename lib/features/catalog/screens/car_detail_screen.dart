@@ -16,6 +16,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/bookings_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
 import '../../rent/widgets/car_booking_calendar.dart';
 
 class CarDetailScreen extends StatefulWidget {
@@ -116,6 +117,14 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
       return 'Бронирование доступно только верифицированным пользователям';
     }
     return 'Ошибка: $s';
+  }
+
+  // Пользователь раскрыл номер телефона.
+  // Единая точка события «показать телефон» — сюда позже подключим
+  // серверную аналитику/конверсию (цель). Пока фиксируем факт локально.
+  void _onPhoneRevealed(CarModel car) {
+    // TODO(analytics): отправить событие phone_reveal (car.id, user) на бэкенд.
+    debugPrint('phone_reveal: car=${car.id}');
   }
 
   // Начать чат с продавцом (RPC start_chat) и перейти в комнату
@@ -221,6 +230,16 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 Text(car.description!),
               ],
 
+              // ---------- Телефон продавца (скрыт → тап → раскрыт) ----------
+              if (car.contactPhone != null &&
+                  car.contactPhone!.trim().isNotEmpty) ...[
+                const Divider(height: 32),
+                _ContactPhone(
+                  phone: car.contactPhone!,
+                  onRevealed: () => _onPhoneRevealed(car),
+                ),
+              ],
+
               // ---------- Блок аренды: календарь + бронь ----------
               if (car.isForRent && car.rentPriceDaily != null) ...[
                 const Divider(height: 32),
@@ -264,21 +283,14 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 ),
               ],
 
-              // ---------- Блок продажи: контакты (заглушка) ----------
+              // ---------- Блок продажи: написать продавцу ----------
               if (car.isForSale) ...[
                 const Divider(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonal(
-                    onPressed: _startingChat ? null : () => _startChat(car),
-                    child: _startingChat
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Написать продавцу'),
-                  ),
+                // Тёмная плашка-пилюля по контенту (как «Опубликовать»).
+                DarkPillButton(
+                  label: _startingChat ? 'Открываем чат…' : 'Написать продавцу',
+                  icon: Icons.chat_bubble_outline,
+                  onTap: _startingChat ? null : () => _startChat(car),
                 ),
               ],
             ],
@@ -455,6 +467,122 @@ class _PriceLine extends StatelessWidget {
       ),
     );
   }
+}
+
+// ============================================================
+// Блок телефона продавца.
+// До тапа: номер показан наполовину (последние цифры скрыты «••••»)
+// с подписью «Показать телефон». По тапу — раскрывается полностью,
+// а onRevealed сообщает экрану о событии (для будущей цели/аналитики).
+// ============================================================
+class _ContactPhone extends StatefulWidget {
+  const _ContactPhone({required this.phone, required this.onRevealed});
+
+  // Номер в хранимом виде «+3816XXXXXXXX».
+  final String phone;
+  // Колбэк единичного события «пользователь раскрыл телефон».
+  final VoidCallback onRevealed;
+
+  @override
+  State<_ContactPhone> createState() => _ContactPhoneState();
+}
+
+class _ContactPhoneState extends State<_ContactPhone> {
+  // Брендовые цвета AUTO.RS.
+  static const Color _kRed = Color(0xFFE01E23);
+  static const Color _kText = Color(0xFF242427); // тёмный для раскрытого номера
+
+  bool _revealed = false;
+
+  void _reveal() {
+    if (_revealed) return;
+    setState(() => _revealed = true);
+    widget.onRevealed(); // единожды — фиксируем факт раскрытия
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _revealed
+        ? _formatPhone(widget.phone)
+        : _maskPhone(widget.phone);
+
+    return InkWell(
+      onTap: _revealed ? null : _reveal,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          // Белая карточка с тонкой красной рамкой — брендовый акцент.
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kRed.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Иконка: красная пока скрыто, тёмная — когда номер открыт.
+                Icon(Icons.phone, size: 20, color: _revealed ? _kText : _kRed),
+                const SizedBox(width: 8),
+                Text(
+                  text,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: _revealed ? _kText : _kRed,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                ),
+              ],
+            ),
+            // Подпись-призыв показываем только пока номер скрыт.
+            if (!_revealed) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Показать телефон',
+                style: TextStyle(
+                  color: _kRed,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Приведение хранимого «+3816XXXXXXXX» к читаемому «+381 6X XXX XXX(X)».
+String _formatPhone(String raw) {
+  final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  // Национальная часть без кода страны (381).
+  final national = digits.startsWith('381') ? digits.substring(3) : digits;
+  final buf = StringBuffer('+381 ');
+  for (int i = 0; i < national.length; i++) {
+    if (i == 2 || i == 5) buf.write(' ');
+    buf.write(national[i]);
+  }
+  return buf.toString();
+}
+
+// Полускрытый вид: последние 4 цифры заменяем на «••••».
+// «+381 6X XXX ••••».
+String _maskPhone(String raw) {
+  final formatted = _formatPhone(raw);
+  // Заменяем последние 4 цифровых символа маркерами, сохраняя пробелы.
+  final chars = formatted.split('');
+  int replaced = 0;
+  for (int i = chars.length - 1; i >= 0 && replaced < 4; i--) {
+    if (RegExp(r'[0-9]').hasMatch(chars[i])) {
+      chars[i] = '•';
+      replaced++;
+    }
+  }
+  return chars.join();
 }
 
 // Число с разделителем разрядов пробелом: 1000000 → «1 000 000».

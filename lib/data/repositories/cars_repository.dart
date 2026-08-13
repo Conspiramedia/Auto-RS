@@ -167,6 +167,8 @@ class CarsRepository {
     String? transmission,
     String? fuel,
     String? description,
+    // Контактный телефон (сербский мобильный). Нормализуется на бэкенде.
+    required String phone,
   }) async {
     final id = await _client.rpc('create_car_v2', params: {
       'listing_type': listingType,
@@ -184,6 +186,7 @@ class CarsRepository {
       'p_transmission': transmission,
       'p_fuel': fuel,
       'p_description': description,
+      'p_phone': phone,
     });
     return id as String;
   }

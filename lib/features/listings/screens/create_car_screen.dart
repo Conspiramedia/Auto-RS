@@ -16,6 +16,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
+import '../../../shared/widgets/metal_toggle.dart';
 import '../utils/generate_temp_uuid.dart';
 import '../utils/validate_car_form.dart';
 
@@ -48,6 +50,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   final _priceCtrl = TextEditingController();
   // Описание (до 6000 символов)
   final _descCtrl = TextEditingController();
+  // Контактный телефон (сербский мобильный)
+  final _phoneCtrl = TextEditingController();
+  // Фокус телефона: при входе в пустое поле сразу показываем префикс «+381 ».
+  final _phoneFocus = FocusNode();
 
   // Максимум фото на одно объявление
   static const int _maxPhotos = 10;
@@ -59,7 +65,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   bool _loadingModels = false;
 
   // Тип объявления
-  String _listingType = 'sale'; // 'sale' | 'rent' | 'both'
+  String _listingType = 'sale'; // 'sale' | 'rent'
 
   // Загруженные публичные URL фото (по порядку)
   final List<String> _photoUrls = [];
@@ -71,6 +77,25 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   void initState() {
     super.initState();
     _loadBrands();
+    _phoneFocus.addListener(_onPhoneFocus);
+  }
+
+  // При фокусе на пустом поле подставляем «+381 » — сербский код виден сразу.
+  // При потере фокуса, если остался только префикс без номера, очищаем поле,
+  // чтобы «Телефон» не выглядел заполнённым и hint был виден.
+  void _onPhoneFocus() {
+    if (_phoneFocus.hasFocus) {
+      if (_phoneCtrl.text.trim().isEmpty) {
+        _phoneCtrl.text = '+381 ';
+        _phoneCtrl.selection = TextSelection.collapsed(
+          offset: _phoneCtrl.text.length,
+        );
+      }
+    } else {
+      // Только префикс (нет ни одной цифры номера) → сбрасываем.
+      final digits = _phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits == '381') _phoneCtrl.clear();
+    }
   }
 
   @override
@@ -78,6 +103,9 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     _mileageCtrl.dispose();
     _priceCtrl.dispose();
     _descCtrl.dispose();
+    _phoneFocus.removeListener(_onPhoneFocus);
+    _phoneFocus.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -230,6 +258,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       1, // фиктивная валидная цена: проверку цены делаем отдельно ниже
       _city,
       _photoUrls,
+      _phoneCtrl.text,
     );
     if (err != null) {
       _snack(err);
@@ -262,6 +291,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
       );
       _snack('Объявление отправлено на модерацию');
       if (mounted) {
@@ -284,16 +314,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ---------- Тип объявления ----------
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'sale', label: Text('Продажа')),
-                ButtonSegment(value: 'rent', label: Text('Аренда')),
-                ButtonSegment(value: 'both', label: Text('Оба')),
-              ],
-              selected: {_listingType},
-              onSelectionChanged: (s) =>
-                  setState(() => _listingType = s.first),
+            // ---------- Тип объявления (металлик, как в каталоге) ----------
+            MetalToggle(
+              value: _listingType,
+              segments: const [('sale', 'Продажа'), ('rent', 'Аренда')],
+              onChanged: (v) => setState(() => _listingType = v),
             ),
             const SizedBox(height: 16),
 
@@ -442,6 +467,23 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               ),
             ),
 
+            const SizedBox(height: 12),
+
+            // ---------- Контактный телефон (обязательное, сербский моб./гор.) ----------
+            TextField(
+              controller: _phoneCtrl,
+              focusNode: _phoneFocus,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [_SerbianPhoneFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'Телефон',
+                hintText: '+381 6X XXX XXX',
+                hintStyle: _hintStyle,
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                border: OutlineInputBorder(),
+              ),
+            ),
+
             const SizedBox(height: 16),
 
             // ---------- Фото (до 10) ----------
@@ -458,16 +500,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             const SizedBox(height: 24),
 
-            // ---------- Публикация ----------
-            FilledButton(
-              onPressed: _publishing ? null : _publish,
-              child: _publishing
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Опубликовать'),
+            // ---------- Публикация (тёмная плашка, по контенту) ----------
+            DarkPillButton(
+              label: _publishing ? 'Публикуем…' : 'Опубликовать',
+              onTap: _publishing ? null : _publish,
             ),
             const SizedBox(height: 8),
             Text(
@@ -552,6 +588,57 @@ class _ThousandsFormatter extends TextInputFormatter {
     final buf = StringBuffer();
     for (int i = 0; i < digits.length; i++) {
       if (i > 0 && (digits.length - i) % 3 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    final formatted = buf.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// Форматтер сербского номера (мобильный или городской). По мере ввода
+// приводит к виду «+381 XX XXX XXX(X)»: первые 2 цифры — код (мобильный 6X
+// или зона 11/21/…), далее группы по 3. Хранит только цифры национальной
+// части (без кода страны и ведущего 0), поэтому вставка/удаление в середине
+// не ломают маску — курсор всегда уходит в конец.
+class _SerbianPhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Все цифры из ввода
+    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    // Отбрасываем код страны/ведущий 0 → остаётся национальная часть «6XXXXXXXX»
+    if (digits.startsWith('00381')) {
+      digits = digits.substring(5);
+    } else if (digits.startsWith('381')) {
+      digits = digits.substring(3);
+    } else if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    // Максимум 9 цифр национальной части (6 + 8)
+    if (digits.length > 9) digits = digits.substring(0, 9);
+
+    // Национальной части ещё нет. Если пользователь уже начал (в поле был
+    // префикс) — оставляем «+381 » как подсказку; иначе поле пустое.
+    if (digits.isEmpty) {
+      final hadPrefix = newValue.text.replaceAll(RegExp(r'[^0-9]'), '') == '381';
+      return hadPrefix
+          ? const TextEditingValue(
+              text: '+381 ',
+              selection: TextSelection.collapsed(offset: 5),
+            )
+          : const TextEditingValue(text: '');
+    }
+
+    // Собираем «+381 6X XXX XXX(X)»: группы 2-3-3(+1).
+    final buf = StringBuffer('+381 ');
+    for (int i = 0; i < digits.length; i++) {
+      // Пробелы после 2-й и 5-й цифр национальной части
+      if (i == 2 || i == 5) buf.write(' ');
       buf.write(digits[i]);
     }
     final formatted = buf.toString();

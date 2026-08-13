@@ -69,9 +69,12 @@ class HomeShell extends StatelessWidget {
                   Icons.window, 'Каталог', theme),
               _navItem(context, 1, index, Icons.favorite_border,
                   Icons.favorite, 'Избранное', theme),
-              // «+» по центру — бренд-красный, жирнее и крупнее.
+              // «+» по центру — бренд-красный, ЖИРНЫЙ (своя отрисовка, т.к.
+              // стандартные Material Icons не поддерживают толщину).
               _navItem(context, 2, index, Icons.add, Icons.add, 'Разместить',
-                  theme, iconSize: 36, iconColor: _kRed, iconWeight: 800),
+                  theme, iconSize: 34, iconColor: _kRed,
+                  customIconBuilder: (color, size, filled) =>
+                      _PlusIcon(color: color, size: size)),
               // Сообщения — спич-баббл.
               _navItem(context, 3, index, Icons.chat_bubble_outline,
                   Icons.chat_bubble, 'Сообщения', theme),
@@ -133,4 +136,43 @@ class HomeShell extends StatelessWidget {
       ),
     );
   }
+}
+
+// Жирный плюс: две толстые линии (Material Icons не дают регулировать
+// толщину, поэтому рисуем сами). Толщина ~18% от размера.
+class _PlusIcon extends StatelessWidget {
+  const _PlusIcon({required this.color, required this.size});
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _PlusPainter(color)),
+    );
+  }
+}
+
+class _PlusPainter extends CustomPainter {
+  _PlusPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = w * 0.18 // толщина линий
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    final c = w / 2;
+    final pad = w * 0.16; // отступ концов от краёв
+    canvas.drawLine(Offset(pad, c), Offset(w - pad, c), paint);     // горизонт.
+    canvas.drawLine(Offset(c, pad), Offset(c, w - pad), paint);     // вертик.
+  }
+
+  @override
+  bool shouldRepaint(_PlusPainter old) => old.color != color;
 }

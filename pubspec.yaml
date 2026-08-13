@@ -42,6 +42,7 @@ dependencies:
   url_launcher: ^6.3.0           # звонок/переход к продавцу
   connectivity_plus: ^6.0.3      # контроль сети
   uuid: ^4.4.0                   # генерация временного UUID для пути загрузки фото
+  shared_preferences: ^2.2.3     # локальное хранилище (просмотренные объявления)
 
 dev_dependencies:
   flutter_test:

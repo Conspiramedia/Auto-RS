@@ -36,6 +36,9 @@ class CarModel {
   final String city;
   final String? description;
 
+  // Контактный телефон продавца (сербский мобильный, вид +3816XXXXXXXX)
+  final String? contactPhone;
+
   // Рейтинг (пересчитывается триггером на сервере)
   final double ratingAvg;
   final int reviewsCount;
@@ -64,6 +67,7 @@ class CarModel {
     required this.depositAmount,
     required this.city,
     this.description,
+    this.contactPhone,
     this.ratingAvg = 0.0,
     this.reviewsCount = 0,
     required this.status,
@@ -93,6 +97,7 @@ class CarModel {
       depositAmount: _toDouble(map['deposit_amount']) ?? 0,
       city: map['city'] as String,
       description: map['description'] as String?,
+      contactPhone: map['contact_phone'] as String?,
       ratingAvg: _toDouble(map['rating_avg']) ?? 0.0,
       reviewsCount: map['reviews_count'] as int? ?? 0,
       status: CarStatus.fromValue(map['status'] as String?),
