@@ -68,6 +68,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
   double _lastScrollPx = 0;   // позиция на прошлом событии
   double _scrollUpAccum = 0;  // сколько «вверх» накопили подряд
 
+  // Язык интерфейса: 'sr' | 'ru'. Пока только UI-переключатель (переводы
+  // строк подключим позже через локализацию).
+  String _lang = 'sr';
+
   @override
   void initState() {
     super.initState();
@@ -368,43 +372,61 @@ class _CatalogScreenState extends State<CatalogScreen> {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: _reload,
-      child: CustomScrollView(
-        controller: _scrollCtrl,
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.all(5),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,      // 2 карточки в ряд
-                mainAxisSpacing: 5,     // отступ между рядами
-                crossAxisSpacing: 5,    // отступ между колонками
-                childAspectRatio: 0.75, // пропорции карточки (ниже — выше карточка, влезают все строки текста)
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _CarCard(
-                  car: _cars[i],
-                  isFavorite: _favoriteIds.contains(_cars[i].id),
-                  onToggleFavorite: () => _toggleFavorite(_cars[i].id),
-                  onHide: () => _hideCar(_cars[i]),
-                  onHideCity: () => _hideCity(_cars[i]),
+    // Высота карточки считается динамически от ширины экрана:
+    //   фото (4:3 от ширины карточки) + текстовый блок + запас снизу.
+    // Так на любом экране запас минимальный (~10px), без «пустоты».
+    return LayoutBuilder(builder: (context, constraints) {
+      const outerPad = 5.0;   // SliverPadding.all(5)
+      const crossGap = 5.0;   // crossAxisSpacing
+      const cols = 2;
+      // Ширина одной карточки при 2 колонках.
+      final cardW =
+          (constraints.maxWidth - outerPad * 2 - crossGap * (cols - 1)) / cols;
+      // Высота инфо-блока под фото: paddings(16) + название(40) + gaps(12)
+      // + 3 мелкие строки(~16) + цена(~20) ≈ 140 (небольшой запас, чтобы при
+      // особенностях шрифта не было overflow). + маленький запас снизу.
+      const textBlockH = 140.0;
+      const bottomPad = 8.0;
+      final extent = cardW * 3 / 4 + textBlockH + bottomPad;
+
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: CustomScrollView(
+          controller: _scrollCtrl,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.all(outerPad),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  mainAxisSpacing: 5,
+                  crossAxisSpacing: crossGap,
+                  mainAxisExtent: extent, // точная высота вместо соотношения
                 ),
-                childCount: _cars.length,
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => _CarCard(
+                    car: _cars[i],
+                    isFavorite: _favoriteIds.contains(_cars[i].id),
+                    onToggleFavorite: () => _toggleFavorite(_cars[i].id),
+                    onHide: () => _hideCar(_cars[i]),
+                    onHideCity: () => _hideCity(_cars[i]),
+                  ),
+                  childCount: _cars.length,
+                ),
               ),
             ),
-          ),
-          // Подвал: спиннер подгрузки следующего «круга»/страницы.
-          if (_hasMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
+            // Подвал: спиннер подгрузки следующего «круга»/страницы.
+            if (_hasMore)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
-            ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
   @override
@@ -434,10 +456,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                _OutlinePillButton(
+                // Rezervacije — только иконка календаря (без текста, компактно)
+                _IconPillButton(
                   icon: Icons.calendar_month_outlined,
-                  label: 'Rezervacije',
+                  tooltip: 'Rezervacije',
                   onTap: () => context.push('/bookings'),
+                ),
+                const SizedBox(width: 8),
+                // Переключатель языка RU / SR
+                _LangToggle(
+                  value: _lang,
+                  onChanged: (v) => setState(() => _lang = v),
                 ),
                 if (_auth.currentUser != null) const _NotifBell(),
               ],
@@ -548,50 +577,92 @@ class _DarkPillButton extends StatelessWidget {
   }
 }
 
-// «Rezervacije» — светлая плашка с тёмной обводкой.
-class _OutlinePillButton extends StatelessWidget {
-  const _OutlinePillButton({
+// Квадратная кнопка-иконка (только иконка, без текста) — светлая с обводкой.
+class _IconPillButton extends StatelessWidget {
+  const _IconPillButton({
     required this.icon,
-    required this.label,
+    required this.tooltip,
     required this.onTap,
   });
   final IconData icon;
-  final String label;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     const radius = BorderRadius.all(Radius.circular(16));
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: radius,
+          border: Border.all(color: const Color(0xFF2B2B2E), width: 1.5),
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: 52,
+                height: 49, // как у остальных плашек (52 − 2×1.5 рамки)
+                child: Icon(icon, color: const Color(0xFF2B2B2E), size: 24),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Кнопка-тумблер языка: показывает текущий (RS/RU), по тапу переключает.
+// Первая буква R — бренд-красная, вторая (S/U) — белая, фон тёмный.
+class _LangToggle extends StatelessWidget {
+  const _LangToggle({required this.value, required this.onChanged});
+  final String value; // 'sr' | 'ru'
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(16));
+    // Показываем текущий язык; тап переключает на другой.
+    final isSr = value == 'sr';
+    final second = isSr ? 'S' : 'U'; // RS — сербский, RU — русский
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: const BoxDecoration(
+        color: Color(0xFF2B2B2E),
         borderRadius: radius,
-        border: Border.all(color: const Color(0xFF2B2B2E), width: 1.5),
       ),
       child: ClipRRect(
         borderRadius: radius,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                height: 49, // 52 − 2×1.5 (рамка снаружи), чтобы высота совпала
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, color: const Color(0xFF2B2B2E), size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Color(0xFF2B2B2E),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+            onTap: () => onChanged(isSr ? 'ru' : 'sr'),
+            child: SizedBox(
+              width: 52,
+              height: 49,
+              child: Center(
+                child: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                  ],
+                    children: [
+                      const TextSpan(
+                        text: 'R',
+                        style: TextStyle(color: _kRed),
+                      ),
+                      TextSpan(
+                        text: second,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
