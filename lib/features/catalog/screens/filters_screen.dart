@@ -181,6 +181,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _pickerField(
             label: 'Марка',
             value: _brand,
+            hint: 'Любая',
             onTap: () => _pickFromList(
               title: 'Марка',
               options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
@@ -216,6 +217,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
               _pickerField(
                 label: 'Модель',
                 value: _model,
+                hint: 'Любая',
                 onTap: () => _pickFromList(
                   title: 'Модель',
                   options: _models,
@@ -228,15 +230,16 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
           _rangeRow('Год', _yearFromCtrl, _yearToCtrl),
           const SizedBox(height: 12),
-          _numField(_mileageCtrl, 'Пробег до, км'),
+          _numField(_mileageCtrl, 'Пробег, км', hint: 'до'),
           const SizedBox(height: 12),
-          _rangeRow('Цена, EUR', _priceFromCtrl, _priceToCtrl),
+          _rangeRow('Цена, €', _priceFromCtrl, _priceToCtrl),
           const SizedBox(height: 12),
 
           _mapPickerField(
             label: 'Тип кузова',
             value: _bodyType,
             items: ReferenceData.bodyTypes,
+            hint: 'Любой',
             onPicked: (v) => setState(() => _bodyType = v),
           ),
           const SizedBox(height: 12),
@@ -244,6 +247,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             label: 'Коробка передач',
             value: _transmission,
             items: ReferenceData.transmissions,
+            hint: 'Любая',
             onPicked: (v) => setState(() => _transmission = v),
           ),
           const SizedBox(height: 12),
@@ -251,6 +255,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             label: 'Топливо',
             value: _fuel,
             items: ReferenceData.fuels,
+            hint: 'Любое',
             onPicked: (v) => setState(() => _fuel = v),
           ),
 
@@ -302,13 +307,15 @@ class _FiltersScreenState extends State<FiltersScreen> {
     required String? value,
     required Map<String, String> items,
     required ValueChanged<String?> onPicked,
+    String? hint,
   }) {
-    // Текущая подпись по сохранённому ключу (null → «Любой» внутри _pickerField)
+    // Текущая подпись по сохранённому ключу (null → hint внутри _pickerField)
     final currentLabel = value == null ? null : items[value];
 
     return _pickerField(
       label: label,
       value: currentLabel,
+      hint: hint,
       onTap: () => _pickFromList(
         title: label,
         options: items.values.toList(),
@@ -328,31 +335,36 @@ class _FiltersScreenState extends State<FiltersScreen> {
     );
   }
 
-  Widget _numField(TextEditingController ctrl, String label) {
+  // Единый стиль подсказки-плейсхолдера: мелкий и тусклый, как «Любой»
+  // в пикерах. Тот же вид, что на форме подачи объявления.
+  static const TextStyle _hintStyle =
+      TextStyle(color: Colors.grey, fontSize: 14);
+
+  // Числовое поле: лейбл в разрыве рамки (всегда), серая подсказка внутри —
+  // единообразно с пикерами и формой подачи.
+  Widget _numField(TextEditingController ctrl, String label, {String? hint}) {
     return TextField(
       controller: ctrl,
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: label,
+        hintText: hint,
+        hintStyle: _hintStyle,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         border: const OutlineInputBorder(),
       ),
     );
   }
 
+  // Диапазон «от/до»: два поля в ряд, у каждого лейбл в рамке — без
+  // отдельного заголовка сверху, чтобы вид совпадал с остальными полями.
   Widget _rangeRow(
       String label, TextEditingController from, TextEditingController to) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(child: _numField(from, 'от')),
-            const SizedBox(width: 12),
-            Expanded(child: _numField(to, 'до')),
-          ],
-        ),
+        Expanded(child: _numField(from, '$label от')),
+        const SizedBox(width: 12),
+        Expanded(child: _numField(to, '$label до')),
       ],
     );
   }
