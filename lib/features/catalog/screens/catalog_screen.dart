@@ -62,6 +62,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int _lapOffset = 0;  // серверный offset внутри круга
   bool _looping = false; // круги 2+: полная перетасовка (p_shuffle_all=true)
 
+  // Видимость переключателя Prodaja/Najam: прячется при скролле вниз,
+  // показывается при скролле вверх (накопленных ~50px).
+  bool _toggleVisible = true;
+  double _lastScrollPx = 0;   // позиция на прошлом событии
+  double _scrollUpAccum = 0;  // сколько «вверх» накопили подряд
+
   @override
   void initState() {
     super.initState();
@@ -76,11 +82,31 @@ class _CatalogScreenState extends State<CatalogScreen> {
     super.dispose();
   }
 
-  // Триггер подгрузки при приближении к концу списка.
+  // Триггер подгрузки при приближении к концу списка + управление
+  // видимостью переключателя Prodaja/Najam по направлению скролла.
   void _onScroll() {
-    if (_scrollCtrl.position.pixels >=
-        _scrollCtrl.position.maxScrollExtent - 600) {
+    final px = _scrollCtrl.position.pixels;
+
+    // Подгрузка следующей страницы у конца списка.
+    if (px >= _scrollCtrl.position.maxScrollExtent - 600) {
       _loadMore();
+    }
+
+    final delta = px - _lastScrollPx;
+    _lastScrollPx = px;
+
+    if (delta > 0) {
+      // Скролл ВНИЗ — прячем переключатель, сбрасываем счётчик «вверх».
+      _scrollUpAccum = 0;
+      if (_toggleVisible && px > 20) {
+        setState(() => _toggleVisible = false);
+      }
+    } else if (delta < 0) {
+      // Скролл ВВЕРХ — копим; после ~50px показываем переключатель.
+      _scrollUpAccum += -delta;
+      if (!_toggleVisible && (_scrollUpAccum >= 50 || px <= 0)) {
+        setState(() => _toggleVisible = true);
+      }
     }
   }
 
@@ -390,71 +416,286 @@ class _CatalogScreenState extends State<CatalogScreen> {
       body: SafeArea(
         child: Column(
         children: [
-          // Панель фильтров
+          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле):
+          // логотип + Filteri + Rezervacije + колокольчик.
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
               children: [
-                // Логотип слева + кнопки «Фильтры» и «Брони» — в один ряд
-                Row(
-                  children: [
-                    Image.asset('assets/images/logo.png', height: 56),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _openFilters,
-                        icon: const Icon(Icons.tune),
-                        label: Text(
-                          _filters.activeCount > 0
-                              ? 'Фильтры (${_filters.activeCount})'
-                              : 'Фильтры',
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // «Брони» — вынесено из нижнего меню сюда
-                    OutlinedButton.icon(
-                      onPressed: () => context.push('/bookings'),
-                      icon: const Icon(Icons.event_note_outlined),
-                      label: const Text('Брони'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 12),
-                      ),
-                    ),
-                  ],
+                Image.asset('assets/images/logo.png', height: 60),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DarkPillButton(
+                    icon: Icons.tune,
+                    label: _filters.activeCount > 0
+                        ? 'Filteri (${_filters.activeCount})'
+                        : 'Filteri',
+                    onTap: _openFilters,
+                  ),
                 ),
-                const SizedBox(height: 8),
-                // Переключатель типа сделки + колокольчик уведомлений справа
-                Row(
-                  children: [
-                    Expanded(
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'sale', label: Text('Продажа')),
-                          ButtonSegment(value: 'rent', label: Text('Аренда')),
-                        ],
-                        selected: {_listingType},
-                        onSelectionChanged: (s) {
-                          setState(() => _listingType = s.first);
-                          _apply();
-                        },
-                      ),
-                    ),
-                    // Колокольчик уведомлений (для залогиненного)
-                    if (_auth.currentUser != null) const _NotifBell(),
-                  ],
+                const SizedBox(width: 10),
+                _OutlinePillButton(
+                  icon: Icons.calendar_month_outlined,
+                  label: 'Rezervacije',
+                  onTap: () => context.push('/bookings'),
                 ),
+                if (_auth.currentUser != null) const _NotifBell(),
               ],
             ),
+          ),
+
+          // Переключатель Prodaja/Najam — на всю ширину карточек, прячется
+          // при скролле вниз и выезжает при скролле вверх (~50px).
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            child: _toggleVisible
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(5, 10, 5, 6),
+                    child: _MetalToggle(
+                      value: _listingType,
+                      onChanged: (v) {
+                        setState(() => _listingType = v);
+                        _apply();
+                      },
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
 
           // Список результатов
           Expanded(child: _buildList()),
         ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// Элементы шапки в стиле макета (золотой акцент + металлик)
+// ============================================================
+
+// Золотой акцент бренда
+const Color _kGold = Color(0xFFE8A73C);
+// Бренд-красный (активные сердечки, колокольчик с уведомлениями)
+const Color _kRed = Color(0xFFE01E23);
+
+// «Filteri» — тёмная «стеклянная» плашка с золотой иконкой.
+class _DarkPillButton extends StatelessWidget {
+  const _DarkPillButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(16));
+    // Градиент+тень на внешнем контейнере; обрезка отдельным ClipRRect;
+    // InkWell (рябь) внутри клипа. Так на кромках нет артефактов.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF3A3A3E), Color(0xFF242427)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 52,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: _kGold, size: 22),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// «Rezervacije» — светлая плашка с тёмной обводкой.
+class _OutlinePillButton extends StatelessWidget {
+  const _OutlinePillButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(16));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: radius,
+        border: Border.all(color: const Color(0xFF2B2B2E), width: 1.5),
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                height: 49, // 52 − 2×1.5 (рамка снаружи), чтобы высота совпала
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, color: const Color(0xFF2B2B2E), size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF2B2B2E),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Переключатель «Prodaja / Najam» — брашированный металлик-градиент.
+// Активная половина тёмная (с золотой галочкой), неактивная — светлый металл.
+class _MetalToggle extends StatelessWidget {
+  const _MetalToggle({required this.value, required this.onChanged});
+  final String value; // 'sale' | 'rent'
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(16));
+    // Тень — на внешнем контейнере (той же скруглённой формы); содержимое
+    // обрезаем отдельным ClipRRect. Тень мягкая, без резкого смещения —
+    // иначе на малом радиусе углы кажутся «квадратными».
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              Expanded(
+                child: _half(
+                  label: 'Prodaja',
+                  selected: value == 'sale',
+                  onTap: () => onChanged('sale'),
+                ),
+              ),
+              Expanded(
+                child: _half(
+                  label: 'Najam',
+                  selected: value == 'rent',
+                  onTap: () => onChanged('rent'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Одна половина переключателя.
+  Widget _half({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    // Тёмный металл (активная) / светлый металл (неактивная).
+    final gradient = selected
+        ? const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF4A4A4E), Color(0xFF2A2A2D)],
+          )
+        : const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFCFCFCF), Color(0xFF9C9C9C)],
+          );
+    final textColor = selected ? Colors.white : const Color(0xFF2B2B2E);
+
+    return InkWell(
+      onTap: onTap,
+      child: Ink(
+        decoration: BoxDecoration(gradient: gradient),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected) ...[
+                const Icon(Icons.check_circle_outline,
+                    color: _kGold, size: 22),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -556,9 +797,10 @@ class _CarCard extends StatelessWidget {
       onTap: () => context.push('/car/${car.id}'),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(3), // радиус 3px
-          border: Border.all(color: const Color(0xFFE0E0E0)),
+          // Тонкая серая обводка, чтобы карточка не сливалась с фоном
+          border: Border.all(color: const Color(0xFFCCCCCC)),
           // Тень для эффекта «парения» над фоном
           boxShadow: [
             BoxShadow(
@@ -617,7 +859,7 @@ class _CarCard extends StatelessWidget {
                                   ? Icons.favorite
                                   : Icons.favorite_border,
                               size: 22,
-                              color: isFavorite ? Colors.red : Colors.black54,
+                              color: isFavorite ? _kRed : Colors.black54,
                             ),
                           ),
                         ),
@@ -741,10 +983,11 @@ class _CarThumbState extends State<_CarThumb> {
 
   @override
   Widget build(BuildContext context) {
-    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto.RS
-    // на фоне под цвет логотипа, во всю область фото.
+    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto.RS.
+    // cover — заполняет область как реальное фото, без полей по краям, чтобы
+    // карточка-заглушка выглядела так же, как карточка с фото-логотипом.
     final placeholder = Container(
-      color: const Color(0xFFFEFEFE),
+      color: const Color(0xFFFFFFFF),
       alignment: Alignment.center,
       child: Image.asset('assets/images/logo.png', fit: BoxFit.cover),
     );
@@ -785,23 +1028,28 @@ class _NotifBellState extends State<_NotifBell> {
         // Считаем непрочитанные из потока
         final unread =
             (snapshot.data ?? []).where((n) => !n.isRead).length;
+        final hasUnread = unread > 0;
         return Stack(
           alignment: Alignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.notifications_none),
+              // Есть непрочитанные — красный залитый колокольчик, иначе обычный.
+              icon: Icon(
+                hasUnread ? Icons.notifications : Icons.notifications_none,
+                color: hasUnread ? _kRed : null,
+              ),
               tooltip: 'Уведомления',
               onPressed: () => context.push('/notifications'),
             ),
             // Красный бэйдж с числом (если есть непрочитанные)
-            if (unread > 0)
+            if (hasUnread)
               Positioned(
                 right: 6,
                 top: 6,
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: const BoxDecoration(
-                    color: Colors.red,
+                    color: _kRed,
                     shape: BoxShape.circle,
                   ),
                   constraints:

@@ -428,6 +428,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               maxLength: 6000,
               keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
+              // Заглавная в начале и после . ! ? — подсказка клавиатуре плюс
+              // форматтер, гарантирующий результат независимо от неё.
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [_SentenceCaseFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Описание',
                 hintText: 'Состояние, комплектация, история…',
@@ -554,6 +558,42 @@ class _ThousandsFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+// Форматтер: делает заглавной первую букву предложения — в начале текста и
+// после . ! ? (с учётом пробелов/переводов строк). Длину текста не меняет,
+// поэтому позицию курсора из newValue сохраняем как есть.
+class _SentenceCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+
+    final chars = text.split('');
+    // capitalizeNext = true → следующую БУКВУ делаем заглавной.
+    var capitalizeNext = true;
+    for (int i = 0; i < chars.length; i++) {
+      final c = chars[i];
+      if (c.trim().isEmpty) {
+        continue; // пробелы/переводы строк не меняют флаг
+      }
+      if (capitalizeNext) {
+        chars[i] = c.toUpperCase();
+        capitalizeNext = false;
+      }
+      // После завершающего знака препинания — следующее слово с заглавной.
+      if (c == '.' || c == '!' || c == '?') {
+        capitalizeNext = true;
+      }
+    }
+    return TextEditingValue(
+      text: chars.join(),
+      selection: newValue.selection,
     );
   }
 }

@@ -12,7 +12,7 @@ class AppTheme {
   static const Color _seed = Color(0xFF1565C0);
 
   // Фон приложения под цвет фона логотипа (чтобы логотип не выделялся)
-  static const Color _bg = Color(0xFFFEFEFE);
+  static const Color _bg = Color(0xFFFFFFFF);
 
   static ThemeData get light => ThemeData(
         useMaterial3: true,

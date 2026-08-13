@@ -130,7 +130,7 @@ class _FavCard extends StatelessWidget {
             '${fav.year != null ? ', ${fav.year}' : ''}'),
         subtitle: Text('${fav.city} · $price'),
         trailing: IconButton(
-          icon: const Icon(Icons.favorite, color: Colors.red),
+          icon: const Icon(Icons.favorite, color: Color(0xFFE01E23)),
           onPressed: onRemove,
         ),
       ),
