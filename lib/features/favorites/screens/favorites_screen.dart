@@ -10,6 +10,8 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/favorite_with_car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -39,9 +41,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       _reload();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось обновить избранное')),
-        );
+        showAppSnack(context, 'Не удалось обновить избранное');
       }
     }
   }
@@ -50,13 +50,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     if (_auth.currentUser == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Избранное')),
+        appBar: AppBar(leading: const PillBackButton(), title: const Text('Избранное')),
         body: const Center(child: Text('Войдите, чтобы видеть избранное')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Избранное')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Избранное')),
       body: FutureBuilder<List<FavoriteWithCarModel>>(
         future: _future,
         builder: (context, snapshot) {

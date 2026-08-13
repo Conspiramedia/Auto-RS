@@ -1,9 +1,8 @@
 // ============================================================
 // AUTO.RS — Экран уведомлений. Realtime-лента (stream) + роутинг по тапу:
-//   chat_message           → чат-комната (action_id = chat_id);
-//   booking_status_changed → кабинет броней;
-//   kyc_status_changed     → экран верификации.
-// Тап помечает уведомление прочитанным.
+//   chat_message → чат-комната (action_id = chat_id).
+// Прочие типы (устаревшие booking/kyc из старых записей) просто помечаются
+// прочитанными без перехода. Тап помечает уведомление прочитанным.
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notifications_repository.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -34,16 +34,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Помечаем прочитанным (не блокируем переход)
     _repo.markRead(n.id);
 
-    switch (n.type) {
-      case NotificationModel.typeChatMessage:
-        if (n.actionId != null) context.push('/chat/${n.actionId}');
-        break;
-      case NotificationModel.typeBookingStatus:
-        context.push('/bookings');
-        break;
-      case 'kyc_status_changed':
-        context.push('/kyc');
-        break;
+    // Переход есть только для сообщений чата. Устаревшие типы (booking/kyc)
+    // из старых записей просто закрываются как прочитанные.
+    if (n.type == NotificationModel.typeChatMessage && n.actionId != null) {
+      context.push('/chat/${n.actionId}');
     }
   }
 
@@ -63,7 +57,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: const PillBackButton(), 
         title: const Text('Уведомления'),
         actions: [
           IconButton(

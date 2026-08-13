@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/chat_with_details_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class ChatsListScreen extends StatefulWidget {
   const ChatsListScreen({super.key});
@@ -35,13 +36,13 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
   Widget build(BuildContext context) {
     if (_auth.currentUser == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Диалоги')),
+        appBar: AppBar(leading: const PillBackButton(), title: const Text('Диалоги')),
         body: const Center(child: Text('Войдите, чтобы видеть диалоги')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Диалоги')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Диалоги')),
       body: FutureBuilder<List<ChatWithDetailsModel>>(
         future: _future,
         builder: (context, snapshot) {

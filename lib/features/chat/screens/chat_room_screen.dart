@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../widgets/chat_messages_list.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   const ChatRoomScreen({
@@ -54,9 +56,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       _inputCtrl.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Не удалось отправить: $e')),
-        );
+        showAppSnack(context, 'Не удалось отправить: ${humanizeError(e)}');
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -68,7 +68,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final userId = _auth.currentUser?.id ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.peerName ?? 'Диалог')),
+      appBar: AppBar(leading: const PillBackButton(), title: Text(widget.peerName ?? 'Диалог')),
       body: Column(
         children: [
           // Realtime-лента сообщений (виджет с авто-скроллом)

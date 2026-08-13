@@ -6,13 +6,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/enums/verification_status.dart';
 import '../../../data/models/profile_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/transactions_repository.dart';
+import '../../../shared/widgets/app_button_colors.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -74,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Гость
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Профиль')),
+        appBar: AppBar(leading: const PillBackButton(), title: const Text('Профиль')),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -94,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Профиль')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Профиль')),
       body: FutureBuilder<_ProfileData>(
         future: _future,
         builder: (context, snapshot) {
@@ -128,26 +130,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // KYC-статус
-                _KycBanner(
-                  status: data.profile?.verificationStatus ??
-                      VerificationStatus.unverified,
-                  onTap: () async {
-                    await context.push('/kyc');
-                    _reload(); // вернулись — обновим статус
-                  },
-                ),
-                const SizedBox(height: 16),
-
                 // «Мои объявления» + баланс — доступны всем.
                 ...[
-                  FilledButton.icon(
-                    onPressed: () async {
+                  // Тёмная плашка-пилюля (как «Опубликовать»), по контенту, без иконки.
+                  DarkPillButton(
+                    label: 'Мои объявления',
+                    variant: PillVariant.green,
+                    onTap: () async {
                       await context.push('/my-cars');
                       _reload();
                     },
-                    icon: const Icon(Icons.directions_car),
-                    label: const Text('Мои объявления'),
                   ),
                   const SizedBox(height: 12),
                   Card(
@@ -169,12 +161,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () => context.push('/moderation'),
                     icon: const Icon(Icons.fact_check),
                     label: const Text('Модерация объявлений'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: () => context.push('/kyc-moderation'),
-                    icon: const Icon(Icons.verified_user),
-                    label: const Text('Верификация KYC'),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -217,38 +203,6 @@ class _ProfileData {
     required this.balance,
     required this.transactions,
   });
-}
-
-// Плашка KYC-статуса с цветом и переходом на верификацию
-class _KycBanner extends StatelessWidget {
-  const _KycBanner({required this.status, required this.onTap});
-  final VerificationStatus status;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color, icon, tappable) = switch (status) {
-      VerificationStatus.unverified =>
-        ('Не верифицирован', Colors.grey, Icons.gpp_maybe, true),
-      VerificationStatus.pending =>
-        ('Документы на проверке', Colors.orange, Icons.hourglass_top, false),
-      VerificationStatus.verified =>
-        ('Аккаунт верифицирован', Colors.green, Icons.verified, false),
-      VerificationStatus.rejected =>
-        ('Верификация отклонена', Colors.red, Icons.gpp_bad, true),
-    };
-
-    return Card(
-      color: color.withValues(alpha: 0.1),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label),
-        subtitle: tappable ? const Text('Нажмите, чтобы пройти верификацию') : null,
-        trailing: tappable ? const Icon(Icons.chevron_right) : null,
-        onTap: tappable ? onTap : null,
-      ),
-    );
-  }
 }
 
 // Строка транзакции

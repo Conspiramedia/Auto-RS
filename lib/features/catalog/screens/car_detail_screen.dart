@@ -1,23 +1,24 @@
 // ============================================================
 // AUTO.RS — Экран деталей автомобиля.
-// Фото-галерея + характеристики + цена. Для аренды: календарь выбора
-// дат (занятые дни заблокированы) + кнопка «Забронировать»
-// (проверка is_car_available → создание брони pending).
+// Фото-галерея + характеристики + цена + контакт продавца.
+// Связь по объявлению — телефон и чат (аренда и продажа одинаково).
 // ============================================================
 
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
-import '../../../data/repositories/bookings_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
-import '../../rent/widgets/car_booking_calendar.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class CarDetailScreen extends StatefulWidget {
   const CarDetailScreen({super.key, required this.carId});
@@ -30,7 +31,6 @@ class CarDetailScreen extends StatefulWidget {
 
 class _CarDetailScreenState extends State<CarDetailScreen> {
   final _carsRepo = CarsRepository();
-  final _bookingsRepo = BookingsRepository();
   final _chatRepo = ChatRepository();
   final _auth = AuthRepository();
 
@@ -38,93 +38,42 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
 
   late Future<_DetailData> _future;
 
-  // Выбранный в календаре диапазон и предварительная стоимость
-  DateTime? _selStart;
-  DateTime? _selEnd;
-  double? _selTotal;
-  bool _booking = false;
-
   @override
   void initState() {
     super.initState();
     _future = _load();
   }
 
-  // Грузим машину + фото + (для аренды) занятые даты
+  // Грузим машину + фото
   Future<_DetailData> _load() async {
     final car = await _carsRepo.fetchById(widget.carId);
     if (car == null) {
       throw Exception('Объявление не найдено');
     }
     final images = await _carsRepo.fetchImages(widget.carId);
-    final blocked = car.isForRent
-        ? await _bookingsRepo.fetchBlockedDates(widget.carId)
-        : <DateTime>[];
-    return _DetailData(car: car, images: images, blocked: blocked);
+    return _DetailData(car: car, images: images);
   }
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showAppSnack(context, msg);
   }
 
-  // Создание брони после выбора дат
-  Future<void> _book(CarModel car) async {
-    // Гость — просим войти
-    final user = _auth.currentUser;
-    if (user == null) {
-      _snack('Войдите, чтобы забронировать');
+  // Позвонить продавцу: открываем набор номера (tel:). Единая точка события
+  // «звонок» — сюда позже подключим серверную аналитику/конверсию (цель).
+  Future<void> _call(CarModel car) async {
+    final phone = car.contactPhone;
+    if (phone == null || phone.trim().isEmpty) {
+      _snack('У этого объявления нет номера телефона');
       return;
     }
-    if (_selStart == null || _selEnd == null) {
-      _snack('Выберите даты аренды');
-      return;
+    // TODO(analytics): отправить событие phone_call (car.id, user) на бэкенд.
+    final uri = Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      _snack('Не удалось открыть набор номера');
     }
-
-    setState(() => _booking = true);
-    try {
-      // 1) Проверка доступности на сервере (UX-фидбек)
-      final available = await _bookingsRepo.isCarAvailable(
-        carId: car.id,
-        start: _selStart!,
-        end: _selEnd!,
-      );
-      if (!available) {
-        _snack('К сожалению, эти даты уже заняты');
-        return;
-      }
-
-      // 2) Создание брони (статус pending; финансы считает триггер на сервере).
-      // Серверный гейт (миграция 0020) отклонит бронь неверифицированным —
-      // текст ошибки покажем в снекбаре.
-      await _bookingsRepo.createBooking(
-        carId: car.id,
-        customerId: user.id,
-        start: _selStart!,
-        end: _selEnd!,
-      );
-      _snack('Заявка отправлена. Ожидайте подтверждения владельца.');
-    } catch (e) {
-      _snack(_humanError(e));
-    } finally {
-      if (mounted) setState(() => _booking = false);
-    }
-  }
-
-  String _humanError(Object e) {
-    final s = e.toString();
-    if (s.contains('верифицированным')) {
-      return 'Бронирование доступно только верифицированным пользователям';
-    }
-    return 'Ошибка: $s';
-  }
-
-  // Пользователь раскрыл номер телефона.
-  // Единая точка события «показать телефон» — сюда позже подключим
-  // серверную аналитику/конверсию (цель). Пока фиксируем факт локально.
-  void _onPhoneRevealed(CarModel car) {
-    // TODO(analytics): отправить событие phone_reveal (car.id, user) на бэкенд.
-    debugPrint('phone_reveal: car=${car.id}');
   }
 
   // Начать чат с продавцом (RPC start_chat) и перейти в комнату
@@ -140,8 +89,8 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
         context.push('/chat/$chatId', extra: '${car.brand} ${car.model}');
       }
     } catch (e) {
-      // Напр.: «Нельзя начать чат с самим собой»
-      _snack(e.toString().replaceFirst('Exception: ', ''));
+      // Напр.: «Нельзя начать чат с самим собой» (очищаем от тех-деталей)
+      _snack(humanizeError(e));
     } finally {
       if (mounted) setState(() => _startingChat = false);
     }
@@ -150,7 +99,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Объявление')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Объявление')),
       body: FutureBuilder<_DetailData>(
         future: _future,
         builder: (context, snapshot) {
@@ -230,69 +179,37 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 Text(car.description!),
               ],
 
-              // ---------- Телефон продавца (скрыт → тап → раскрыт) ----------
-              if (car.contactPhone != null &&
-                  car.contactPhone!.trim().isNotEmpty) ...[
-                const Divider(height: 32),
-                _ContactPhone(
-                  phone: car.contactPhone!,
-                  onRevealed: () => _onPhoneRevealed(car),
-                ),
-              ],
-
-              // ---------- Блок аренды: календарь + бронь ----------
-              if (car.isForRent && car.rentPriceDaily != null) ...[
-                const Divider(height: 32),
-                Text('Выберите даты аренды',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                CarBookingCalendar(
-                  blockedDates: data.blocked,
-                  pricePerDay: car.rentPriceDaily!,
-                  onDatesSelected: (start, end, total) async {
-                    setState(() {
-                      _selStart = start;
-                      _selEnd = end;
-                      _selTotal = total;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (_selStart != null && _selEnd != null)
-                  _PriceLine(
-                    label: 'Предварительно',
-                    value: _selTotal != null
-                        ? '${_money(_selTotal!)} ${car.currency.value}'
-                        : '-',
+              // ---------- Связь с продавцом: Позвонить + Написать ----------
+              const Divider(height: 32),
+              Row(
+                children: [
+                  // Позвонить — зелёная (главное действие). Только если есть номер.
+                  if (car.contactPhone != null &&
+                      car.contactPhone!.trim().isNotEmpty)
+                    Expanded(
+                      child: DarkPillButton(
+                        label: 'Позвонить',
+                        icon: Icons.phone,
+                        expand: true,
+                        variant: PillVariant.green,
+                        onTap: () => _call(car),
+                      ),
+                    ),
+                  if (car.contactPhone != null &&
+                      car.contactPhone!.trim().isNotEmpty)
+                    const SizedBox(width: 10),
+                  // Написать — синяя (связь).
+                  Expanded(
+                    child: DarkPillButton(
+                      label: _startingChat ? 'Открываем…' : 'Написать',
+                      icon: Icons.chat_bubble_outline,
+                      expand: true,
+                      variant: PillVariant.blue,
+                      onTap: _startingChat ? null : () => _startChat(car),
+                    ),
                   ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: (_booking || _selStart == null)
-                        ? null
-                        : () => _book(car),
-                    child: _booking
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Забронировать'),
-                  ),
-                ),
-              ],
-
-              // ---------- Блок продажи: написать продавцу ----------
-              if (car.isForSale) ...[
-                const Divider(height: 32),
-                // Тёмная плашка-пилюля по контенту (как «Опубликовать»).
-                DarkPillButton(
-                  label: _startingChat ? 'Открываем чат…' : 'Написать продавцу',
-                  icon: Icons.chat_bubble_outline,
-                  onTap: _startingChat ? null : () => _startChat(car),
-                ),
-              ],
+                ],
+              ),
             ],
           ),
         ),
@@ -305,11 +222,9 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
 class _DetailData {
   final CarModel car;
   final List<CarImageModel> images;
-  final List<DateTime> blocked;
   const _DetailData({
     required this.car,
     required this.images,
-    required this.blocked,
   });
 }
 
@@ -467,122 +382,6 @@ class _PriceLine extends StatelessWidget {
       ),
     );
   }
-}
-
-// ============================================================
-// Блок телефона продавца.
-// До тапа: номер показан наполовину (последние цифры скрыты «••••»)
-// с подписью «Показать телефон». По тапу — раскрывается полностью,
-// а onRevealed сообщает экрану о событии (для будущей цели/аналитики).
-// ============================================================
-class _ContactPhone extends StatefulWidget {
-  const _ContactPhone({required this.phone, required this.onRevealed});
-
-  // Номер в хранимом виде «+3816XXXXXXXX».
-  final String phone;
-  // Колбэк единичного события «пользователь раскрыл телефон».
-  final VoidCallback onRevealed;
-
-  @override
-  State<_ContactPhone> createState() => _ContactPhoneState();
-}
-
-class _ContactPhoneState extends State<_ContactPhone> {
-  // Брендовые цвета AUTO.RS.
-  static const Color _kRed = Color(0xFFE01E23);
-  static const Color _kText = Color(0xFF242427); // тёмный для раскрытого номера
-
-  bool _revealed = false;
-
-  void _reveal() {
-    if (_revealed) return;
-    setState(() => _revealed = true);
-    widget.onRevealed(); // единожды — фиксируем факт раскрытия
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final text = _revealed
-        ? _formatPhone(widget.phone)
-        : _maskPhone(widget.phone);
-
-    return InkWell(
-      onTap: _revealed ? null : _reveal,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          // Белая карточка с тонкой красной рамкой — брендовый акцент.
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kRed.withValues(alpha: 0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Иконка: красная пока скрыто, тёмная — когда номер открыт.
-                Icon(Icons.phone, size: 20, color: _revealed ? _kText : _kRed),
-                const SizedBox(width: 8),
-                Text(
-                  text,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _revealed ? _kText : _kRed,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                ),
-              ],
-            ),
-            // Подпись-призыв показываем только пока номер скрыт.
-            if (!_revealed) ...[
-              const SizedBox(height: 4),
-              const Text(
-                'Показать телефон',
-                style: TextStyle(
-                  color: _kRed,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Приведение хранимого «+3816XXXXXXXX» к читаемому «+381 6X XXX XXX(X)».
-String _formatPhone(String raw) {
-  final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
-  // Национальная часть без кода страны (381).
-  final national = digits.startsWith('381') ? digits.substring(3) : digits;
-  final buf = StringBuffer('+381 ');
-  for (int i = 0; i < national.length; i++) {
-    if (i == 2 || i == 5) buf.write(' ');
-    buf.write(national[i]);
-  }
-  return buf.toString();
-}
-
-// Полускрытый вид: последние 4 цифры заменяем на «••••».
-// «+381 6X XXX ••••».
-String _maskPhone(String raw) {
-  final formatted = _formatPhone(raw);
-  // Заменяем последние 4 цифровых символа маркерами, сохраняя пробелы.
-  final chars = formatted.split('');
-  int replaced = 0;
-  for (int i = chars.length - 1; i >= 0 && replaced < 4; i--) {
-    if (RegExp(r'[0-9]').hasMatch(chars[i])) {
-      chars[i] = '•';
-      replaced++;
-    }
-  }
-  return chars.join();
 }
 
 // Число с разделителем разрядов пробелом: 1000000 → «1 000 000».

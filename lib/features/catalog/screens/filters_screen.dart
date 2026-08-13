@@ -9,8 +9,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../models/car_filters.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class FiltersScreen extends StatefulWidget {
   const FiltersScreen({super.key, required this.initial});
@@ -156,10 +158,16 @@ class _FiltersScreenState extends State<FiltersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(leading: const PillBackButton(), 
         title: const Text('Фильтры'),
         actions: [
-          TextButton(onPressed: _reset, child: const Text('Сбросить')),
+          TextButton(
+            onPressed: _reset,
+            child: const Text(
+              'Сбросить',
+              style: TextStyle(color: Color(0xFFE01E23)), // фирменный красный
+            ),
+          ),
         ],
       ),
       body: ListView(
@@ -264,6 +272,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           // Тёмная плашка-пилюля (как «Опубликовать») — по контенту, по центру.
           DarkPillButton(
             label: 'Показать объявления',
+            variant: PillVariant.green,
             onTap: () => Navigator.pop(context, _build()),
           ),
         ],
@@ -409,7 +418,7 @@ class _PickerScreenState extends State<_PickerScreen> {
         : widget.options.where((o) => o.toLowerCase().contains(q)).toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(leading: const PillBackButton(), title: Text(widget.title)),
       body: Column(
         children: [
           Padding(

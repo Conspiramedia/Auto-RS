@@ -5,6 +5,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/app_button_colors.dart';
+
 class AppTheme {
   AppTheme._();
 
@@ -21,5 +23,13 @@ class AppTheme {
         // Основной шрифт Montserrat (кириллица+латиница) из assets/fonts.
         fontFamily: 'Montserrat',
         appBarTheme: const AppBarTheme(centerTitle: true, backgroundColor: _bg),
+        // Главное действие приложения — зелёная кнопка (единый стиль с
+        // «Позвонить»/«Опубликовать»). Все FilledButton зелёные, белый текст.
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppButtonColors.green,
+            foregroundColor: Colors.white,
+          ),
+        ),
       );
 }

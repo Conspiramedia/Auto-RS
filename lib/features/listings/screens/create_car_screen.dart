@@ -16,10 +16,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/metal_toggle.dart';
 import '../utils/generate_temp_uuid.dart';
 import '../utils/validate_car_form.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class CreateCarScreen extends StatefulWidget {
   const CreateCarScreen({super.key});
@@ -134,7 +137,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showAppSnack(context, msg);
   }
 
   // Список годов: от текущего+1 до 1900 (свежие сверху)
@@ -231,7 +234,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         setState(() => _photoUrls.add(url));
       }
     } catch (e) {
-      _snack('Не удалось загрузить часть фото: $e');
+      _snack('Не удалось загрузить часть фото: ${humanizeError(e)}');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -299,7 +302,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         if (mounted) context.pop(id);
       }
     } catch (e) {
-      _snack('Ошибка публикации: $e');
+      _snack('Ошибка публикации: ${humanizeError(e)}');
     } finally {
       if (mounted) setState(() => _publishing = false);
     }
@@ -308,7 +311,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Подать объявление')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Подать объявление')),
       body: AbsorbPointer(
         absorbing: _publishing,
         child: ListView(
@@ -503,6 +506,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             // ---------- Публикация (тёмная плашка, по контенту) ----------
             DarkPillButton(
               label: _publishing ? 'Публикуем…' : 'Опубликовать',
+              variant: PillVariant.green,
               onTap: _publishing ? null : _publish,
             ),
             const SizedBox(height: 8),
@@ -731,7 +735,7 @@ class _SelectScreenState extends State<_SelectScreen> {
         !widget.options.any((o) => o.toLowerCase() == trimmed.toLowerCase());
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(leading: const PillBackButton(), title: Text(widget.title)),
       body: Column(
         children: [
           Padding(

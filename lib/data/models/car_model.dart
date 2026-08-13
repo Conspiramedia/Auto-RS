@@ -30,7 +30,6 @@ class CarModel {
   final CurrencyCode currency;
   final double? salePrice;
   final double? rentPriceDaily;
-  final double depositAmount;
 
   // Локация и контент
   final String city;
@@ -64,7 +63,6 @@ class CarModel {
     required this.currency,
     this.salePrice,
     this.rentPriceDaily,
-    required this.depositAmount,
     required this.city,
     this.description,
     this.contactPhone,
@@ -94,7 +92,6 @@ class CarModel {
       // numeric из Supabase может прийти как num — приводим к double безопасно
       salePrice: _toDouble(map['sale_price']),
       rentPriceDaily: _toDouble(map['rent_price_daily']),
-      depositAmount: _toDouble(map['deposit_amount']) ?? 0,
       city: map['city'] as String,
       description: map['description'] as String?,
       contactPhone: map['contact_phone'] as String?,
@@ -125,7 +122,6 @@ class CarModel {
       'currency': currency.value,
       'sale_price': salePrice,
       'rent_price_daily': rentPriceDaily,
-      'deposit_amount': depositAmount,
       'city': city,
       'description': description,
     };

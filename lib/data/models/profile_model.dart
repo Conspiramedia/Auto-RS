@@ -3,7 +3,6 @@
 // ============================================================
 
 import '../enums/user_role.dart';
-import '../enums/verification_status.dart';
 
 class ProfileModel {
   final String id;         // = auth.users.id
@@ -15,12 +14,6 @@ class ProfileModel {
   final String userType;      // 'customer' | 'vendor'
   final bool roleSelected;    // прошёл ли онбординг выбора роли
   final String? avatarUrl;
-
-  // KYC-верификация
-  final VerificationStatus verificationStatus;
-  final String? passportUrl;
-  final String? driverLicenseUrl;
-  final String? verificationComment;   // причина отклонения
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -35,16 +28,9 @@ class ProfileModel {
     this.userType = 'customer',
     this.roleSelected = false,
     this.avatarUrl,
-    this.verificationStatus = VerificationStatus.unverified,
-    this.passportUrl,
-    this.driverLicenseUrl,
-    this.verificationComment,
     required this.createdAt,
     required this.updatedAt,
   });
-
-  // true, если пользователь прошёл верификацию (для допуска к аренде и т.п.)
-  bool get isVerified => verificationStatus == VerificationStatus.verified;
 
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
@@ -57,11 +43,6 @@ class ProfileModel {
       userType: map['user_type'] as String? ?? 'customer',
       roleSelected: map['role_selected'] as bool? ?? false,
       avatarUrl: map['avatar_url'] as String?,
-      verificationStatus:
-          VerificationStatus.fromValue(map['verification_status'] as String?),
-      passportUrl: map['passport_url'] as String?,
-      driverLicenseUrl: map['driver_license_url'] as String?,
-      verificationComment: map['verification_comment'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );

@@ -10,6 +10,7 @@ import '../../../data/enums/car_status.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class MyCarsScreen extends StatefulWidget {
   const MyCarsScreen({super.key});
@@ -40,7 +41,7 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Мои объявления')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Мои объявления')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final created = await context.push<String>('/create-car');

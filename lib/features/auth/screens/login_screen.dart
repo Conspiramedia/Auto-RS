@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/auth_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Показ сообщения об ошибке/успехе
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showAppSnack(context, msg);
   }
 
   Future<void> _submit() async {
@@ -89,13 +91,13 @@ class _LoginScreenState extends State<LoginScreen> {
     if (s.contains('already registered')) return 'Этот email уже зарегистрирован';
     if (s.contains('Invalid login')) return 'Неверный email или пароль';
     if (s.contains('at least 6')) return 'Пароль должен быть не короче 6 символов';
-    return 'Ошибка: $s';
+    return humanizeError(e);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Auto.RS')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Auto.RS')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

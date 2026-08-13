@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/auth_repository.dart';
-import '../../features/admin/screens/kyc_moderation_screen.dart';
 import '../../features/admin/screens/moderation_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/catalog/screens/car_detail_screen.dart';
@@ -16,11 +15,9 @@ import '../../features/chat/screens/chat_room_screen.dart';
 import '../../features/chat/screens/chats_list_screen.dart';
 import '../../features/favorites/screens/favorites_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
-import '../../features/bookings/screens/bookings_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
 import '../../features/listings/screens/my_cars_screen.dart';
-import '../../features/profile/screens/kyc_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../shared/screens/home_shell.dart';
 
@@ -59,16 +56,6 @@ class AppRouter {
         path: '/moderation',
         builder: (context, state) => const ModerationScreen(),
       ),
-      // Верификация KYC — требует авторизации
-      GoRoute(
-        path: '/kyc',
-        builder: (context, state) => const KycScreen(),
-      ),
-      // KYC-модерация (админ) — требует авторизации; данные закрыты RLS/RPC
-      GoRoute(
-        path: '/kyc-moderation',
-        builder: (context, state) => const KycModerationScreen(),
-      ),
       // Уведомления — требует авторизации
       GoRoute(
         path: '/notifications',
@@ -99,10 +86,6 @@ class AppRouter {
             builder: (context, state) => const ChatsListScreen(),
           ),
           GoRoute(
-            path: '/bookings',
-            builder: (context, state) => const BookingsScreen(),
-          ),
-          GoRoute(
             path: '/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
@@ -116,11 +99,9 @@ class AppRouter {
 
       // Экраны, требующие авторизации
       final protected = state.matchedLocation.startsWith('/profile') ||
-          state.matchedLocation.startsWith('/bookings') ||
           state.matchedLocation.startsWith('/create-car') ||
           state.matchedLocation.startsWith('/my-cars') ||
           state.matchedLocation.startsWith('/moderation') ||
-          state.matchedLocation.startsWith('/kyc') ||
           state.matchedLocation.startsWith('/chat') ||
           state.matchedLocation.startsWith('/favorites') ||
           state.matchedLocation.startsWith('/notifications');

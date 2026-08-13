@@ -15,6 +15,7 @@ import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/notifications_repository.dart';
 import '../../../data/repositories/viewed_cars_repository.dart';
+import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/metal_toggle.dart';
 import '../models/car_filters.dart';
@@ -149,9 +150,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Переключение избранного с оптимистичным обновлением UI.
   Future<void> _toggleFavorite(String carId) async {
     if (_auth.currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Войдите, чтобы добавить в избранное')),
-      );
+      showAppSnack(context, 'Войдите, чтобы добавить в избранное');
       return;
     }
     final wasFav = _favoriteIds.contains(carId);
@@ -185,9 +184,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             _favoriteIds.remove(carId);
           }
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось обновить избранное')),
-        );
+        showAppSnack(context, 'Не удалось обновить избранное');
       }
     }
   }
@@ -195,7 +192,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Проверка авторизации для действий, требующих аккаунта.
   bool _requireAuth(String message) {
     if (_auth.currentUser != null) return true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showAppSnack(context, message);
     return false;
   }
 
@@ -208,9 +205,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       await _repo.hideCar(car.id);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось скрыть объявление')),
-        );
+        showAppSnack(context, 'Не удалось скрыть объявление');
       }
     }
   }
@@ -224,9 +219,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       await _repo.hideCity(car.city);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Не удалось скрыть город')),
-        );
+        showAppSnack(context, 'Не удалось скрыть город');
       }
     }
   }
@@ -480,13 +473,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Rezervacije — только иконка календаря (без текста, компактно)
-                _IconPillButton(
-                  icon: Icons.calendar_month_outlined,
-                  tooltip: 'Rezervacije',
-                  onTap: () => context.push('/bookings'),
-                ),
-                const SizedBox(width: 8),
                 // Переключатель языка RU / SR
                 _LangToggle(
                   value: _lang,
@@ -532,46 +518,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
 // Бренд-красный (активные сердечки, колокольчик с уведомлениями)
 const Color _kRed = Color(0xFFE01E23);
-// Квадратная кнопка-иконка (только иконка, без текста) — светлая с обводкой.
-class _IconPillButton extends StatelessWidget {
-  const _IconPillButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    return Tooltip(
-      message: tooltip,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: radius,
-          border: Border.all(color: const Color(0xFF2B2B2E), width: 1.5),
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              child: SizedBox(
-                width: 52,
-                height: 49, // как у остальных плашек (52 − 2×1.5 рамки)
-                child: Icon(icon, color: const Color(0xFF2B2B2E), size: 24),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // Кнопка-тумблер языка: показывает текущий (RS/RU), по тапу переключает.
 // Первая буква R — бренд-красная, вторая (S/U) — белая, фон тёмный.

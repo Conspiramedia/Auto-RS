@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/admin_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/pill_back_button.dart';
 
 class ModerationScreen extends StatefulWidget {
   const ModerationScreen({super.key});
@@ -34,7 +36,7 @@ class _ModerationScreenState extends State<ModerationScreen> {
 
   void _snack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showAppSnack(context, msg);
   }
 
   // Одобрить объявление
@@ -106,13 +108,13 @@ class _ModerationScreenState extends State<ModerationScreen> {
     if (s.contains('прав') || s.contains('privilege')) {
       return 'Доступ только для администраторов';
     }
-    return 'Ошибка: $s';
+    return humanizeError(e);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Модерация')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Модерация')),
       body: FutureBuilder<List<CarModel>>(
         future: _future,
         builder: (context, snapshot) {

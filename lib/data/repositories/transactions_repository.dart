@@ -33,17 +33,4 @@ class TransactionsRepository {
     if (result is num) return result.toDouble();
     return double.tryParse(result.toString()) ?? 0.0;
   }
-
-  // Транзакции по конкретной броне (штрафы/возвраты/оплаты).
-  Future<List<TransactionModel>> fetchByBooking(String bookingId) async {
-    final rows = await _client
-        .from('transactions')
-        .select()
-        .eq('booking_id', bookingId)
-        .order('created_at', ascending: false);
-
-    return (rows as List)
-        .map((e) => TransactionModel.fromMap(e as Map<String, dynamic>))
-        .toList();
-  }
 }
