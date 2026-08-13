@@ -8,6 +8,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+// Бренд-красный (акцент «Разместить»)
+const Color _kRed = Color(0xFFE01E23);
+// Тёмный фирменный (активный пункт меню)
+const Color _kDark = Color(0xFF27272A);
+
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.child});
 
@@ -58,14 +63,16 @@ class HomeShell extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navItem(context, 0, index, Icons.directions_car_outlined,
-                  Icons.directions_car, 'Каталог', theme),
+              // Каталог — сетка карточек. Активная — залитые квадраты (window),
+              // неактивная — контурная сетка.
+              _navItem(context, 0, index, Icons.grid_view_outlined,
+                  Icons.window, 'Каталог', theme),
               _navItem(context, 1, index, Icons.favorite_border,
                   Icons.favorite, 'Избранное', theme),
-              // «+» по центру — без круга, крупнее (голый плюс визуально мельче
-              // иконок с заливкой). Цвет — как у всех, из темы.
+              // «+» по центру — бренд-красный, жирнее и крупнее.
               _navItem(context, 2, index, Icons.add, Icons.add, 'Разместить',
-                  theme, iconSize: 34),
+                  theme, iconSize: 36, iconColor: _kRed, iconWeight: 800),
+              // Сообщения — спич-баббл.
               _navItem(context, 3, index, Icons.chat_bubble_outline,
                   Icons.chat_bubble, 'Сообщения', theme),
               _navItem(context, 4, index, Icons.person_outline, Icons.person,
@@ -81,6 +88,8 @@ class HomeShell extends StatelessWidget {
   // Иконка отрисована в блоке фиксированной высоты (34) и выровнена по низу,
   // чтобы подписи всех пунктов стояли на ОДНОМ уровне независимо от размера
   // значка (у «+» иконка крупнее).
+  // iconColor — жёсткий цвет иконки (например, бренд-красный «+»); при null
+  // цвет берётся из активности/темы, как у остальных пунктов.
   Widget _navItem(
     BuildContext context,
     int slot,
@@ -90,11 +99,13 @@ class HomeShell extends StatelessWidget {
     String label,
     ThemeData theme, {
     double iconSize = 26,
+    Color? iconColor,
+    double? iconWeight,
+    Widget Function(Color color, double size, bool filled)? customIconBuilder,
   }) {
     final selected = slot == current;
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
+    // Активный пункт — фирменный тёмный (не синий theme.primary).
+    final color = selected ? _kDark : theme.colorScheme.onSurfaceVariant;
     return Expanded(
       child: InkWell(
         onTap: () => _onTap(context, slot),
@@ -102,14 +113,15 @@ class HomeShell extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              height: 34,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Icon(selected ? activeIcon : icon,
-                    size: iconSize, color: color),
+              height: 36,
+              child: Center(
+                child: customIconBuilder != null
+                    ? customIconBuilder(iconColor ?? color, iconSize, selected)
+                    : Icon(selected ? activeIcon : icon,
+                        size: iconSize, color: iconColor ?? color,
+                        weight: iconWeight),
               ),
             ),
-            const SizedBox(height: 2),
             Text(
               label,
               maxLines: 1,
