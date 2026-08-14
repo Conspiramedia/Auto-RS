@@ -374,7 +374,7 @@ class _PriceLine extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
           ),

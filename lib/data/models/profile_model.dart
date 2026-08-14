@@ -6,7 +6,7 @@ import '../enums/user_role.dart';
 
 class ProfileModel {
   final String id;         // = auth.users.id
-  final String email;
+  final String? email;     // может отсутствовать (вход по телефону, без email)
   final String? fullName;  // ФИО
   final String? phone;
   final UserRole role;
@@ -20,7 +20,7 @@ class ProfileModel {
 
   const ProfileModel({
     required this.id,
-    required this.email,
+    this.email,
     this.fullName,
     this.phone,
     required this.role,
@@ -35,7 +35,7 @@ class ProfileModel {
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
       id: map['id'] as String,
-      email: map['email'] as String,
+      email: map['email'] as String?,
       fullName: map['full_name'] as String?,
       phone: map['phone'] as String?,
       role: UserRole.fromValue(map['role'] as String?),

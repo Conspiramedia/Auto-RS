@@ -130,18 +130,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // «Мои объявления» + баланс — доступны всем.
+                // Баланс, «Мои объявления» (+ модерация админу) — доступны всем.
                 ...[
-                  // Тёмная плашка-пилюля (как «Опубликовать»), по контенту, без иконки.
-                  DarkPillButton(
-                    label: 'Мои объявления',
-                    variant: PillVariant.green,
-                    onTap: () async {
-                      await context.push('/my-cars');
-                      _reload();
-                    },
-                  ),
-                  const SizedBox(height: 12),
+                  // Баланс — самым верхом блока.
                   Card(
                     child: ListTile(
                       leading: const Icon(Icons.account_balance_wallet),
@@ -152,16 +143,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Панели администратора
-                if (_isAdmin) ...[
-                  FilledButton.icon(
-                    onPressed: () => context.push('/moderation'),
-                    icon: const Icon(Icons.fact_check),
-                    label: const Text('Модерация объявлений'),
+                  const SizedBox(height: 12),
+                  // Тёмная плашка-пилюля (как «Опубликовать»), по контенту, без иконки.
+                  DarkPillButton(
+                    label: 'Мои объявления',
+                    variant: PillVariant.green,
+                    onTap: () async {
+                      await context.push('/my-cars');
+                      _reload();
+                    },
                   ),
+                  // «Модерация объявлений» — только админу, сразу под «Мои
+                  // объявления». Та же плашка-пилюля, синий вариант.
+                  if (_isAdmin) ...[
+                    const SizedBox(height: 12),
+                    DarkPillButton(
+                      label: 'Модерация объявлений',
+                      variant: PillVariant.blue,
+                      onTap: () => context.push('/moderation'),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                 ],
 
@@ -175,15 +176,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ...data.transactions.map((t) => _TxTile(tx: t)),
 
                 const SizedBox(height: 24),
-                FilledButton.tonal(
-                  onPressed: _loading ? null : _signOut,
-                  child: _loading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Выйти из аккаунта'),
+                // Единый вид со всеми плашками профиля: красный бренд-вариант,
+                // белый текст. Во время выхода — неактивна («Выходим…»).
+                DarkPillButton(
+                  label: _loading ? 'Выходим…' : 'Выйти из аккаунта',
+                  variant: PillVariant.red,
+                  onTap: _loading ? null : _signOut,
                 ),
               ],
             ),

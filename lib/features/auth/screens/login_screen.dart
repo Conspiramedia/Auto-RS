@@ -1,16 +1,35 @@
 // ============================================================
-// AUTO.RS — Экран авторизации (вход / регистрация / гость).
+// AUTO.RS — Экран входа по телефону + код из SMS (OTP).
+// Пароля и регистрации нет: пользователь получает SMS с кодом, вводит
+// код — Supabase создаёт/находит аккаунт по номеру.
+//
+// Два режима захода:
+//   • С префиллом номера (из формы объявления) — шаг телефона ПРОПУСКАЕТСЯ:
+//     код отправляется сразу, открывается поле ввода кода.
+//   • Без префилла (вход через редирект-гард) — сперва ввод телефона.
+//
+// Код проверяется АВТОМАТИЧЕСКИ при наборе всех цифр (_codeLength) — кнопки
+// «Подтвердить» нет. При успехе показываем «Номер подтверждён» и возвращаем
+// true вызывающему (форма продолжает публикацию) либо уходим в каталог.
+// «Изменить номер» — назад к вводу телефона. «Продолжить как гость» — в каталог.
 // ============================================================
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/auth_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.prefillPhone});
+
+  // Необязательный префилл телефона (например, контакт из формы объявления).
+  final String? prefillPhone;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -19,79 +38,185 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _auth = AuthRepository();
 
-  // Режим: false — вход, true — регистрация
-  bool _isRegister = false;
-  bool _loading = false;
+  // Длина кода из SMS. Должна совпадать с настройкой Supabase (по умолч. 6).
+  // При наборе этого числа цифр код проверяется автоматически, без кнопки.
+  static const int _codeLength = 6;
 
-  final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
+  // Шаг: false — ввод телефона, true — ввод кода из SMS.
+  bool _codeStage = false;
+  bool _loading = false;
+  // Идёт авто-проверка кода (спиннер вместо поля-кнопки).
+  bool _verifying = false;
+
+  final _phoneCtrl = TextEditingController();
+  final _phoneFocus = FocusNode();
+  final _codeCtrl = TextEditingController();
+
+  // Номер в формате E.164 (+3816…), на который отправлен код.
+  String _sentToE164 = '';
+
+  // Обратный отсчёт до повторной отправки кода.
+  int _resendIn = 0;
+  Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneFocus.addListener(_onPhoneFocus);
+    // Авто-проверка кода: как только введено _codeLength цифр — проверяем.
+    _codeCtrl.addListener(_onCodeChanged);
+    // Префилл номера из формы объявления (если передан) — прогоняем через
+    // тот же форматтер, чтобы вид совпал с маской «+381 …».
+    final pre = widget.prefillPhone?.trim();
+    if (pre != null && pre.isNotEmpty) {
+      _phoneCtrl.value = SerbianPhoneFormatter().formatEditUpdate(
+        const TextEditingValue(),
+        TextEditingValue(text: pre),
+      );
+      // Номер уже есть — шаг ввода телефона пропускаем: сразу шлём код и
+      // открываем экран ввода кода. Делаем после первого кадра.
+      if (serbianPhoneToE164(pre) != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _sendCode());
+      }
+    }
+  }
+
+  // Автоматическая проверка кода при наборе нужного числа цифр.
+  void _onCodeChanged() {
+    final code = _codeCtrl.text.trim();
+    if (code.length == _codeLength && !_verifying) {
+      _verifyCode();
+    }
+  }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
-    _confirmCtrl.dispose();
+    _resendTimer?.cancel();
+    _phoneFocus.removeListener(_onPhoneFocus);
+    _phoneFocus.dispose();
+    _phoneCtrl.dispose();
+    _codeCtrl.removeListener(_onCodeChanged);
+    _codeCtrl.dispose();
     super.dispose();
   }
 
-  // Показ сообщения об ошибке/успехе
-  void _snack(String msg) {
-    if (!mounted) return;
-    showAppSnack(context, msg);
+  // При фокусе на пустом поле подставляем «+381 »; при уходе с одним
+  // префиксом (без цифр номера) — очищаем, чтобы hint снова был виден.
+  void _onPhoneFocus() {
+    if (_phoneFocus.hasFocus) {
+      if (_phoneCtrl.text.trim().isEmpty) {
+        _phoneCtrl.text = '+381 ';
+        _phoneCtrl.selection =
+            TextSelection.collapsed(offset: _phoneCtrl.text.length);
+      }
+    } else {
+      final digits = _phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits == '381') _phoneCtrl.clear();
+    }
   }
 
-  Future<void> _submit() async {
-    final email = _emailCtrl.text.trim();
-    final pass = _passCtrl.text;
+  void _snack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    showAppSnack(context, msg, success: success);
+  }
 
-    // Базовая валидация
-    if (email.isEmpty || pass.isEmpty) {
-      _snack('Введите email и пароль');
+  // Запуск 60-секундного таймера кнопки «Отправить снова».
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _resendIn = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      setState(() => _resendIn--);
+      if (_resendIn <= 0) t.cancel();
+    });
+  }
+
+  // ---------- Шаг 1: отправка кода ----------
+  Future<void> _sendCode() async {
+    final e164 = serbianPhoneToE164(_phoneCtrl.text);
+    if (e164 == null) {
+      _snack('Введите корректный сербский номер телефона');
       return;
-    }
-    if (_isRegister) {
-      if (pass != _confirmCtrl.text) {
-        _snack('Пароли не совпадают');
-        return;
-      }
-      if (pass.length < 6) {
-        _snack('Пароль должен быть не короче 6 символов');
-        return;
-      }
     }
 
     setState(() => _loading = true);
     try {
-      if (_isRegister) {
-        await _auth.signUp(
-          email: email,
-          password: pass,
-          fullName: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
-        );
-        _snack('Регистрация успешна');
-      } else {
-        await _auth.signIn(email: email, password: pass);
-      }
-      // Успех: роутер сам уведёт на /catalog (redirect по authStateChanges)
-      if (mounted) context.go('/catalog');
+      await _auth.sendOtp(e164);
+      _sentToE164 = e164;
+      _startResendTimer();
+      if (mounted) setState(() => _codeStage = true);
     } catch (e) {
-      // Текст ошибки Supabase Auth (email занят, неверный пароль и т.п.)
-      _snack(_humanError(e));
+      _snack(humanizeError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  // Приводим технические ошибки к понятному виду
-  String _humanError(Object e) {
-    final s = e.toString();
-    if (s.contains('already registered')) return 'Этот email уже зарегистрирован';
-    if (s.contains('Invalid login')) return 'Неверный email или пароль';
-    if (s.contains('at least 6')) return 'Пароль должен быть не короче 6 символов';
+  // Повторная отправка кода (когда таймер истёк).
+  Future<void> _resendCode() async {
+    if (_resendIn > 0) return;
+    setState(() => _loading = true);
+    try {
+      await _auth.resendOtp(_sentToE164);
+      _startResendTimer();
+      _snack('Код отправлен повторно', success: true);
+    } catch (e) {
+      _snack(humanizeError(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // ---------- Шаг 2: проверка кода (автоматически при наборе всех цифр) ----------
+  Future<void> _verifyCode() async {
+    final code = _codeCtrl.text.trim();
+    if (code.length < _codeLength || _verifying) return;
+
+    setState(() => _verifying = true);
+    try {
+      final res = await _auth.verifyOtp(phone: _sentToE164, token: code);
+      if (res.session == null) {
+        _snack('Не удалось подтвердить код. Попробуйте ещё раз');
+        _codeCtrl.clear(); // даём ввести заново
+        return;
+      }
+      if (!mounted) return;
+      _snack('Номер подтверждён', success: true); // зелёный фон — успех
+      // Экран открыт поверх формы объявления (Navigator.push) — возвращаем true,
+      // чтобы вызывающий продолжил свой сценарий (загрузка фото / публикация).
+      // Если возвращаться некуда (вход через редирект-гард роутера) — в каталог.
+      final nav = Navigator.of(context);
+      if (nav.canPop()) {
+        nav.pop(true);
+      } else {
+        context.go('/catalog');
+      }
+    } catch (e) {
+      _snack(_humanOtpError(e));
+      _codeCtrl.clear(); // неверный/истёкший код — очищаем для повторного ввода
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
+  // Человеческие тексты для типичных ошибок OTP.
+  String _humanOtpError(Object e) {
+    final s = e.toString().toLowerCase();
+    if (s.contains('expired')) return 'Срок действия кода истёк. Запросите новый';
+    if (s.contains('invalid') || s.contains('incorrect')) {
+      return 'Неверный код из SMS';
+    }
     return humanizeError(e);
+  }
+
+  // Вернуться к вводу номера.
+  void _changeNumber() {
+    _resendTimer?.cancel();
+    setState(() {
+      _codeStage = false;
+      _resendIn = 0;
+      _codeCtrl.clear();
+    });
   }
 
   @override
@@ -105,7 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Логотип приложения
                 Image.asset(
                   'assets/images/logo.png',
                   height: 120,
@@ -113,83 +237,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _isRegister ? 'Регистрация' : 'Вход',
+                  _codeStage ? 'Введите код из SMS' : 'Вход по телефону',
                   style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _codeStage
+                      ? 'Мы отправили код на номер $_sentToE164'
+                      : 'Введите номер — пришлём код в SMS. Пароль не нужен.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
 
-                // Имя — только при регистрации
-                if (_isRegister) ...[
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Имя',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                TextField(
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                TextField(
-                  controller: _passCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Пароль',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Подтверждение пароля — только при регистрации
-                if (_isRegister) ...[
-                  TextField(
-                    controller: _confirmCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Повторите пароль',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                const SizedBox(height: 12),
-
-                // Кнопка отправки
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _loading ? null : _submit,
-                    child: _loading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(_isRegister ? 'Зарегистрироваться' : 'Войти'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Переключатель вход ↔ регистрация
-                TextButton(
-                  onPressed: _loading
-                      ? null
-                      : () => setState(() => _isRegister = !_isRegister),
-                  child: Text(_isRegister
-                      ? 'Уже есть аккаунт? Войти'
-                      : 'Нет аккаунта? Зарегистрироваться'),
-                ),
+                if (!_codeStage) ..._phoneStage() else ..._codeStageWidgets(),
 
                 const Divider(height: 32),
 
@@ -203,6 +265,101 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // Виджеты шага «телефон».
+  List<Widget> _phoneStage() => [
+        TextField(
+          controller: _phoneCtrl,
+          focusNode: _phoneFocus,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [SerbianPhoneFormatter()],
+          onSubmitted: (_) => _sendCode(),
+          decoration: const InputDecoration(
+            labelText: 'Телефон',
+            hintText: '+381 6X XXX XXX',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: _loading ? null : _sendCode,
+            child: _loading
+                ? const _Spinner()
+                : const Text('Отправить код'),
+          ),
+        ),
+      ];
+
+  // Виджеты шага «код». Кнопки «Подтвердить» нет: код проверяется сам,
+  // как только введены все _codeLength цифр. Пока идёт проверка — спиннер.
+  List<Widget> _codeStageWidgets() => [
+        TextField(
+          controller: _codeCtrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          enabled: !_verifying, // на время проверки ввод блокируем
+          maxLength: _codeLength,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 24, letterSpacing: 8),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: '·' * _codeLength,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Индикатор авто-проверки (вместо кнопки подтверждения).
+        SizedBox(
+          height: 24,
+          child: _verifying
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _Spinner(),
+                    SizedBox(width: 10),
+                    Text('Проверяем код…'),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton(
+              onPressed: _verifying ? null : _changeNumber,
+              child: const Text('Изменить номер'),
+            ),
+            TextButton(
+              onPressed:
+                  (_verifying || _loading || _resendIn > 0) ? null : _resendCode,
+              child: Text(
+                _resendIn > 0
+                    ? 'Отправить снова ($_resendIn)'
+                    : 'Отправить снова',
+              ),
+            ),
+          ],
+        ),
+      ];
+}
+
+// Компактный индикатор загрузки внутри кнопки.
+class _Spinner extends StatelessWidget {
+  const _Spinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 20,
+      width: 20,
+      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }

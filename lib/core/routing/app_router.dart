@@ -33,7 +33,10 @@ class AppRouter {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginScreen(),
+        // extra — необязательный префилл телефона (например, из формы
+        // объявления: контактный номер сразу подставляется в поле входа).
+        builder: (context, state) =>
+            LoginScreen(prefillPhone: state.extra as String?),
       ),
       // Детали авто — полноэкранный, вне нижней навигации
       GoRoute(
@@ -97,9 +100,11 @@ class AppRouter {
       final loggedIn = _auth.isLoggedIn;
       final loggingIn = state.matchedLocation == '/login';
 
-      // Экраны, требующие авторизации
+      // Экраны, требующие авторизации.
+      // /create-car СПЕЦИАЛЬНО не в списке: гость должен заполнить форму,
+      // а подтверждение номера по SMS запрашивается только в момент
+      // «Опубликовать» (см. _publish в create_car_screen). «Ленивый» вход.
       final protected = state.matchedLocation.startsWith('/profile') ||
-          state.matchedLocation.startsWith('/create-car') ||
           state.matchedLocation.startsWith('/my-cars') ||
           state.matchedLocation.startsWith('/moderation') ||
           state.matchedLocation.startsWith('/chat') ||

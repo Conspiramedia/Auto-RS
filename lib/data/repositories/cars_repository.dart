@@ -237,6 +237,26 @@ class CarsRepository {
   }
 
   // ----------------------------------------------------------
+  // Удаление ВРЕМЕННЫХ фото объявления из Storage (до публикации).
+  // Вызывается, когда пользователь загрузил фото, но ушёл с формы, не
+  // опубликовав: в БД (car_images) записи ещё нет, поэтому чистим только
+  // файлы папки "<uid>/<tempCarUuid>/". Ошибки глушим — это фоновая уборка.
+  // ----------------------------------------------------------
+  Future<void> deleteTempCarImages(String tempCarUuid) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return; // гость файлов и не грузил
+    final dir = '$userId/$tempCarUuid';
+    try {
+      final files = await _client.storage.from('car-images').list(path: dir);
+      if (files.isEmpty) return;
+      final paths = files.map((f) => '$dir/${f.name}').toList();
+      await _client.storage.from('car-images').remove(paths);
+    } catch (_) {
+      // Уборка не критична: временные файлы не мешают и не попадают в каталог.
+    }
+  }
+
+  // ----------------------------------------------------------
   // Фото объявления по порядку галереи (order_index ASC).
   // ----------------------------------------------------------
   Future<List<CarImageModel>> fetchImages(String carId) async {

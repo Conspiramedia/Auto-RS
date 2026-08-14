@@ -1,6 +1,6 @@
 // ============================================================
 // AUTO.RS — Единый SnackBar приложения + очистка текста ошибок.
-// Все подсказки: фирменный красный фон, белый текст, увеличенное время.
+// Все подсказки: внизу экрана, фирменный красный фон, белый текст, 5с.
 // humanizeError() убирает технический «мусор» (PostgrestException, коды,
 // hint/details), оставляя человеку только суть.
 // ============================================================
@@ -41,8 +41,12 @@ String humanizeError(Object? error) {
   return s;
 }
 
-/// Показать фирменную подсказку: синий фон, белый текст, дольше на экране.
-void showAppSnack(BuildContext context, String message) {
+/// Показать фирменную подсказку ВНИЗУ экрана: белый текст, на всю ширину
+/// (fixed — прижата к нижнему краю, не наезжает на контент).
+///
+/// По умолчанию фон КРАСНЫЙ (ошибки/предупреждения). Для сообщений об успехе
+/// (например, «Номер подтверждён») передайте success: true — фон ЗЕЛЁНЫЙ.
+void showAppSnack(BuildContext context, String message, {bool success = false}) {
   final messenger = ScaffoldMessenger.of(context);
   // Не копим очередь одинаковых подсказок — показываем только последнюю.
   messenger.clearSnackBars();
@@ -52,8 +56,11 @@ void showAppSnack(BuildContext context, String message) {
         message,
         style: const TextStyle(color: Colors.white, fontSize: 15),
       ),
-      backgroundColor: AppButtonColors.red,
-      behavior: SnackBarBehavior.floating,
+      // Зелёный — успех, красный — ошибка/предупреждение.
+      backgroundColor:
+          success ? AppButtonColors.green : AppButtonColors.red,
+      // fixed — плашка прижата к самому низу во всю ширину экрана.
+      behavior: SnackBarBehavior.fixed,
       duration: const Duration(seconds: 5), // увеличено (было ~4с по умолчанию)
     ),
   );

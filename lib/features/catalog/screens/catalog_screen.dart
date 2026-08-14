@@ -3,21 +3,20 @@
 // серверную RPC search_cars_advanced (фильтр по типу + поиск).
 // ============================================================
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/models/car_model.dart';
-import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
-import '../../../data/repositories/notifications_repository.dart';
 import '../../../data/repositories/viewed_cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/metal_toggle.dart';
+import '../../../shared/widgets/smart_search_bar.dart';
 import '../models/car_filters.dart';
 import 'filters_screen.dart';
 
@@ -40,6 +39,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   // Выбранные фильтры (город, марка, год, пробег, цена и т.д.)
   CarFilters _filters = CarFilters.empty;
+
+  // Текстовый запрос из строки поиска (двуалфавитный поиск на бэке).
+  // Пустая строка = поиск не задан. Применяется с дебаунсом.
+  String _query = '';
+  Timer? _searchDebounce;
 
   // Множество ID машин в избранном (для сердечек). Обновляется оптимистично.
   Set<String> _favoriteIds = {};
@@ -104,8 +108,26 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  // Живой ввод из строки поиска: сохраняем текст и перезагружаем ленту
+  // с дебаунсом 350 мс (не дёргаем бэк на каждой букве).
+  void _onSearchChanged(String text) {
+    _query = text;
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _reload();
+    });
+  }
+
+  // Отправка запроса с клавиатуры (Enter/«Поиск») — применяем сразу.
+  void _onSearchSubmitted(String text) {
+    _searchDebounce?.cancel();
+    _query = text;
+    _reload();
   }
 
   // Триггер подгрузки при приближении к концу списка + управление
@@ -232,6 +254,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }) {
     return _repo.searchAdvanced(
       listingType: _listingType,
+      // Пустую строку не шлём — иначе бэк будет искать по «».
+      query: _query.trim().isEmpty ? null : _query.trim(),
       brand: _filters.brand,
       model: _filters.model,
       city: _filters.city,
@@ -459,18 +483,25 @@ class _CatalogScreenState extends State<CatalogScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Row(
+              // Логотип и обе кнопки одной высоты, выровнены по центру.
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Image.asset('assets/images/logo.png', height: 60),
                 const SizedBox(width: 10),
+                // Строка поиска с «живой» подсказкой — занимает свободное
+                // место между логотипом и кнопками.
                 Expanded(
-                  child: DarkPillButton(
-                    icon: Icons.tune,
-                    expand: true,
-                    label: _filters.activeCount > 0
-                        ? 'Filteri (${_filters.activeCount})'
-                        : 'Filteri',
-                    onTap: _openFilters,
+                  child: SmartSearchBar(
+                    value: _query,
+                    onChanged: _onSearchChanged,
+                    onSubmitted: _onSearchSubmitted,
                   ),
+                ),
+                const SizedBox(width: 10),
+                // Кнопка «Фильтры» — только иконка, размер как у языка.
+                _FilterButton(
+                  count: _filters.activeCount,
+                  onTap: _openFilters,
                 ),
                 const SizedBox(width: 10),
                 // Переключатель языка RU / SR
@@ -478,7 +509,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   value: _lang,
                   onChanged: (v) => setState(() => _lang = v),
                 ),
-                if (_auth.currentUser != null) const _NotifBell(),
               ],
             ),
           ),
@@ -518,6 +548,74 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
 // Бренд-красный (активные сердечки, колокольчик с уведомлениями)
 const Color _kRed = Color(0xFFE01E23);
+
+// Золотой акцент иконки на тёмных плашках бренда.
+const Color _kGold = Color(0xFFE8A73C);
+
+// Кнопка «Фильтры» — только иконка, тот же размер и стиль, что у языкового
+// тумблера (тёмный фон, скругление 16). При активных фильтрах в углу —
+// красный бейдж с их числом.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({required this.count, required this.onTap});
+  final int count;            // число активных фильтров (0 — бейджа нет)
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = BorderRadius.all(Radius.circular(16));
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Color(0xFF2B2B2E),
+        borderRadius: radius,
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: 52,
+              height: 49,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  const Icon(Icons.tune, color: _kGold, size: 22),
+                  // Бейдж числа активных фильтров.
+                  if (count > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: _kRed,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                            minWidth: 15, minHeight: 15),
+                        child: Text(
+                          '$count',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // Кнопка-тумблер языка: показывает текущий (RS/RU), по тапу переключает.
 // Первая буква R — бренд-красная, вторая (S/U) — белая, фон тёмный.
@@ -800,8 +898,8 @@ class _CarCard extends StatelessWidget {
                           priceText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
+                          style: const TextStyle(
+                            color: Colors.black,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
@@ -906,72 +1004,6 @@ class _CarThumbState extends State<_CarThumb> {
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (_, __, ___) => placeholder,
-    );
-  }
-}
-
-// Колокольчик уведомлений с живым бэйджем непрочитанных (Realtime-стрим)
-class _NotifBell extends StatefulWidget {
-  const _NotifBell();
-
-  @override
-  State<_NotifBell> createState() => _NotifBellState();
-}
-
-class _NotifBellState extends State<_NotifBell> {
-  final _repo = NotificationsRepository();
-  late final Stream<List<NotificationModel>> _stream;
-
-  @override
-  void initState() {
-    super.initState();
-    _stream = _repo.stream();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<NotificationModel>>(
-      stream: _stream,
-      builder: (context, snapshot) {
-        // Считаем непрочитанные из потока
-        final unread =
-            (snapshot.data ?? []).where((n) => !n.isRead).length;
-        final hasUnread = unread > 0;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              // Есть непрочитанные — красный залитый колокольчик, иначе обычный.
-              icon: Icon(
-                hasUnread ? Icons.notifications : Icons.notifications_none,
-                color: hasUnread ? _kRed : null,
-              ),
-              tooltip: 'Уведомления',
-              onPressed: () => context.push('/notifications'),
-            ),
-            // Красный бэйдж с числом (если есть непрочитанные)
-            if (hasUnread)
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: _kRed,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints:
-                      const BoxConstraints(minWidth: 16, minHeight: 16),
-                  child: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 }

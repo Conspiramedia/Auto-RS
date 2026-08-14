@@ -14,9 +14,11 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/reference_data.dart';
+import '../../auth/screens/login_screen.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/metal_toggle.dart';
@@ -75,6 +77,9 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   bool _uploading = false;
   bool _publishing = false;
+  // true после успешной публикации — тогда временные фото НЕ удаляем
+  // при уходе (они уже привязаны к объявлению).
+  bool _published = false;
 
   @override
   void initState() {
@@ -103,6 +108,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   @override
   void dispose() {
+    // Ушёл, не опубликовав, но фото уже загружены → чистим временные файлы
+    // из Storage (в БД их ещё нет). Fire-and-forget: экран уже закрывается.
+    if (!_published && _photoUrls.isNotEmpty) {
+      _carsRepo.deleteTempCarImages(_tempCarUuid);
+    }
     _mileageCtrl.dispose();
     _priceCtrl.dispose();
     _descCtrl.dispose();
@@ -197,8 +207,36 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     );
   }
 
+  // Гарантирует наличие аккаунта: если пользователь ещё не вошёл — показывает
+  // окно «Подтвердите номер», затем экран ввода кода из SMS. Возвращает true,
+  // когда после вызова пользователь авторизован (уже был или только что вошёл).
+  // Используется и для загрузки фото (Storage требует uid), и для публикации.
+  Future<bool> _ensureAuth() async {
+    if (_auth.currentUser != null) return true;
+
+    final agreed = await _confirmPhoneDialog();
+    if (!mounted || agreed != true) return false; // «Отмена» — не входим
+
+    // Открываем вход обычным Navigator.push (не через go_router), чтобы
+    // редирект-гард роутера не перехватил экран и не увёл на /catalog при
+    // смене auth-состояния. По успеху LoginScreen сам делает Navigator.pop(true)
+    // и мы возвращаемся сюда — на форму — для продолжения (кнопка «Опубликовать»).
+    final loggedIn = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(prefillPhone: _phoneCtrl.text),
+      ),
+    );
+    if (!mounted) return false;
+    return loggedIn == true && _auth.currentUser != null;
+  }
+
   // Выбор фото из галереи и загрузка в Storage
   Future<void> _pickAndUpload() async {
+    // Storage привязан к uid (RLS): гость грузить не может. Поэтому перед
+    // выбором фото требуем подтверждение номера. Отказ — просто выходим.
+    if (!await _ensureAuth()) return;
+    if (!mounted) return;
+
     // Сколько ещё можно добавить до лимита
     final remaining = _maxPhotos - _photoUrls.length;
     if (remaining <= 0) {
@@ -240,13 +278,38 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     }
   }
 
+  // Окно-предупреждение перед входом: «Подтвердите номер телефона».
+  // Показывает номер из формы (если введён) и кнопку «Хорошо» (+ «Отмена»).
+  // Возвращает true, если пользователь согласился перейти к вводу кода.
+  Future<bool?> _confirmPhoneDialog() {
+    final phone = _phoneCtrl.text.trim();
+    final hasPhone = serbianPhoneToE164(phone) != null;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Подтвердите номер телефона'),
+        content: Text(
+          hasPhone
+              ? 'Подтвердите свой номер $phone — мы отправим код в SMS.'
+              : 'Для размещения объявления нужно подтвердить номер телефона — '
+                  'мы отправим код в SMS.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Хорошо'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Публикация объявления
   Future<void> _publish() async {
-    if (_auth.currentUser == null) {
-      _snack('Войдите, чтобы подать объявление');
-      return;
-    }
-
     final year = int.tryParse(_year ?? '');
     // Из строки убираем пробелы-разделители тысяч (формат «1 000») перед парсингом.
     final priceDigits = _digitsOnly(_priceCtrl.text);
@@ -277,6 +340,24 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       return;
     }
 
+    // На этот момент пользователь ГАРАНТИРОВАННО вошёл: фото обязательны
+    // (validateCarForm требует ≥1 фото), а их загрузка проходит через
+    // _ensureAuth. Отдельный запрос кода здесь не нужен — оставляем лишь
+    // страховку на случай пропавшей сессии (тогда просто не публикуем).
+    if (_auth.currentUser == null) {
+      _snack('Сессия истекла — добавьте фото заново, чтобы подтвердить номер');
+      return;
+    }
+
+    // Телефон в БД хранится в E.164 без пробелов (constraint
+    // cars_contact_phone_serbian: ^\+381[1-36]\d{7,8}$). Поле ввода содержит
+    // пробелы («+381 64 123 456») — приводим к слитному виду перед отправкой.
+    final phoneE164 = serbianPhoneToE164(_phoneCtrl.text);
+    if (phoneE164 == null) {
+      _snack('Введите корректный сербский номер телефона');
+      return;
+    }
+
     setState(() => _publishing = true);
     try {
       final id = await _carsRepo.createCarV2(
@@ -294,15 +375,22 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
+        phone: phoneE164,
       );
+      // Опубликовано: фото теперь привязаны к объявлению — при уходе с
+      // экрана их удалять НЕ нужно.
+      _published = true;
       _snack('Объявление отправлено на модерацию');
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) context.pop(id);
       }
     } catch (e) {
-      _snack('Ошибка публикации: ${humanizeError(e)}');
+      final msg = humanizeError(e);
+      // Сообщение о дубле уже самодостаточное («У вас уже есть такое…») —
+      // показываем как есть, без префикса «Ошибка публикации».
+      final isDuplicate = msg.contains('уже есть такое объявление');
+      _snack(isDuplicate ? msg : 'Ошибка публикации: $msg');
     } finally {
       if (mounted) setState(() => _publishing = false);
     }
@@ -311,7 +399,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Подать объявление')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Новое объявление')),
       body: AbsorbPointer(
         absorbing: _publishing,
         child: ListView(
@@ -477,7 +565,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               controller: _phoneCtrl,
               focusNode: _phoneFocus,
               keyboardType: TextInputType.phone,
-              inputFormatters: [_SerbianPhoneFormatter()],
+              inputFormatters: [SerbianPhoneFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Телефон',
                 hintText: '+381 6X XXX XXX',
@@ -592,57 +680,6 @@ class _ThousandsFormatter extends TextInputFormatter {
     final buf = StringBuffer();
     for (int i = 0; i < digits.length; i++) {
       if (i > 0 && (digits.length - i) % 3 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final formatted = buf.toString();
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
-
-// Форматтер сербского номера (мобильный или городской). По мере ввода
-// приводит к виду «+381 XX XXX XXX(X)»: первые 2 цифры — код (мобильный 6X
-// или зона 11/21/…), далее группы по 3. Хранит только цифры национальной
-// части (без кода страны и ведущего 0), поэтому вставка/удаление в середине
-// не ломают маску — курсор всегда уходит в конец.
-class _SerbianPhoneFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    // Все цифры из ввода
-    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    // Отбрасываем код страны/ведущий 0 → остаётся национальная часть «6XXXXXXXX»
-    if (digits.startsWith('00381')) {
-      digits = digits.substring(5);
-    } else if (digits.startsWith('381')) {
-      digits = digits.substring(3);
-    } else if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    // Максимум 9 цифр национальной части (6 + 8)
-    if (digits.length > 9) digits = digits.substring(0, 9);
-
-    // Национальной части ещё нет. Если пользователь уже начал (в поле был
-    // префикс) — оставляем «+381 » как подсказку; иначе поле пустое.
-    if (digits.isEmpty) {
-      final hadPrefix = newValue.text.replaceAll(RegExp(r'[^0-9]'), '') == '381';
-      return hadPrefix
-          ? const TextEditingValue(
-              text: '+381 ',
-              selection: TextSelection.collapsed(offset: 5),
-            )
-          : const TextEditingValue(text: '');
-    }
-
-    // Собираем «+381 6X XXX XXX(X)»: группы 2-3-3(+1).
-    final buf = StringBuffer('+381 ');
-    for (int i = 0; i < digits.length; i++) {
-      // Пробелы после 2-й и 5-й цифр национальной части
-      if (i == 2 || i == 5) buf.write(' ');
       buf.write(digits[i]);
     }
     final formatted = buf.toString();
