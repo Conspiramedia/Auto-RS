@@ -1,17 +1,20 @@
 // ============================================================
-// AUTO.RS — Экран профиля: данные, KYC-статус, баланс вендора,
-// история транзакций, панель модерации (админ), выход.
+// AUTO.RS — Экран профиля: данные, баланс вендора, «Мои объявления»,
+// панель модерации (админ), выход. Все действия — плашки одной ширины.
 // ============================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../data/models/profile_model.dart';
-import '../../../data/models/transaction_model.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/transactions_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/pill_back_button.dart';
@@ -28,11 +31,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _profileRepo = ProfileRepository();
   final _txRepo = TransactionsRepository();
   final _admin = AdminRepository();
+  final _picker = ImagePicker();
 
   bool _loading = false;
   bool _isAdmin = false;
+  bool _savingAvatar = false; // идёт загрузка/сохранение аватара
 
   late Future<_ProfileData> _future;
+
+  void _snack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    showAppSnack(context, msg, success: success);
+  }
+
+  // Выбрать фото из галереи → загрузить в Storage → записать avatar_url.
+  Future<void> _pickAvatar() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512, // аватар небольшой — не грузим тяжёлые файлы
+      imageQuality: 85,
+    );
+    if (file == null) return;
+
+    setState(() => _savingAvatar = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final url = await _profileRepo.uploadAvatar(bytes);
+      await _profileRepo.updateProfile(avatarUrl: url);
+      _snack('Фото профиля обновлено', success: true);
+      _reload();
+    } catch (e) {
+      _snack('Не удалось обновить фото: ${humanizeError(e)}');
+    } finally {
+      if (mounted) setState(() => _savingAvatar = false);
+    }
+  }
+
+  // Диалог ввода/изменения имени пользователя.
+  Future<void> _editName(String? current) async {
+    final ctrl = TextEditingController(text: current ?? '');
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ваше имя'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Как вас показывать другим',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (name == null) return; // отмена
+
+    try {
+      await _profileRepo.updateProfile(fullName: name);
+      _snack('Имя сохранено', success: true);
+      _reload();
+    } catch (e) {
+      _snack('Не удалось сохранить имя: ${humanizeError(e)}');
+    }
+  }
 
   @override
   void initState() {
@@ -40,24 +112,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _future = _load();
   }
 
-  // Грузим профиль + баланс + транзакции + флаг админа
+  // Грузим профиль + баланс + флаг админа
   Future<_ProfileData> _load() async {
     final profile = await _profileRepo.fetchMyProfile();
     final uid = _auth.currentUser?.id;
 
     double balance = 0;
-    List<TransactionModel> txs = [];
     bool admin = false;
     if (uid != null) {
       balance = await _txRepo.getVendorBalance(uid);
-      txs = await _txRepo.fetchMyTransactions();
       admin = await _admin.isAdmin();
     }
     _isAdmin = admin;
-    return _ProfileData(profile: profile, balance: balance, transactions: txs);
+    return _ProfileData(profile: profile, balance: balance);
   }
 
-  void _reload() => setState(() => _future = _load());
+  // ВАЖНО: блочная форма — колбэк setState НЕ должен возвращать значение.
+  // Стрелка `=> _future = _load()` возвращала бы Future, и Flutter кидал бы
+  // «setState() callback argument returned a Future».
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   Future<void> _signOut() async {
     setState(() => _loading = true);
@@ -112,23 +189,128 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Шапка
-                Center(
-                  child: Column(
-                    children: [
-                      const CircleAvatar(
-                          radius: 40, child: Icon(Icons.person, size: 40)),
-                      const SizedBox(height: 12),
-                      Text(
-                        data.profile?.fullName ?? user.email ?? '',
-                        style: Theme.of(context).textTheme.titleMedium,
+                // Шапка. Подсказки-значки (камера/карандаш) показываем ТОЛЬКО
+                // пока данные не заданы — как приглашение заполнить. Когда фото
+                // и имя есть, значки убираем, но тап по ним всё равно открывает
+                // редактирование (замену).
+                ...(() {
+                  final hasAvatar =
+                      (data.profile?.avatarUrl?.trim().isNotEmpty ?? false);
+                  final hasName =
+                      (data.profile?.fullName?.trim().isNotEmpty ?? false);
+                  return [
+                    Center(
+                      child: Column(
+                        children: [
+                          // Аватар — тап всегда открывает выбор фото. Значок
+                          // камеры — только если фото ещё нет (или идёт загрузка).
+                          GestureDetector(
+                            onTap: _savingAvatar ? null : _pickAvatar,
+                            child: Stack(
+                              children: [
+                                _Avatar(
+                                  url: data.profile?.avatarUrl,
+                                  busy: _savingAvatar,
+                                ),
+                                if (!hasAvatar && !_savingAvatar)
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: AppButtonColors.green,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: Theme.of(context)
+                                                .scaffoldBackgroundColor,
+                                            width: 2),
+                                      ),
+                                      child: const Icon(Icons.photo_camera,
+                                          size: 16, color: Colors.white),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Имя — тап всегда открывает редактирование. Карандаш
+                          // (и приглашение «Добавьте имя») — только пока имени нет.
+                          InkWell(
+                            onTap: () => _editName(data.profile?.fullName),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    hasName
+                                        ? data.profile!.fullName!.trim()
+                                        : 'Добавьте имя',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  if (!hasName) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.edit, size: 16),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Телефон (нормализованный, с +381 и группами) —
+                          // тап копирует в буфер. Если телефона нет — email.
+                          () {
+                            final rawPhone =
+                                data.profile?.phone ?? user.phone;
+                            if (rawPhone != null && rawPhone.trim().isNotEmpty) {
+                              final display = serbianPhoneDisplay(rawPhone);
+                              return InkWell(
+                                onTap: () async {
+                                  await Clipboard.setData(
+                                      ClipboardData(text: display));
+                                  _snack('Номер скопирован', success: true);
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        display,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Icon(Icons.copy,
+                                          size: 14,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            if (user.email != null) {
+                              return Text(
+                                user.email!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          }(),
+                        ],
                       ),
-                      Text(user.email ?? '',
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+                    ),
+                    const SizedBox(height: 16),
+                  ];
+                }()),
 
                 // Баланс, «Мои объявления» (+ модерация админу) — доступны всем.
                 ...[
@@ -144,10 +326,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Тёмная плашка-пилюля (как «Опубликовать»), по контенту, без иконки.
+                  // Плашки-пилюли одной ширины (expand: на всю ширину).
                   DarkPillButton(
                     label: 'Мои объявления',
                     variant: PillVariant.green,
+                    expand: true,
                     onTap: () async {
                       await context.push('/my-cars');
                       _reload();
@@ -160,27 +343,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     DarkPillButton(
                       label: 'Модерация объявлений',
                       variant: PillVariant.blue,
+                      expand: true,
                       onTap: () => context.push('/moderation'),
                     ),
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                 ],
 
-                // История транзакций
-                Text('История операций',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                if (data.transactions.isEmpty)
-                  const Text('Операций пока нет')
-                else
-                  ...data.transactions.map((t) => _TxTile(tx: t)),
-
-                const SizedBox(height: 24),
-                // Единый вид со всеми плашками профиля: красный бренд-вариант,
-                // белый текст. Во время выхода — неактивна («Выходим…»).
+                // «Выйти из аккаунта» — красная плашка, той же ширины.
                 DarkPillButton(
                   label: _loading ? 'Выходим…' : 'Выйти из аккаунта',
                   variant: PillVariant.red,
+                  expand: true,
                   onTap: _loading ? null : _signOut,
                 ),
               ],
@@ -195,43 +369,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
 class _ProfileData {
   final ProfileModel? profile;
   final double balance;
-  final List<TransactionModel> transactions;
   const _ProfileData({
     required this.profile,
     required this.balance,
-    required this.transactions,
   });
 }
 
-// Строка транзакции
-class _TxTile extends StatelessWidget {
-  const _TxTile({required this.tx});
-  final TransactionModel tx;
+// Кружок аватара: текущее фото или иконка-заглушка. При busy — затемнение
+// и спиннер (идёт загрузка).
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.url, required this.busy});
+  final String? url;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    // Знак и подпись по типу
-    final (label, positive) = switch (tx.type) {
-      TransactionModel.typePayment => ('Оплата', false),
-      TransactionModel.typeRefund => ('Возврат', true),
-      TransactionModel.typePenalty => ('Штраф', false),
-      TransactionModel.typePayout => ('Выплата', true),
-      _ => (tx.type, true),
-    };
-    final sign = positive ? '+' : '−';
-    final color = positive ? Colors.green : Colors.red;
-
-    return ListTile(
-      dense: true,
-      title: Text(label),
-      subtitle: Text('${tx.status} · ${_d(tx.createdAt)}'),
-      trailing: Text(
-        '$sign${tx.amount.toStringAsFixed(2)} ${tx.currency}',
-        style: TextStyle(color: color, fontWeight: FontWeight.bold),
+    final hasUrl = url != null && url!.trim().isNotEmpty;
+    return SizedBox(
+      width: 88,
+      height: 88,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: Colors.black12,
+            backgroundImage: hasUrl ? NetworkImage(url!) : null,
+            child: hasUrl
+                ? null
+                : const Icon(Icons.person, size: 44, color: Colors.white),
+          ),
+          if (busy)
+            Container(
+              width: 88,
+              height: 88,
+              decoration: const BoxDecoration(
+                color: Colors.black38,
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
-
-  String _d(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 }

@@ -30,7 +30,11 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
     _future = _repo.fetchMyChatsDetailed();
   }
 
-  void _reload() => setState(() => _future = _repo.fetchMyChatsDetailed());
+  void _reload() {
+    setState(() {
+      _future = _repo.fetchMyChatsDetailed();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

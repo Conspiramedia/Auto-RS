@@ -32,7 +32,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     _future = _repo.fetchMyFavorites();
   }
 
-  void _reload() => setState(() => _future = _repo.fetchMyFavorites());
+  void _reload() {
+    setState(() {
+      _future = _repo.fetchMyFavorites();
+    });
+  }
 
   // Убрать из избранного (toggle вернёт false)
   Future<void> _remove(String carId) async {

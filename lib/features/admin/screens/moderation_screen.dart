@@ -33,7 +33,9 @@ class _ModerationScreenState extends State<ModerationScreen> {
   }
 
   void _reload() {
-    setState(() => _future = _repo.fetchModerationQueue());
+    setState(() {
+      _future = _repo.fetchModerationQueue();
+    });
   }
 
   void _snack(String msg) {

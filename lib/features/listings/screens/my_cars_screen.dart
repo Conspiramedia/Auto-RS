@@ -36,7 +36,11 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
     return _repo.fetchMyCars(uid);
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
