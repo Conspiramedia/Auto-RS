@@ -11,7 +11,20 @@ import '../../../data/models/favorite_with_car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/app_search_header.dart';
 import '../../../shared/widgets/pill_back_button.dart';
+
+// Подсказки поиска по теме экрана «Избранное» (по сохранённым авто).
+const List<String> _kFavoritesHints = [
+  'Поиск в избранном',
+  'Марка или модель',
+  'Golf 7',
+  'BMW 320d',
+  'Kia Sportage',
+  'По городу: Beograd',
+  'Škoda Octavia',
+  'Mercedes C klasa',
+];
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -26,10 +39,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   late Future<List<FavoriteWithCarModel>> _future;
 
+  // Локальный поиск по избранному + язык (общая шапка).
+  String _query = '';
+  String _lang = 'sr';
+
   @override
   void initState() {
     super.initState();
     _future = _repo.fetchMyFavorites();
+  }
+
+  // Фильтрация загруженного списка по тексту (марка/модель/город).
+  List<FavoriteWithCarModel> _filter(List<FavoriteWithCarModel> items) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return items;
+    return items.where((f) {
+      final hay =
+          '${f.brand} ${f.model} ${f.city} ${f.year ?? ''}'.toLowerCase();
+      return hay.contains(q);
+    }).toList();
   }
 
   void _reload() {
@@ -60,39 +88,60 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Избранное')),
-      body: FutureBuilder<List<FavoriteWithCarModel>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('${snapshot.error}'));
-          }
-          final items = snapshot.data ?? [];
-          if (items.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () async => _reload(),
-              child: ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Text('В избранном пока пусто')),
-                ],
-              ),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, i) => _FavCard(
-                fav: items[i],
-                onRemove: () => _remove(items[i].carId),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Общая шапка: логотип + поиск (по избранному) + язык.
+            AppSearchHeader(
+              query: _query,
+              onSearchChanged: (v) => setState(() => _query = v),
+              lang: _lang,
+              onLangChanged: (v) => setState(() => _lang = v),
+              hints: _kFavoritesHints,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: FutureBuilder<List<FavoriteWithCarModel>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('${snapshot.error}'));
+                  }
+                  final all = snapshot.data ?? [];
+                  final items = _filter(all);
+                  if (items.isEmpty) {
+                    // Разные тексты: совсем пусто vs ничего не нашлось по поиску.
+                    final empty = all.isEmpty
+                        ? 'В избранном пока пусто'
+                        : 'Ничего не найдено';
+                    return RefreshIndicator(
+                      onRefresh: () async => _reload(),
+                      child: ListView(
+                        children: [
+                          const SizedBox(height: 120),
+                          Center(child: Text(empty)),
+                        ],
+                      ),
+                    );
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () async => _reload(),
+                    child: ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, i) => _FavCard(
+                        fav: items[i],
+                        onRemove: () => _remove(items[i].carId),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }

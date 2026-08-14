@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/models/car_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../features/admin/screens/moderation_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -48,6 +49,12 @@ class AppRouter {
       GoRoute(
         path: '/create-car',
         builder: (context, state) => const CreateCarScreen(),
+      ),
+      // Редактирование объявления — editCar передаётся через extra.
+      GoRoute(
+        path: '/edit-car',
+        builder: (context, state) =>
+            CreateCarScreen(editCar: state.extra as CarModel?),
       ),
       // Мои объявления (продавец) — требует авторизации
       GoRoute(
@@ -106,6 +113,7 @@ class AppRouter {
       // «Опубликовать» (см. _publish в create_car_screen). «Ленивый» вход.
       final protected = state.matchedLocation.startsWith('/profile') ||
           state.matchedLocation.startsWith('/my-cars') ||
+          state.matchedLocation.startsWith('/edit-car') ||
           state.matchedLocation.startsWith('/moderation') ||
           state.matchedLocation.startsWith('/chat') ||
           state.matchedLocation.startsWith('/favorites') ||

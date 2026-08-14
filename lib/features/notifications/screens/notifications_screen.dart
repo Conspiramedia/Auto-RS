@@ -34,10 +34,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Помечаем прочитанным (не блокируем переход)
     _repo.markRead(n.id);
 
-    // Переход есть только для сообщений чата. Устаревшие типы (booking/kyc)
-    // из старых записей просто закрываются как прочитанные.
-    if (n.type == NotificationModel.typeChatMessage && n.actionId != null) {
-      context.push('/chat/${n.actionId}');
+    // Переходы по тапу: чат — в комнату; модерация объявления — в карточку.
+    // Устаревшие типы (booking/kyc) просто закрываются как прочитанные.
+    if (n.actionId != null) {
+      if (n.type == NotificationModel.typeChatMessage) {
+        context.push('/chat/${n.actionId}');
+      } else if (n.type == NotificationModel.typeCarRejected ||
+          n.type == NotificationModel.typeCarApproved) {
+        context.push('/car/${n.actionId}');
+      }
     }
   }
 
@@ -47,6 +52,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.chat_bubble;
       case NotificationModel.typeBookingStatus:
         return Icons.event_note;
+      case NotificationModel.typeCarRejected:
+        return Icons.cancel;
+      case NotificationModel.typeCarApproved:
+        return Icons.check_circle;
       case 'kyc_status_changed':
         return Icons.verified_user;
       default:

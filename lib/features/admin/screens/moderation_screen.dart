@@ -1,7 +1,10 @@
 // ============================================================
-// AUTO.RS — Экран модерации (админ). Очередь объявлений в статусе
-// moderation + одобрить / отклонить (с причиной). Всё через RPC
-// approve_car / reject_car (права проверяет сервер через is_admin()).
+// AUTO.RS — Экран модерации (админ). Две вкладки-папки:
+//   • «Новые»       — объявления в статусе moderation;
+//   • «Отклонённые» — в статусе rejected (с причиной, можно одобрить).
+// Действия: одобрить / отклонить (с причиной) через RPC approve_car /
+// reject_car (права проверяет сервер через is_admin()). В карточке видно
+// автора (имя/телефон) и фото.
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -11,6 +14,7 @@ import '../../../data/models/car_model.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class ModerationScreen extends StatefulWidget {
@@ -23,19 +27,25 @@ class ModerationScreen extends StatefulWidget {
 class _ModerationScreenState extends State<ModerationScreen> {
   final _repo = AdminRepository();
 
-  late Future<List<CarModel>> _future;
+  late Future<List<ModerationItem>> _newFuture;      // статус moderation
+  late Future<List<ModerationItem>> _rejectedFuture; // статус rejected
   bool _busy = false; // блокировка на время approve/reject
 
   @override
   void initState() {
     super.initState();
-    _future = _repo.fetchModerationQueue();
+    _loadBoth();
   }
 
+  void _loadBoth() {
+    _newFuture = _repo.fetchModerationQueue('moderation');
+    _rejectedFuture = _repo.fetchModerationQueue('rejected');
+  }
+
+  // Перезагрузка обеих папок (после одобрения/отклонения объявление
+  // переходит между статусами, поэтому обновляем оба списка).
   void _reload() {
-    setState(() {
-      _future = _repo.fetchModerationQueue();
-    });
+    setState(_loadBoth);
   }
 
   void _snack(String msg) {
@@ -175,45 +185,71 @@ class _ModerationScreenState extends State<ModerationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Модерация')),
-      body: FutureBuilder<List<CarModel>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('${snapshot.error}'));
-          }
-          final cars = snapshot.data ?? [];
-          if (cars.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () async => _reload(),
-              child: ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Text('Очередь модерации пуста')),
-                ],
-              ),
-            );
-          }
-          return AbsorbPointer(
-            absorbing: _busy,
-            child: RefreshIndicator(
-              onRefresh: () async => _reload(),
-              child: ListView.builder(
-                itemCount: cars.length,
-                itemBuilder: (context, i) => _ModerationCard(
-                  car: cars[i],
-                  onApprove: () => _approve(cars[i]),
-                  onReject: () => _reject(cars[i]),
-                ),
-              ),
-            ),
-          );
-        },
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: const PillBackButton(),
+          title: const Text('Модерация'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Новые'),
+              Tab(text: 'Отклонённые'),
+            ],
+          ),
+        ),
+        body: AbsorbPointer(
+          absorbing: _busy,
+          child: TabBarView(
+            children: [
+              _buildList(_newFuture, 'Новых объявлений нет', isRejected: false),
+              _buildList(_rejectedFuture, 'Отклонённых объявлений нет',
+                  isRejected: true),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  // Список одной папки. isRejected меняет доступные действия: у отклонённых
+  // показываем причину и кнопку «Одобрить» (без «Отклонить» — уже отклонено).
+  Widget _buildList(
+    Future<List<ModerationItem>> future,
+    String emptyText, {
+    required bool isRejected,
+  }) {
+    return FutureBuilder<List<ModerationItem>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('${snapshot.error}'));
+        }
+        final items = snapshot.data ?? [];
+        return RefreshIndicator(
+          onRefresh: () async => _reload(),
+          child: items.isEmpty
+              ? ListView(
+                  children: [
+                    const SizedBox(height: 120),
+                    Center(child: Text(emptyText)),
+                  ],
+                )
+              : ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, i) => _ModerationCard(
+                    item: items[i],
+                    isRejected: isRejected,
+                    onApprove: () => _approve(items[i].car),
+                    onReject:
+                        isRejected ? null : () => _reject(items[i].car),
+                  ),
+                ),
+        );
+      },
     );
   }
 }
@@ -221,23 +257,34 @@ class _ModerationScreenState extends State<ModerationScreen> {
 // Карточка объявления в очереди модерации
 class _ModerationCard extends StatelessWidget {
   const _ModerationCard({
-    required this.car,
+    required this.item,
+    required this.isRejected,
     required this.onApprove,
     required this.onReject,
   });
 
-  final CarModel car;
+  final ModerationItem item;
+  final bool isRejected;         // папка «Отклонённые»
   final VoidCallback onApprove;
-  final VoidCallback onReject;
+  final VoidCallback? onReject;  // null — кнопку «Отклонить» не показываем
 
   @override
   Widget build(BuildContext context) {
+    final car = item.car;
     // Цена по назначению
     final price = car.isForRent && car.rentPriceDaily != null
         ? '${car.rentPriceDaily!.toStringAsFixed(0)} ${car.currency.value}/сутки'
         : car.salePrice != null
             ? '${car.salePrice!.toStringAsFixed(0)} ${car.currency.value}'
             : '—';
+
+    // «От кого»: имя продавца (если задано) + телефон в читаемом виде.
+    final sellerName = (item.authorName?.trim().isNotEmpty ?? false)
+        ? item.authorName!.trim()
+        : 'Без имени';
+    final sellerPhone = (car.contactPhone?.trim().isNotEmpty ?? false)
+        ? serbianPhoneDisplay(car.contactPhone!)
+        : null;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -256,6 +303,24 @@ class _ModerationCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text('${car.city} · $price'),
+
+            // ---- От кого (продавец) ----
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 16),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    sellerPhone != null
+                        ? '$sellerName · $sellerPhone'
+                        : sellerName,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+
             if (car.description != null &&
                 car.description!.trim().isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -266,17 +331,39 @@ class _ModerationCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
+
+            // ---- Причина отклонения (только в папке «Отклонённые») ----
+            if (isRejected &&
+                (car.moderationComment?.trim().isNotEmpty ?? false)) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0x1AE01E23), // бренд-красный, прозрачный
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Причина: ${car.moderationComment!.trim()}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton(
-                  onPressed: onReject,
-                  child: const Text('Отклонить'),
-                ),
-                const SizedBox(width: 8),
+                if (onReject != null) ...[
+                  OutlinedButton(
+                    onPressed: onReject,
+                    child: const Text('Отклонить'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 FilledButton(
                   onPressed: onApprove,
+                  // В «Отклонённых» одобрение = повторная публикация.
                   child: const Text('Одобрить'),
                 ),
               ],

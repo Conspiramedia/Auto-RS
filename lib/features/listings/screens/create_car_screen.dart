@@ -15,6 +15,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../auth/screens/login_screen.dart';
+import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
@@ -27,7 +28,11 @@ import '../utils/validate_car_form.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class CreateCarScreen extends StatefulWidget {
-  const CreateCarScreen({super.key});
+  const CreateCarScreen({super.key, this.editCar});
+
+  // Если задано — режим РЕДАКТИРОВАНИЯ существующего объявления (поля
+  // предзаполняются, вызывается update_car_v2). null — создание нового.
+  final CarModel? editCar;
 
   @override
   State<CreateCarScreen> createState() => _CreateCarScreenState();
@@ -81,11 +86,53 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   // при уходе (они уже привязаны к объявлению).
   bool _published = false;
 
+  // Режим редактирования (передан editCar).
+  bool get _isEdit => widget.editCar != null;
+
   @override
   void initState() {
     super.initState();
     _loadBrands();
     _phoneFocus.addListener(_onPhoneFocus);
+    if (_isEdit) _prefillFromCar(widget.editCar!);
+  }
+
+  // Предзаполнение формы полями редактируемого объявления.
+  void _prefillFromCar(CarModel car) {
+    _listingType = car.isForRent && !car.isForSale ? 'rent' : 'sale';
+    _brand = car.brand;
+    _model = car.model;
+    _year = '${car.year}';
+    _city = car.city;
+    _bodyType = car.bodyType?.value;
+    _transmission = car.transmission?.value;
+    _fuel = car.fuel?.value;
+    if (car.mileage != null) _mileageCtrl.text = '${car.mileage}';
+    final price = car.isForRent ? car.rentPriceDaily : car.salePrice;
+    if (price != null) _priceCtrl.text = price.toStringAsFixed(0);
+    _descCtrl.text = car.description ?? '';
+    if (car.contactPhone != null) {
+      _phoneCtrl.text = serbianPhoneDisplay(car.contactPhone!);
+    }
+    // Существующие фото объявления — сразу в набор (можно удалять/добавлять).
+    _loadExistingPhotos(car.id);
+    // Модели выбранной марки для пикера.
+    if (car.brand.isNotEmpty) _loadModels(car.brand);
+  }
+
+  // Подтягиваем URL уже загруженных фото объявления.
+  Future<void> _loadExistingPhotos(String carId) async {
+    try {
+      final imgs = await _carsRepo.fetchImages(carId);
+      if (!mounted) return;
+      setState(() {
+        _photoUrls
+          ..clear()
+          ..addAll(imgs.map((e) => e.imageUrl));
+      });
+    } catch (_) {
+      // Не критично — пользователь добавит фото заново.
+    }
   }
 
   // При фокусе на пустом поле подставляем «+381 » — сербский код виден сразу.
@@ -360,27 +407,49 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
     setState(() => _publishing = true);
     try {
-      final id = await _carsRepo.createCarV2(
-        listingType: _listingType,
-        brand: _brand!.trim(),
-        model: _model!.trim(),
-        year: year!,
-        mileage: mileage,
-        price: price, // null → «Договорная»
-        city: _city!.trim(),
-        photoUrls: _photoUrls,
-        bodyType: _bodyType,
-        transmission: _transmission,
-        fuel: _fuel,
-        description: _descCtrl.text.trim().isEmpty
-            ? null
-            : _descCtrl.text.trim(),
-        phone: phoneE164,
-      );
-      // Опубликовано: фото теперь привязаны к объявлению — при уходе с
-      // экрана их удалять НЕ нужно.
+      final description =
+          _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim();
+      final String id;
+      if (_isEdit) {
+        // Редактирование: обновляем объявление, статус → снова на модерацию.
+        id = await _carsRepo.updateCarV2(
+          carId: widget.editCar!.id,
+          listingType: _listingType,
+          brand: _brand!.trim(),
+          model: _model!.trim(),
+          year: year!,
+          mileage: mileage,
+          price: price,
+          city: _city!.trim(),
+          photoUrls: _photoUrls,
+          bodyType: _bodyType,
+          transmission: _transmission,
+          fuel: _fuel,
+          description: description,
+          phone: phoneE164,
+        );
+      } else {
+        id = await _carsRepo.createCarV2(
+          listingType: _listingType,
+          brand: _brand!.trim(),
+          model: _model!.trim(),
+          year: year!,
+          mileage: mileage,
+          price: price, // null → «Договорная»
+          city: _city!.trim(),
+          photoUrls: _photoUrls,
+          bodyType: _bodyType,
+          transmission: _transmission,
+          fuel: _fuel,
+          description: description,
+          phone: phoneE164,
+        );
+      }
+      // Готово: фото привязаны к объявлению — при уходе с экрана не удаляем.
       _published = true;
-      _snack('Объявление отправлено на модерацию');
+      _snack(_isEdit
+          ? 'Изменения отправлены на модерацию'
+          : 'Объявление отправлено на модерацию');
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) context.pop(id);
@@ -399,7 +468,9 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Новое объявление')),
+      appBar: AppBar(
+          leading: const PillBackButton(),
+          title: Text(_isEdit ? 'Редактирование' : 'Новое объявление')),
       body: AbsorbPointer(
         absorbing: _publishing,
         child: ListView(
@@ -591,9 +662,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             const SizedBox(height: 24),
 
-            // ---------- Публикация (тёмная плашка, по контенту) ----------
+            // ---------- Публикация / сохранение (тёмная плашка) ----------
             DarkPillButton(
-              label: _publishing ? 'Публикуем…' : 'Опубликовать',
+              label: _publishing
+                  ? 'Сохраняем…'
+                  : (_isEdit ? 'Сохранить и отправить' : 'Опубликовать'),
               variant: PillVariant.green,
               onTap: _publishing ? null : _publish,
             ),

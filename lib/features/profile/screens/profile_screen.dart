@@ -16,6 +16,7 @@ import '../../../data/repositories/transactions_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
+import '../../../shared/widgets/notif_bell.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
@@ -153,12 +154,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Гость
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(leading: const PillBackButton(), title: const Text('Профиль')),
+        appBar: AppBar(
+            leading: const PillBackButton(), title: const Text('Профиль')),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircleAvatar(radius: 40, child: Icon(Icons.person, size: 40)),
+              const CircleAvatar(
+                  radius: 40, child: Icon(Icons.person, size: 40)),
               const SizedBox(height: 16),
               const Text('Гость'),
               const SizedBox(height: 24),
@@ -173,7 +176,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Профиль')),
+      appBar: AppBar(
+        leading: const PillBackButton(),
+        title: const Text('Профиль'),
+        actions: [
+          // Колокольчик: красный и покачивается при непрочитанных (не-чат).
+          NotifBell(onTap: () => context.push('/notifications')),
+        ],
+      ),
       body: FutureBuilder<_ProfileData>(
         future: _future,
         builder: (context, snapshot) {
@@ -186,178 +196,218 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final data = snapshot.data!;
           return RefreshIndicator(
             onRefresh: () async => _reload(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // Шапка. Подсказки-значки (камера/карандаш) показываем ТОЛЬКО
-                // пока данные не заданы — как приглашение заполнить. Когда фото
-                // и имя есть, значки убираем, но тап по ним всё равно открывает
-                // редактирование (замену).
-                ...(() {
-                  final hasAvatar =
-                      (data.profile?.avatarUrl?.trim().isNotEmpty ?? false);
-                  final hasName =
-                      (data.profile?.fullName?.trim().isNotEmpty ?? false);
-                  return [
-                    Center(
+            // LayoutBuilder даёт доступную высоту экрана. Контент кладём в
+            // Column с minHeight = высоте вьюпорта: основной блок сверху,
+            // Spacer отталкивает «Выйти» к самому низу. Если контента больше
+            // высоты экрана — SingleChildScrollView прокручивает всё целиком.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight - 32),
+                    // IntrinsicHeight даёт Column определённую высоту в скролле,
+                    // чтобы Spacer (Expanded) корректно распределил свободное
+                    // место и увёл «Выйти» к низу.
+                    child: IntrinsicHeight(
                       child: Column(
                         children: [
-                          // Аватар — тап всегда открывает выбор фото. Значок
-                          // камеры — только если фото ещё нет (или идёт загрузка).
-                          GestureDetector(
-                            onTap: _savingAvatar ? null : _pickAvatar,
-                            child: Stack(
-                              children: [
-                                _Avatar(
-                                  url: data.profile?.avatarUrl,
-                                  busy: _savingAvatar,
-                                ),
-                                if (!hasAvatar && !_savingAvatar)
-                                  Positioned(
-                                    right: 0,
-                                    bottom: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: AppButtonColors.green,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            color: Theme.of(context)
-                                                .scaffoldBackgroundColor,
-                                            width: 2),
+                          // Шапка. Подсказки-значки (камера/карандаш) показываем ТОЛЬКО
+                          // пока данные не заданы — как приглашение заполнить. Когда фото
+                          // и имя есть, значки убираем, но тап по ним всё равно открывает
+                          // редактирование (замену).
+                          ...(() {
+                            final hasAvatar =
+                                (data.profile?.avatarUrl?.trim().isNotEmpty ??
+                                    false);
+                            final hasName =
+                                (data.profile?.fullName?.trim().isNotEmpty ??
+                                    false);
+                            return [
+                              Center(
+                                child: Column(
+                                  children: [
+                                    // Аватар — тап всегда открывает выбор фото. Значок
+                                    // камеры — только если фото ещё нет (или идёт загрузка).
+                                    GestureDetector(
+                                      onTap: _savingAvatar ? null : _pickAvatar,
+                                      child: Stack(
+                                        children: [
+                                          _Avatar(
+                                            url: data.profile?.avatarUrl,
+                                            busy: _savingAvatar,
+                                          ),
+                                          if (!hasAvatar && !_savingAvatar)
+                                            Positioned(
+                                              right: 0,
+                                              bottom: 0,
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: AppButtonColors.green,
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                      color: Theme.of(context)
+                                                          .scaffoldBackgroundColor,
+                                                      width: 2),
+                                                ),
+                                                child: const Icon(
+                                                    Icons.photo_camera,
+                                                    size: 16,
+                                                    color: Colors.white),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                      child: const Icon(Icons.photo_camera,
-                                          size: 16, color: Colors.white),
                                     ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Имя — тап всегда открывает редактирование. Карандаш
-                          // (и приглашение «Добавьте имя») — только пока имени нет.
-                          InkWell(
-                            onTap: () => _editName(data.profile?.fullName),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    hasName
-                                        ? data.profile!.fullName!.trim()
-                                        : 'Добавьте имя',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  if (!hasName) ...[
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.edit, size: 16),
+                                    const SizedBox(height: 12),
+                                    // Имя — тап всегда открывает редактирование. Карандаш
+                                    // (и приглашение «Добавьте имя») — только пока имени нет.
+                                    InkWell(
+                                      onTap: () =>
+                                          _editName(data.profile?.fullName),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              hasName
+                                                  ? data.profile!.fullName!
+                                                      .trim()
+                                                  : 'Добавьте имя',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
+                                            ),
+                                            if (!hasName) ...[
+                                              const SizedBox(width: 6),
+                                              const Icon(Icons.edit, size: 16),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    // Телефон (нормализованный, с +381 и группами) —
+                                    // тап копирует в буфер. Если телефона нет — email.
+                                    () {
+                                      final rawPhone =
+                                          data.profile?.phone ?? user.phone;
+                                      if (rawPhone != null &&
+                                          rawPhone.trim().isNotEmpty) {
+                                        final display =
+                                            serbianPhoneDisplay(rawPhone);
+                                        return InkWell(
+                                          onTap: () async {
+                                            await Clipboard.setData(
+                                                ClipboardData(text: display));
+                                            _snack('Номер скопирован',
+                                                success: true);
+                                          },
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  display,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Icon(Icons.copy,
+                                                    size: 14,
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      if (user.email != null) {
+                                        return Text(
+                                          user.email!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    }(),
                                   ],
-                                ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ];
+                          }()),
+
+                          // Баланс, «Мои объявления» (+ модерация админу) — доступны всем.
+                          ...[
+                            // Баланс — самым верхом блока.
+                            Card(
+                              child: ListTile(
+                                leading:
+                                    const Icon(Icons.account_balance_wallet),
+                                title: const Text('Баланс'),
+                                trailing: Text(
+                                  '${data.balance.toStringAsFixed(2)} EUR',
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            // Плашки-пилюли одной ширины (expand: на всю ширину).
+                            DarkPillButton(
+                              label: 'Мои объявления',
+                              variant: PillVariant.green,
+                              expand: true,
+                              onTap: () async {
+                                await context.push('/my-cars');
+                                _reload();
+                              },
+                            ),
+                            // «Модерация объявлений» — только админу, сразу под «Мои
+                            // объявления». Та же плашка-пилюля, синий вариант.
+                            if (_isAdmin) ...[
+                              const SizedBox(height: 12),
+                              DarkPillButton(
+                                label: 'Модерация объявлений',
+                                variant: PillVariant.blue,
+                                expand: true,
+                                onTap: () => context.push('/moderation'),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                          ],
+
+                          // Отталкивает «Выйти» к низу экрана (если контент короче
+                          // вьюпорта). При длинном контенте Spacer схлопывается в 0.
+                          const Spacer(),
+
+                          // «Выйти из аккаунта» — красная плашка, той же ширины, внизу.
+                          DarkPillButton(
+                            label: _loading ? 'Выходим…' : 'Выйти из аккаунта',
+                            variant: PillVariant.red,
+                            expand: true,
+                            onTap: _loading ? null : _signOut,
                           ),
-                          // Телефон (нормализованный, с +381 и группами) —
-                          // тап копирует в буфер. Если телефона нет — email.
-                          () {
-                            final rawPhone =
-                                data.profile?.phone ?? user.phone;
-                            if (rawPhone != null && rawPhone.trim().isNotEmpty) {
-                              final display = serbianPhoneDisplay(rawPhone);
-                              return InkWell(
-                                onTap: () async {
-                                  await Clipboard.setData(
-                                      ClipboardData(text: display));
-                                  _snack('Номер скопирован', success: true);
-                                },
-                                borderRadius: BorderRadius.circular(8),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        display,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Icon(Icons.copy,
-                                          size: 14,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSurfaceVariant),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }
-                            if (user.email != null) {
-                              return Text(
-                                user.email!,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          }(),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ];
-                }()),
-
-                // Баланс, «Мои объявления» (+ модерация админу) — доступны всем.
-                ...[
-                  // Баланс — самым верхом блока.
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.account_balance_wallet),
-                      title: const Text('Баланс'),
-                      trailing: Text(
-                        '${data.balance.toStringAsFixed(2)} EUR',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
                   ),
-                  const SizedBox(height: 12),
-                  // Плашки-пилюли одной ширины (expand: на всю ширину).
-                  DarkPillButton(
-                    label: 'Мои объявления',
-                    variant: PillVariant.green,
-                    expand: true,
-                    onTap: () async {
-                      await context.push('/my-cars');
-                      _reload();
-                    },
-                  ),
-                  // «Модерация объявлений» — только админу, сразу под «Мои
-                  // объявления». Та же плашка-пилюля, синий вариант.
-                  if (_isAdmin) ...[
-                    const SizedBox(height: 12),
-                    DarkPillButton(
-                      label: 'Модерация объявлений',
-                      variant: PillVariant.blue,
-                      expand: true,
-                      onTap: () => context.push('/moderation'),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                ],
-
-                // «Выйти из аккаунта» — красная плашка, той же ширины.
-                DarkPillButton(
-                  label: _loading ? 'Выходим…' : 'Выйти из аккаунта',
-                  variant: PillVariant.red,
-                  expand: true,
-                  onTap: _loading ? null : _signOut,
-                ),
-              ],
+                );
+              },
             ),
           );
         },

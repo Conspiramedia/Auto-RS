@@ -19,18 +19,25 @@ class AdminRepository {
     return result as bool? ?? false;
   }
 
-  // Очередь модерации: объявления на модерации (и отклонённые для пересмотра).
-  // RLS-политика cars_select_admin_moderation отдаёт эти строки только админу.
-  Future<List<CarModel>> fetchModerationQueue() async {
+  // Очередь модерации по статусу ('moderation' — новые, 'rejected' —
+  // отклонённые). Джойним профиль автора (имя), чтобы показать «от кого»:
+  // политика profiles_select_admin (0019) даёт админу читать чужие профили.
+  // RLS cars_select_admin_moderation отдаёт сами объявления только админу.
+  Future<List<ModerationItem>> fetchModerationQueue(String status) async {
     final rows = await _client
         .from('cars')
-        .select()
-        .inFilter('status', ['moderation', 'rejected'])
+        .select('*, author:profiles!user_id(full_name)')
+        .eq('status', status)
         .order('created_at', ascending: true);
 
-    return (rows as List)
-        .map((e) => CarModel.fromMap(e as Map<String, dynamic>))
-        .toList();
+    return (rows as List).map((e) {
+      final map = e as Map<String, dynamic>;
+      final author = map['author'] as Map<String, dynamic>?;
+      return ModerationItem(
+        car: CarModel.fromMap(map),
+        authorName: author?['full_name'] as String?,
+      );
+    }).toList();
   }
 
   // Одобрить объявление (moderation/rejected → active).
@@ -49,4 +56,11 @@ class AdminRepository {
     });
     return CarModel.fromMap(row as Map<String, dynamic>);
   }
+}
+
+// Элемент очереди модерации: объявление + имя автора (из профиля).
+class ModerationItem {
+  final CarModel car;
+  final String? authorName; // имя продавца (может быть не задано)
+  const ModerationItem({required this.car, this.authorName});
 }

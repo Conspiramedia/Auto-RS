@@ -328,8 +328,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
       if (!mounted) return;
       setState(() {
         _cars = page;
-        // Пусто даже после нового круга = по фильтру объявлений нет вовсе.
-        _hasMore = page.isNotEmpty;
+        // Лента «бесконечна» только если объявлений хватает на полную
+        // страницу. Если пришло меньше _pageSize — это ВСЕ объявления по
+        // фильтру, крутить по кругу нечего: спиннер подгрузки не показываем
+        // (иначе он висел бы вечно при 1–2 объявлениях).
+        _hasMore = page.length >= _pageSize;
         _loading = false;
       });
     } catch (e) {
@@ -349,7 +352,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
       final page = await _fetchLoopedPage();
       if (!mounted) return;
       setState(() {
-        _hasMore = page.isNotEmpty;
+        // Меньше полной страницы — дальше крутить нечего, лента исчерпана.
+        _hasMore = page.length >= _pageSize;
         _cars = [..._cars, ...page];
       });
     } catch (_) {

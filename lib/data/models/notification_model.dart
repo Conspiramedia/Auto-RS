@@ -23,9 +23,11 @@ class NotificationModel {
     required this.createdAt,
   });
 
-  // Категории уведомлений (синхронизированы с type в триггерах)
+  // Категории уведомлений (синхронизированы с type в триггерах/RPC)
   static const String typeChatMessage = 'chat_message';
   static const String typeBookingStatus = 'booking_status_changed';
+  static const String typeCarRejected = 'car_rejected';   // объявление отклонено
+  static const String typeCarApproved = 'car_approved';   // объявление одобрено
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
     return NotificationModel(

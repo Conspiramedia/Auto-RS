@@ -10,6 +10,9 @@ import '../../../data/enums/car_status.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/app_button_colors.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class MyCarsScreen extends StatefulWidget {
@@ -40,6 +43,44 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
     setState(() {
       _future = _load();
     });
+  }
+
+  // Смена статуса объявления с подтверждением. status: 'sold' | 'archived'.
+  Future<void> _changeStatus(
+    CarModel car, {
+    required String status,
+    required String confirmTitle,
+    required String confirmText,
+    required String okLabel,
+    required String doneMsg,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(confirmTitle),
+        content: Text(confirmText),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(okLabel),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await _repo.setCarStatus(car.id, status);
+      if (!mounted) return;
+      showAppSnack(context, doneMsg, success: true);
+      _reload();
+    } catch (e) {
+      if (mounted) showAppSnack(context, humanizeError(e));
+    }
   }
 
   @override
@@ -79,7 +120,36 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
             onRefresh: () async => _reload(),
             child: ListView.builder(
               itemCount: cars.length,
-              itemBuilder: (context, i) => _MyCarCard(car: cars[i]),
+              itemBuilder: (context, i) => _MyCarCard(
+                car: cars[i],
+                onEdit: () async {
+                  final res = await context.push<String>(
+                    '/edit-car',
+                    extra: cars[i],
+                  );
+                  if (res != null) _reload();
+                },
+                onUnpublish: () => _changeStatus(
+                  cars[i],
+                  status: 'archived',
+                  confirmTitle: 'Снять с публикации?',
+                  confirmText:
+                      'Объявление исчезнет из каталога. Вернуть его можно '
+                      'через «Редактировать».',
+                  okLabel: 'Снять',
+                  doneMsg: 'Объявление снято с публикации',
+                ),
+                onSold: () => _changeStatus(
+                  cars[i],
+                  status: 'sold',
+                  confirmTitle: 'Отметить как проданное?',
+                  confirmText:
+                      'Объявление получит статус «Продано» и исчезнет из '
+                      'каталога.',
+                  okLabel: 'Продано',
+                  doneMsg: 'Объявление отмечено как проданное',
+                ),
+              ),
             ),
           );
         },
@@ -90,8 +160,16 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
 
 // Карточка своего объявления со статусом
 class _MyCarCard extends StatelessWidget {
-  const _MyCarCard({required this.car});
+  const _MyCarCard({
+    required this.car,
+    required this.onEdit,
+    required this.onUnpublish,
+    required this.onSold,
+  });
   final CarModel car;
+  final VoidCallback onEdit;
+  final VoidCallback onUnpublish; // снять с публикации (→ archived)
+  final VoidCallback onSold;      // отметить проданным (→ sold)
 
   @override
   Widget build(BuildContext context) {
@@ -101,23 +179,72 @@ class _MyCarCard extends StatelessWidget {
             ? '${car.salePrice!.toStringAsFixed(0)} ${car.currency.value}'
             : '—';
 
+    // Редактировать можно рабочие объявления (отклонённое/на модерации/активное).
+    final canEdit = car.status == CarStatus.rejected ||
+        car.status == CarStatus.moderation ||
+        car.status == CarStatus.active;
+    // Снять/продать имеет смысл только у активного (опубликованного).
+    final isActive = car.status == CarStatus.active;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        onTap: () => context.push('/car/${car.id}'),
-        title: Text('${car.brand} ${car.model}, ${car.year}'),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${car.city} · $price'),
-            // Для отклонённых показываем причину модератора
-            if (car.status == CarStatus.rejected &&
-                car.moderationComment != null)
-              Text('Причина: ${car.moderationComment}',
-                  style: const TextStyle(color: Colors.red, fontSize: 12)),
-          ],
-        ),
-        trailing: _StatusChip(status: car.status),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            onTap: () => context.push('/car/${car.id}'),
+            title: Text('${car.brand} ${car.model}, ${car.year}'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${car.city} · $price'),
+                // Для отклонённых показываем причину модератора.
+                if (car.status == CarStatus.rejected &&
+                    car.moderationComment != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('Причина: ${car.moderationComment}',
+                        style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ),
+              ],
+            ),
+            trailing: _StatusChip(status: car.status),
+          ),
+          // Кнопки действий — столбиком, одной ширины, брендовыми цветами:
+          // Редактировать (синяя) → Снять с публикации (красная) → Продано (зелёная).
+          if (canEdit || isActive)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (canEdit)
+                    DarkPillButton(
+                      label: 'Редактировать',
+                      variant: PillVariant.blue,
+                      expand: true,
+                      onTap: onEdit,
+                    ),
+                  if (isActive) ...[
+                    const SizedBox(height: 8),
+                    DarkPillButton(
+                      label: 'Снять с публикации',
+                      variant: PillVariant.red,
+                      expand: true,
+                      onTap: onUnpublish,
+                    ),
+                    const SizedBox(height: 8),
+                    DarkPillButton(
+                      label: 'Продано',
+                      variant: PillVariant.green,
+                      expand: true,
+                      onTap: onSold,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

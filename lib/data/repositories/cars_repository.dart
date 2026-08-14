@@ -191,6 +191,60 @@ class CarsRepository {
     return id as String;
   }
 
+  // Редактирование своего объявления (RPC update_car_v2, миграция 0039).
+  // После сохранения статус → moderation (снова на проверку). photoUrls
+  // передаём заново — набор фото полностью заменяется. Возвращает id.
+  Future<String> updateCarV2({
+    required String carId,
+    required String listingType,
+    required String brand,
+    required String model,
+    required int year,
+    int? mileage,
+    double? price,
+    String currency = 'EUR',
+    required String city,
+    double? lat,
+    double? lng,
+    List<String> photoUrls = const [],
+    String? bodyType,
+    String? transmission,
+    String? fuel,
+    String? description,
+    required String phone,
+  }) async {
+    final id = await _client.rpc('update_car_v2', params: {
+      'p_car_id': carId,
+      'listing_type': listingType,
+      'brand': brand,
+      'model': model,
+      'year': year,
+      'mileage': mileage,
+      'price': price,
+      'currency': currency,
+      'city': city,
+      'lat': lat,
+      'lng': lng,
+      'p_photo_urls': photoUrls,
+      'p_body_type': bodyType,
+      'p_transmission': transmission,
+      'p_fuel': fuel,
+      'p_description': description,
+      'p_phone': phone,
+    });
+    return id as String;
+  }
+
+  // ----------------------------------------------------------
+  // Смена статуса СВОЕГО объявления (RLS cars_update_own: auth.uid()=user_id).
+  //   'sold'     — продано (убирается из каталога);
+  //   'archived' — снято с публикации (можно вернуть редактированием);
+  // Прямой UPDATE — RPC не нужен, права проверяет RLS.
+  // ----------------------------------------------------------
+  Future<void> setCarStatus(String carId, String status) async {
+    await _client.from('cars').update({'status': status}).eq('id', carId);
+  }
+
   // ----------------------------------------------------------
   // Карточка одного объявления по id.
   // ----------------------------------------------------------

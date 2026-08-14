@@ -90,8 +90,15 @@ class HomeShell extends StatelessWidget {
                         color: color,
                         size: size,
                       )),
+              // Профиль — иконка + бейдж непрочитанных (не-чат) уведомлений,
+              // виден на любой странице (нижнее меню всегда на экране).
               _navItem(context, 4, index, Icons.person_outline, Icons.person,
-                  'Профиль', theme),
+                  'Профиль', theme,
+                  customIconBuilder: (color, size, filled) => _ProfileIcon(
+                        icon: filled ? Icons.person : Icons.person_outline,
+                        color: color,
+                        size: size,
+                      )),
             ],
           ),
         ),
@@ -231,6 +238,83 @@ class _MessagesIconState extends State<_MessagesIcon> {
         final unread = (snapshot.data ?? [])
             .where((n) =>
                 !n.isRead && n.type == NotificationModel.typeChatMessage)
+            .length;
+        if (unread == 0) return iconWidget;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            iconWidget,
+            Positioned(
+              right: -6,
+              top: -4,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: _kRed,
+                  shape: BoxShape.circle,
+                ),
+                constraints:
+                    const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Иконка «Профиль» с бейджем непрочитанных НЕ-чат уведомлений (модерация и
+// прочее). Чат-уведомления сюда не считаем — они на «Сообщениях». Стрим тот
+// же, живой. Бейдж на нижнем меню виден на любой странице.
+class _ProfileIcon extends StatefulWidget {
+  const _ProfileIcon({
+    required this.icon,
+    required this.color,
+    required this.size,
+  });
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  State<_ProfileIcon> createState() => _ProfileIconState();
+}
+
+class _ProfileIconState extends State<_ProfileIcon> {
+  final _auth = AuthRepository();
+  final _repo = NotificationsRepository();
+  Stream<List<NotificationModel>>? _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_auth.currentUser != null) _stream = _repo.stream();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget =
+        Icon(widget.icon, size: widget.size, color: widget.color);
+    if (_stream == null) return iconWidget;
+
+    return StreamBuilder<List<NotificationModel>>(
+      stream: _stream,
+      builder: (context, snapshot) {
+        // Непрочитанные, кроме чатовых (они на вкладке «Сообщения»).
+        final unread = (snapshot.data ?? [])
+            .where((n) =>
+                !n.isRead && n.type != NotificationModel.typeChatMessage)
             .length;
         if (unread == 0) return iconWidget;
 

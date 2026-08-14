@@ -24,9 +24,10 @@ import 'package:flutter/material.dart';
 // Золотой акцент иконки на тёмных плашках бренда.
 const Color _kGold = Color(0xFFE8A73C);
 
-// Примеры запросов авто-рынка Сербии (латиница — как в объявлениях).
-// Короткие стоят статично, длинные прокатываются бегущей строкой.
-const List<String> _kHintPhrases = [
+// Подсказки ПО УМОЛЧАНИЮ — примеры запросов авто-рынка Сербии (каталог).
+// Экран может передать свой список через параметр hints (поиск по избранному,
+// по диалогам и т.п.). Короткие стоят статично, длинные — бегущей строкой.
+const List<String> kDefaultCatalogHints = [
   'Golf 7 1.6 TDI',
   'Audi A4 B8 quattro',
   'BMW 320d Beograd',
@@ -68,10 +69,14 @@ class SmartSearchBar extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.onSubmitted,
+    this.hints = kDefaultCatalogHints,
   });
 
   /// Текущий текст запроса (null/пусто — крутим подсказки).
   final String? value;
+
+  /// Список «живых» подсказок под тему экрана. По умолчанию — каталог авто.
+  final List<String> hints;
 
   /// Живой ввод: вызывается на каждое изменение текста.
   final ValueChanged<String> onChanged;
@@ -105,7 +110,8 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
     _controller.addListener(_onTextChanged);
     _focus.addListener(_onFocusChanged);
     // Стартуем со случайной фразы, чтобы подсказки не приедались.
-    _hintIndex = _random.nextInt(_kHintPhrases.length);
+    _hintIndex =
+        widget.hints.isEmpty ? 0 : _random.nextInt(widget.hints.length);
   }
 
   @override
@@ -152,7 +158,9 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
   /// Следующая подсказка: случайный индекс БЕЗ повтора текущего и
   /// случайный эффект перехода.
   void _nextHint() {
-    var next = _random.nextInt(_kHintPhrases.length - 1);
+    // Меньше 2 фраз — крутить нечего (цикл не меняет индекс).
+    if (widget.hints.length < 2) return;
+    var next = _random.nextInt(widget.hints.length - 1);
     if (next >= _hintIndex) next++;
     setState(() {
       _hintIndex = next;
@@ -213,7 +221,7 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
   Widget build(BuildContext context) {
     const radius = BorderRadius.all(Radius.circular(16));
     // Показываем «живые» подсказки, только когда поле пустое и не в фокусе.
-    final showHint = !_focus.hasFocus && !_hasText;
+    final showHint = !_focus.hasFocus && !_hasText && widget.hints.isNotEmpty;
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -281,7 +289,8 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                             ),
                             child: _MarqueeHint(
                               key: ValueKey<int>(_hintIndex),
-                              text: _kHintPhrases[_hintIndex],
+                              text: widget.hints[
+                                  _hintIndex.clamp(0, widget.hints.length - 1)],
                               style: const TextStyle(
                                 fontSize: 15,
                                 color: Color(0xFF9A9AA0),
