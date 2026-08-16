@@ -10,6 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/config/supabase_config.dart';
 import 'core/i18n/app_language.dart';
+import 'core/push/push_service.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/onboarding/onboarding_service.dart';
@@ -23,6 +24,12 @@ Future<void> main() async {
 
   // Поднимаем клиент Supabase (auth, БД, RPC, storage)
   await SupabaseConfig.init();
+
+  // Push-уведомления: Firebase, подписка на обновление токена и обработка
+  // тапов. Инициализируем ПОСЛЕ Supabase — регистрация токена требует
+  // готового клиента и сессии пользователя. Ошибки внутри погашены:
+  // приложение должно запускаться и без Firebase.
+  await PushService.instance.init();
 
   // Читаем сохранённый выбор языка ДО первого кадра, чтобы интерфейс сразу
   // поднялся на нужном языке (иначе был бы кадр на языке по умолчанию).

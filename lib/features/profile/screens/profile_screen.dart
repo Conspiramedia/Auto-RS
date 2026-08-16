@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/push/push_service.dart';
 import '../../../data/models/profile_model.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -195,6 +196,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() => _loading = true);
     try {
+      // Отвязываем токен ДО выхода: после signOut auth.uid() уже пуст, и
+      // сервер не поймёт, чей это токен. Иначе следующий пользователь
+      // устройства получал бы чужие уведомления.
+      await PushService.instance.unregisterToken();
       await _auth.signOut();
       if (mounted) context.go('/catalog');
     } finally {

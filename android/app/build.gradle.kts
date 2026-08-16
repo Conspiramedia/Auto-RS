@@ -2,6 +2,10 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Обработка google-services.json (push-уведомления FCM).
+    // Применяется ПОСЛЕ android-плагина — иначе Gradle не найдёт конфигурацию
+    // приложения, к которой привязывает сгенерированные ресурсы.
+    id("com.google.gms.google-services")
 }
 
 android {

@@ -9,16 +9,15 @@
 // Поэтому сначала свой экран-объяснение («зачем»), и только по согласию —
 // системный запрос. Это стандартный приём pre-permission priming.
 //
-// ТЕКУЩЕЕ СОСТОЯНИЕ: firebase_messaging ещё не подключён (ждём конфиги
-// Firebase от заказчика). Здесь готов весь UI и точка вызова; фактический
-// запрос разрешения и регистрация токена подключаются в одном месте —
-// _requestSystemPermission ниже. Пока он лишь фиксирует согласие локально,
-// чтобы после появления конфигов не переделывать экраны.
+// По согласию вызывается PushService: он запрашивает системное разрешение,
+// получает токен устройства и регистрирует его на сервере. Экран о деталях
+// работы с Firebase не знает.
 // ============================================================
 
 import 'package:flutter/material.dart';
 
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/push/push_service.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../onboarding_service.dart';
 
@@ -46,21 +45,14 @@ Future<bool> maybeAskPushPermission(BuildContext context) async {
 }
 
 // ------------------------------------------------------------
-// Точка подключения FCM.
-// ------------------------------------------------------------
-// Когда заказчик передаст google-services.json / GoogleService-Info.plist,
-// сюда добавляется:
-//   1) FirebaseMessaging.instance.requestPermission();
-//   2) получение токена getToken();
-//   3) SavedSearchesRepository().registerPushToken(token) — серверная часть
-//      (RPC register_push_token) уже готова, см. миграцию 0045.
+// Системный запрос разрешения на уведомления.
 //
-// Отдельная функция нужна ровно для того, чтобы это подключение затронуло
-// один файл, а не все экраны, откуда спрашивают разрешение.
+// Вся работа с FCM — в PushService: запрос разрешения, получение токена и
+// его регистрация на сервере (RPC register_push_token). Здесь только вызов,
+// чтобы экраны не знали деталей работы с Firebase.
 // ------------------------------------------------------------
 Future<void> _requestSystemPermission() async {
-  // TODO(fcm): подключить firebase_messaging после получения конфигов
-  // Firebase. См. TODO в отчёте по Пакету C.
+  await PushService.instance.requestPermission();
 }
 
 class _PushPermissionSheet extends StatelessWidget {
