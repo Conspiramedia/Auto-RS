@@ -39,9 +39,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   late Future<List<FavoriteWithCarModel>> _future;
 
-  // Локальный поиск по избранному + язык (общая шапка).
+  // Локальный поиск по избранному (общая шапка).
   String _query = '';
-  String _lang = 'sr';
 
   @override
   void initState() {
@@ -91,12 +90,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Общая шапка: логотип + поиск (по избранному) + язык.
+            // Общая шапка: логотип + поиск (по избранному).
             AppSearchHeader(
               query: _query,
               onSearchChanged: (v) => setState(() => _query = v),
-              lang: _lang,
-              onLangChanged: (v) => setState(() => _lang = v),
               hints: _kFavoritesHints,
             ),
             const SizedBox(height: 8),

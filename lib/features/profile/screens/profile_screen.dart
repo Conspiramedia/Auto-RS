@@ -18,6 +18,7 @@ import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/notif_bell.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
+import '../../../shared/widgets/language_picker.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -199,7 +200,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-            leading: const PillBackButton(), title: const Text('Профиль')),
+          leading: const PillBackButton(),
+          title: const Text('Профиль'),
+          // Язык доступен и без входа: иначе гость с чужим системным языком
+          // не смог бы переключиться до авторизации.
+          actions: const [LangButton(), SizedBox(width: 8)],
+        ),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -224,6 +230,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: const PillBackButton(),
         title: const Text('Профиль'),
         actions: [
+          // Глобус — выбор языка (лист «Язык / Jezik»). Стоит слева от
+          // колокольчика: колокольчик остаётся на привычном крайнем месте.
+          const LangButton(),
           // Колокольчик: красный и покачивается при непрочитанных (не-чат).
           NotifBell(onTap: () => context.push('/notifications')),
           const SizedBox(width: 8), // отступ от правого края

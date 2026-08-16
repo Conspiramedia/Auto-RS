@@ -71,10 +71,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int _lapOffset = 0;  // серверный offset внутри круга
   bool _looping = false; // круги 2+: полная перетасовка (p_shuffle_all=true)
 
-  // Язык интерфейса: 'sr' | 'ru'. Пока только UI-переключатель (переводы
-  // строк подключим позже через локализацию).
-  String _lang = 'sr';
-
   @override
   void initState() {
     super.initState();
@@ -450,12 +446,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return Scaffold(
       // AppBar убран: логотип и поиск — в самом верху тела (SafeArea).
       // Создание объявления — центральная «+» в нижней навигации (home_shell).
-      // «Брони» — кнопка в ряду с «Фильтры» ниже.
       body: SafeArea(
         child: Column(
         children: [
-          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле).
-          // Первый ряд: логотип + строка поиска (теперь во всю ширину).
+          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле): один ряд —
+          // логотип + строка поиска с иконкой фильтров в хвосте. Отдельный
+          // ряд с кнопкой «Фильтры» убран, высота отдана карточкам.
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Row(
@@ -469,29 +465,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     value: _query,
                     onChanged: _onSearchChanged,
                     onSubmitted: _onSearchSubmitted,
+                    onFilterTap: _openFilters,
+                    filterCount: _filters.activeCount,
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Второй ряд: «Фильтры» (с полным названием, растянута) + язык.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _FilterButton(
-                    count: _filters.activeCount,
-                    onTap: _openFilters,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _LangToggle(
-                  value: _lang,
-                  onChanged: (v) => setState(() => _lang = v),
                 ),
               ],
             ),
@@ -514,144 +490,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
 // Бренд-красный (активные сердечки, колокольчик с уведомлениями)
 const Color _kRed = Color(0xFFE01E23);
-
-// Золотой акцент иконки на тёмных плашках бренда.
-const Color _kGold = Color(0xFFE8A73C);
-
-// Кнопка «Фильтры» — иконка + подпись «Фильтры», тёмный фон, скругление 16.
-// Растягивается на доступную ширину (во втором ряду шапки). При активных
-// фильтрах — красный бейдж с их числом на иконке.
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({required this.count, required this.onTap});
-  final int count;            // число активных фильтров (0 — бейджа нет)
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Color(0xFF2B2B2E),
-        borderRadius: radius,
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: SizedBox(
-              height: 49,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Иконка + бейдж активных фильтров.
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(Icons.tune, color: _kGold, size: 22),
-                        if (count > 0)
-                          Positioned(
-                            right: -6,
-                            top: -6,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: _kRed,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                  minWidth: 15, minHeight: 15),
-                              child: Text(
-                                '$count',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  height: 1.1,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Фильтры',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Кнопка-тумблер языка: показывает текущий (RS/RU), по тапу переключает.
-// Первая буква R — бренд-красная, вторая (S/U) — белая, фон тёмный.
-class _LangToggle extends StatelessWidget {
-  const _LangToggle({required this.value, required this.onChanged});
-  final String value; // 'sr' | 'ru'
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    // Показываем текущий язык; тап переключает на другой.
-    final isSr = value == 'sr';
-    final second = isSr ? 'S' : 'U'; // RS — сербский, RU — русский
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Color(0xFF2B2B2E),
-        borderRadius: radius,
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => onChanged(isSr ? 'ru' : 'sr'),
-            child: SizedBox(
-              width: 52,
-              height: 49,
-              child: Center(
-                child: Text.rich(
-                  TextSpan(
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    children: [
-                      const TextSpan(
-                        text: 'R',
-                        style: TextStyle(color: _kRed),
-                      ),
-                      TextSpan(
-                        text: second,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // Карточка объявления в списке
 class _CarCard extends StatelessWidget {

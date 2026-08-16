@@ -11,7 +11,6 @@ import 'package:go_router/go_router.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/notifications_repository.dart';
-import '../widgets/app_button_colors.dart';
 
 // Бренд-красный (бейдж непрочитанных на «Сообщениях»)
 const Color _kRed = Color(0xFFE01E23);
@@ -74,10 +73,10 @@ class HomeShell extends StatelessWidget {
                   Icons.window, 'Каталог', theme),
               _navItem(context, 1, index, Icons.favorite_border,
                   Icons.favorite, 'Избранное', theme),
-              // «+» по центру — зелёный, ЖИРНЫЙ (своя отрисовка, т.к.
-              // стандартные Material Icons не поддерживают толщину).
+              // «+» по центру — чёрный плюс в чёрной окружности (2px),
+              // своя отрисовка: Material Icons не дают контроля толщины.
               _navItem(context, 2, index, Icons.add, Icons.add, 'Разместить',
-                  theme, iconSize: 34, iconColor: AppButtonColors.green,
+                  theme, iconSize: 34, iconColor: Colors.black,
                   customIconBuilder: (color, size, filled) =>
                       _PlusIcon(color: color, size: size)),
               // Сообщения — спич-баббл + бейдж непрочитанных (Realtime).
@@ -181,15 +180,29 @@ class _PlusPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
-    final paint = Paint()
+    final c = w / 2;
+
+    // Окружность-обводка: строго 2 логических пикселя, независимо от размера
+    // иконки. Радиус уменьшаем на половину толщины, чтобы штрих (он рисуется
+    // по центру линии) не выходил за границы виджета и не обрезался.
+    const ring = 2.0;
+    final ringPaint = Paint()
       ..color = color
-      ..strokeWidth = w * 0.18 // толщина линий
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ring
+      ..isAntiAlias = true;
+    canvas.drawCircle(Offset(c, c), c - ring / 2, ringPaint);
+
+    // Сам «+» внутри круга: линии той же толщины, длина — 44% диаметра,
+    // чтобы концы не упирались в обводку.
+    final plusPaint = Paint()
+      ..color = color
+      ..strokeWidth = ring
       ..strokeCap = StrokeCap.round
       ..isAntiAlias = true;
-    final c = w / 2;
-    final pad = w * 0.16; // отступ концов от краёв
-    canvas.drawLine(Offset(pad, c), Offset(w - pad, c), paint);     // горизонт.
-    canvas.drawLine(Offset(c, pad), Offset(c, w - pad), paint);     // вертик.
+    final arm = w * 0.22; // половина длины перекладины
+    canvas.drawLine(Offset(c - arm, c), Offset(c + arm, c), plusPaint); // гориз.
+    canvas.drawLine(Offset(c, c - arm), Offset(c, c + arm), plusPaint); // верт.
   }
 
   @override

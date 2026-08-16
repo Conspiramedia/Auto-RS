@@ -12,6 +12,11 @@
 // фильтруется по введённому тексту. Крестик очищает и возвращает
 // «живые» подсказки.
 //
+// В хвосте строки — опциональная иконка фильтров (onFilterTap): отдельной
+// кнопки «Фильтры» под шапкой больше нет, ряд освобождён под карточки.
+// Крестик очистки и фильтры показываются ОДНОВРЕМЕННО: искать текстом и
+// уточнять фильтрами — частый сценарий («BMW» + цена до 5000).
+//
 // Стиль под бренд: тёмная плашка с градиентом, золотая иконка-лупа,
 // скругление 16, высота 49 — как у кнопок «Фильтри» и языка в шапке.
 // ============================================================
@@ -70,6 +75,8 @@ class SmartSearchBar extends StatefulWidget {
     required this.onChanged,
     this.onSubmitted,
     this.hints = kDefaultCatalogHints,
+    this.onFilterTap,
+    this.filterCount = 0,
   });
 
   /// Текущий текст запроса (null/пусто — крутим подсказки).
@@ -83,6 +90,14 @@ class SmartSearchBar extends StatefulWidget {
 
   /// Отправка запроса (Enter/иконка поиска на клавиатуре).
   final ValueChanged<String>? onSubmitted;
+
+  /// Открыть экран фильтров. null — иконка фильтров не показывается
+  /// (Избранное и Чаты: там поиск фильтрует список локально).
+  final VoidCallback? onFilterTap;
+
+  /// Число активных фильтров: >0 — на иконке красный бейдж с количеством,
+  /// иначе лента выглядела бы отфильтрованной без видимой причины.
+  final int filterCount;
 
   @override
   State<SmartSearchBar> createState() => _SmartSearchBarState();
@@ -243,7 +258,9 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
       child: SizedBox(
         height: 49,
         child: Padding(
-          padding: const EdgeInsets.only(left: 12, right: 6),
+          // Справа запас больше: бейдж фильтров выступает за иконку на 6px
+          // (Positioned right: -6) и в узком отступе обрезался бы.
+          padding: const EdgeInsets.only(left: 12, right: 10),
           child: Row(
             children: [
               const Icon(Icons.search, color: _kGold, size: 22),
@@ -313,8 +330,83 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                     child: Icon(Icons.close, size: 20, color: Color(0xFF9A9AA0)),
                   ),
                 ),
+              // Фильтры в хвосте строки. Вертикальная черта отделяет их от
+              // поля ввода — иначе иконка читается как часть текста.
+              if (widget.onFilterTap != null) ...[
+                Container(
+                  width: 1,
+                  height: 22,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  color: const Color(0x33FFFFFF),
+                ),
+                _FilterIcon(
+                  count: widget.filterCount,
+                  onTap: widget.onFilterTap!,
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------------------------------------------
+// ИКОНКА ФИЛЬТРОВ В ХВОСТЕ СТРОКИ ПОИСКА
+//
+// Золотая, как лупа слева. При активных фильтрах — красный бейдж с их
+// числом: иначе непонятно, почему лента показывает не всё.
+// -------------------------------------------------------------
+
+class _FilterIcon extends StatelessWidget {
+  const _FilterIcon({required this.count, required this.onTap});
+
+  final int count;          // 0 — бейджа нет
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      // opaque + растяжка по высоте строки: палец попадает по всей правой
+      // зоне, а не только по 22px иконки.
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        alignment: Alignment.center,
+        height: double.infinity,
+        // Слева 6 — отступ от разделителя; справа 2 — бейджу нужно место,
+        // чтобы не упереться в край плашки.
+        padding: const EdgeInsets.only(left: 6, right: 2),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.tune, size: 22, color: _kGold),
+            if (count > 0)
+              Positioned(
+                right: -6,
+                top: -5,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE01E23), // бренд-красный
+                    shape: BoxShape.circle,
+                  ),
+                  constraints:
+                      const BoxConstraints(minWidth: 15, minHeight: 15),
+                  child: Text(
+                    '$count',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

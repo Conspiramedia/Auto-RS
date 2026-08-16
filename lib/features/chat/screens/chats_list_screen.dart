@@ -57,9 +57,8 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
 
   late Future<List<ChatWithDetailsModel>> _future;
 
-  // Локальный поиск по диалогам + язык (общая шапка).
+  // Локальный поиск по диалогам (общая шапка).
   String _query = '';
-  String _lang = 'sr';
 
   // Нужно ли показать обучающее покачивание строк (один раз на установку).
   bool _teachSwipe = false;
@@ -193,12 +192,10 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Общая шапка: логотип + поиск (по диалогам) + язык.
+            // Общая шапка: логотип + поиск (по диалогам).
             AppSearchHeader(
               query: _query,
               onSearchChanged: (v) => setState(() => _query = v),
-              lang: _lang,
-              onLangChanged: (v) => setState(() => _lang = v),
               hints: _kChatsHints,
             ),
             const SizedBox(height: 8),
