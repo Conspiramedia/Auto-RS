@@ -21,8 +21,12 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/auth_repository.dart';
+import '../../legal/consent_service.dart';
+import '../../legal/screens/policy_screen.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/serbian_phone.dart';
+import '../../../shared/widgets/app_button_colors.dart';
+import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -135,9 +139,17 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendCode() async {
     final e164 = serbianPhoneToE164(_phoneCtrl.text);
     if (e164 == null) {
-      _snack('Введите корректный сербский номер телефона');
+      _snack('Введите корректный номер телефона');
       return;
     }
+
+    // Согласие с политикой — единая точка на входе. Спрашиваем ОДИН раз,
+    // до отправки SMS: аккаунт создаётся входом, поэтому политику логично
+    // принять здесь. Согласие фиксируется под ключом гостя, а после успешной
+    // проверки кода переносится на uid (см. _verifyCode → migrateGuestToUser).
+    // Если пользователь не принял — SMS не отправляем.
+    final agreed = await PolicyScreen.ensureAccepted(context);
+    if (!mounted || !agreed) return;
 
     setState(() => _loading = true);
     try {
@@ -179,6 +191,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _snack('Не удалось подтвердить код. Попробуйте ещё раз');
         _codeCtrl.clear(); // даём ввести заново
         return;
+      }
+      // Согласие давалось под ключом гостя (до создания аккаунта) —
+      // переносим его на реальный uid, чтобы политику не спрашивали снова.
+      final uid = _auth.currentUser?.id;
+      if (uid != null) {
+        await ConsentService.instance.migrateGuestToUser(uid);
       }
       if (!mounted) return;
       _snack('Номер подтверждён', success: true); // зелёный фон — успех
@@ -222,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Auto.RS')),
+      appBar: AppBar(leading: const PillBackButton(), title: const Text('Auto RS')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -284,14 +302,13 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _loading ? null : _sendCode,
-            child: _loading
-                ? const _Spinner()
-                : const Text('Отправить код'),
-          ),
+        // Главное действие — фирменная плашка-пилюля (зелёный вариант),
+        // как «Опубликовать»/«Позвонить» в остальном приложении.
+        DarkPillButton(
+          label: _loading ? 'Отправляем…' : 'Отправить код',
+          variant: PillVariant.green,
+          expand: true,
+          onTap: _loading ? null : _sendCode,
         ),
       ];
 

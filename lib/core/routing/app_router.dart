@@ -17,6 +17,7 @@ import '../../features/chat/screens/chats_list_screen.dart';
 import '../../features/favorites/screens/favorites_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
+import '../../features/legal/screens/policy_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
 import '../../features/listings/screens/my_cars_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
@@ -70,6 +71,11 @@ class AppRouter {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      // Политика и условия — просмотр (доступен всем, в т.ч. гостю).
+      GoRoute(
+        path: '/policy',
+        builder: (context, state) => const PolicyScreen(),
       ),
       // Чат-комната — требует авторизации. peerName передаётся через extra.
       GoRoute(

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../data/enums/car_status.dart';
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -67,6 +68,8 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
       _snack('У этого объявления нет номера телефона');
       return;
     }
+    // Звонок гостю свободен: набор номера (tel:) сам по себе данные не
+    // собирает. Согласие с политикой берётся один раз на SMS-входе.
     // TODO(analytics): отправить событие phone_call (car.id, user) на бэкенд.
     final uri = Uri(scheme: 'tel', path: phone.replaceAll(' ', ''));
     if (await canLaunchUrl(uri)) {
@@ -79,9 +82,11 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
   // Начать чат с продавцом (RPC start_chat) и перейти в комнату
   Future<void> _startChat(CarModel car) async {
     if (_auth.currentUser == null) {
-      _snack('Войдите, чтобы написать продавцу');
+      _snack('Войдите, чтобы написать');
       return;
     }
+    // Согласие с политикой уже получено на SMS-входе (чат требует входа),
+    // поэтому отдельно здесь его не спрашиваем.
     setState(() => _startingChat = true);
     try {
       final chatId = await _chatRepo.startChat(car.id);
@@ -180,36 +185,41 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
               ],
 
               // ---------- Связь с продавцом: Позвонить + Написать ----------
+              // У ПРОДАННОГО объявления связь скрыта: беспокоить продавца
+              // по закрытой сделке незачем. Вместо кнопок — плашка-статус.
               const Divider(height: 32),
-              Row(
-                children: [
-                  // Позвонить — зелёная (главное действие). Только если есть номер.
-                  if (car.contactPhone != null &&
-                      car.contactPhone!.trim().isNotEmpty)
+              if (car.status == CarStatus.sold)
+                const _SoldNotice()
+              else
+                Row(
+                  children: [
+                    // Позвонить — зелёная (главное действие). Только если есть номер.
+                    if (car.contactPhone != null &&
+                        car.contactPhone!.trim().isNotEmpty)
+                      Expanded(
+                        child: DarkPillButton(
+                          label: 'Позвонить',
+                          icon: Icons.phone,
+                          expand: true,
+                          variant: PillVariant.green,
+                          onTap: () => _call(car),
+                        ),
+                      ),
+                    if (car.contactPhone != null &&
+                        car.contactPhone!.trim().isNotEmpty)
+                      const SizedBox(width: 10),
+                    // Написать — синяя (связь).
                     Expanded(
                       child: DarkPillButton(
-                        label: 'Позвонить',
-                        icon: Icons.phone,
+                        label: _startingChat ? 'Открываем…' : 'Написать',
+                        icon: Icons.chat_bubble_outline,
                         expand: true,
-                        variant: PillVariant.green,
-                        onTap: () => _call(car),
+                        variant: PillVariant.blue,
+                        onTap: _startingChat ? null : () => _startChat(car),
                       ),
                     ),
-                  if (car.contactPhone != null &&
-                      car.contactPhone!.trim().isNotEmpty)
-                    const SizedBox(width: 10),
-                  // Написать — синяя (связь).
-                  Expanded(
-                    child: DarkPillButton(
-                      label: _startingChat ? 'Открываем…' : 'Написать',
-                      icon: Icons.chat_bubble_outline,
-                      expand: true,
-                      variant: PillVariant.blue,
-                      onTap: _startingChat ? null : () => _startChat(car),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -377,6 +387,46 @@ class _PriceLine extends StatelessWidget {
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ПЛАШКА «ПРОДАНО» — заменяет кнопки связи у закрытого объявления.
+// Нейтральный серый блок: не призыв к действию, а констатация статуса.
+// ============================================================
+class _SoldNotice extends StatelessWidget {
+  const _SoldNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle_outline,
+              size: 20, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'Объявление продано — связь с продавцом закрыта',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ],
       ),

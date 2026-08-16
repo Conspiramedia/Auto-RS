@@ -86,14 +86,22 @@ class _MyCarsScreenState extends State<MyCarsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Мои объявления')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final created = await context.push<String>('/create-car');
-          if (created != null) _reload();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Добавить'),
+      appBar: AppBar(
+        leading: const PillBackButton(),
+        title: const Text('Мои объявления'),
+        actions: [
+          // Кнопка «+ Добавить» в шапке справа: тёмная плашка в стиле
+          // тумблера языка (фон #2B2B2E, скругление 16). Заменяет прежний FAB.
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _AddButton(
+              onTap: () async {
+                final created = await context.push<String>('/create-car');
+                if (created != null) _reload();
+              },
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<List<CarModel>>(
         future: _future,
@@ -245,6 +253,35 @@ class _MyCarCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// Кнопка «+» в шапке: чёрный круг с белым плюсом — зеркало кнопки «Назад»
+// (PillBackButton) в правом углу: те же 40×40, CircleBorder и фон #2B2B2E.
+class _AddButton extends StatelessWidget {
+  const _AddButton({required this.onTap});
+  final VoidCallback onTap;
+
+  // Тёмный фон кнопок бренда (как у PillBackButton / DarkPillButton).
+  static const Color _kDark = Color(0xFF2B2B2E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: _kDark,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: const SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(Icons.add, color: Colors.white, size: 20),
+          ),
+        ),
       ),
     );
   }

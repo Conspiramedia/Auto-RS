@@ -44,10 +44,14 @@ class ChatRepository {
   // данные машины, первое фото, счётчик непрочитанных. RLS вернёт только
   // чаты, где пользователь участник. Сортировка: свежие сверху.
   // ----------------------------------------------------------
+  // Сортировка: закреплённые сверху (свежие закрепления выше), затем
+  // остальные по времени последнего сообщения. Порядок задаём на сервере,
+  // чтобы список не пересортировывался на клиенте.
   Future<List<ChatWithDetailsModel>> fetchMyChatsDetailed() async {
     final rows = await _client
         .from('chats_with_details')
         .select()
+        .order('pinned_at', ascending: false, nullsFirst: false)
         .order('last_message_at', ascending: false, nullsFirst: false);
 
     return (rows as List)
@@ -107,5 +111,62 @@ class ChatRepository {
         .eq('chat_id', chatId)
         .neq('sender_id', userId)
         .eq('is_read', false);
+  }
+
+  // ==========================================================
+  // ЗАКРЕПЛЕНИЕ И БЛОКИРОВКА (миграция 0041)
+  // ==========================================================
+
+  // ----------------------------------------------------------
+  // Закрепить/открепить диалог. Личная настройка: собеседник её не видит.
+  // Upsert в chat_prefs: pinned_at = now() — закреплён, null — откреплён.
+  // Конфликт по составному ключу (user_id, chat_id) обновляет строку.
+  // ----------------------------------------------------------
+  Future<void> setChatPinned({
+    required String chatId,
+    required bool pinned,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw Exception('Требуется авторизация');
+    }
+    await _client.from('chat_prefs').upsert(
+      {
+        'user_id': userId,
+        'chat_id': chatId,
+        'pinned_at':
+            pinned ? DateTime.now().toUtc().toIso8601String() : null,
+      },
+      onConflict: 'user_id,chat_id',
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Заблокировать собеседника: он больше не сможет писать текущему
+  // пользователю. Запрет работает на уровне RLS-политики INSERT messages —
+  // сообщение физически не создаётся, а не просто скрывается в интерфейсе.
+  // ----------------------------------------------------------
+  Future<void> blockUser(String userId) async {
+    final me = _client.auth.currentUser?.id;
+    if (me == null) {
+      throw Exception('Требуется авторизация');
+    }
+    await _client.from('user_blocks').upsert(
+      {'blocker_id': me, 'blocked_id': userId},
+      onConflict: 'blocker_id,blocked_id',
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Снять блокировку с собеседника.
+  // ----------------------------------------------------------
+  Future<void> unblockUser(String userId) async {
+    final me = _client.auth.currentUser?.id;
+    if (me == null) return;
+    await _client
+        .from('user_blocks')
+        .delete()
+        .eq('blocker_id', me)
+        .eq('blocked_id', userId);
   }
 }

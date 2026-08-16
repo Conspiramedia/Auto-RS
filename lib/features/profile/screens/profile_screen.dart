@@ -137,7 +137,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // Пополнение баланса. Оплата/монетизация (VIP-размещение и др.) появятся
+  // позже — пока честно сообщаем, что функция в разработке.
+  void _topUp() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Пополнение баланса'),
+        content: const Text(
+          'Оплата скоро будет доступна. Баланс понадобится для платных '
+          'услуг: VIP-размещение объявлений и продвижение.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Понятно'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _signOut() async {
+    // Подтверждение — защита от случайного выхода одним тапом.
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Выйти из аккаунта?'),
+        content: const Text('Для повторного входа понадобится номер телефона.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Выйти',
+              style: TextStyle(color: Color(0xFFE01E23)), // фирменный красный
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
     setState(() => _loading = true);
     try {
       await _auth.signOut();
@@ -182,6 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           // Колокольчик: красный и покачивается при непрочитанных (не-чат).
           NotifBell(onTap: () => context.push('/notifications')),
+          const SizedBox(width: 8), // отступ от правого края
         ],
       ),
       body: FutureBuilder<_ProfileData>(
@@ -353,16 +398,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Баланс, «Мои объявления» (+ модерация админу) — доступны всем.
                           ...[
-                            // Баланс — самым верхом блока.
+                            // Баланс — самым верхом блока. Сумма + кнопка «+»
+                            // (пополнение; функционал монетизации — позже).
                             Card(
                               child: ListTile(
                                 leading:
                                     const Icon(Icons.account_balance_wallet),
                                 title: const Text('Баланс'),
-                                trailing: Text(
-                                  '${data.balance.toStringAsFixed(2)} EUR',
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${data.balance.toStringAsFixed(2)} EUR',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // Пополнить баланс (зелёный «+»).
+                                    IconButton(
+                                      onPressed: _topUp,
+                                      icon: const Icon(Icons.add_circle,
+                                          color: AppButtonColors.green),
+                                      tooltip: 'Пополнить',
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -388,6 +449,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: () => context.push('/moderation'),
                               ),
                             ],
+                            const SizedBox(height: 12),
+                            // «Политика и условия» — просмотр документа (режим
+                            // без обязательного принятия). Нейтральная тёмная
+                            // плашка, той же ширины.
+                            DarkPillButton(
+                              label: 'Политика и условия',
+                              variant: PillVariant.dark,
+                              expand: true,
+                              onTap: () => context.push('/policy'),
+                            ),
                             const SizedBox(height: 12),
                           ],
 

@@ -101,7 +101,7 @@ String? validateCarForm(
   final isMobile = RegExp(r'^6\d{7,8}$').hasMatch(national);
   final isLandline = RegExp(r'^[1-3]\d{7,8}$').hasMatch(national);
   if (!isMobile && !isLandline) {
-    return 'Введите корректный сербский номер: '
+    return 'Введите корректный номер: '
         'моб. +381 6X XXX XXX или гор. +381 11 XXX XXX';
   }
 

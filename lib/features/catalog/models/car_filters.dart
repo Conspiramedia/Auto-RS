@@ -4,6 +4,8 @@
 // ============================================================
 
 class CarFilters {
+  // Тип объявления: 'sale' | 'rent' | null (любой — продажа и аренда вместе).
+  final String? listingType;
   final String? brand;
   final String? model;
   final String? city;
@@ -17,6 +19,7 @@ class CarFilters {
   final String? fuel;
 
   const CarFilters({
+    this.listingType,
     this.brand,
     this.model,
     this.city,
@@ -35,6 +38,7 @@ class CarFilters {
   // Сколько фильтров активно (для бэйджа на кнопке «Фильтры»)
   int get activeCount {
     var n = 0;
+    if (listingType != null) n++;
     if (brand != null) n++;
     if (model != null) n++;
     if (city != null) n++;
@@ -48,6 +52,7 @@ class CarFilters {
   }
 
   CarFilters copyWith({
+    String? listingType,
     String? brand,
     String? model,
     String? city,
@@ -61,6 +66,7 @@ class CarFilters {
     String? fuel,
   }) {
     return CarFilters(
+      listingType: listingType ?? this.listingType,
       brand: brand ?? this.brand,
       model: model ?? this.model,
       city: city ?? this.city,

@@ -22,7 +22,6 @@ import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
-import '../../../shared/widgets/metal_toggle.dart';
 import '../utils/generate_temp_uuid.dart';
 import '../utils/validate_car_form.dart';
 import '../../../shared/widgets/pill_back_button.dart';
@@ -74,8 +73,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   List<String> _models = [];
   bool _loadingModels = false;
 
-  // Тип объявления
-  String _listingType = 'sale'; // 'sale' | 'rent'
+  // Тип объявления: null (ещё не выбран) | 'sale' | 'rent'. Обязателен —
+  // проверяется при «Опубликовать». В режиме редактирования выставляется из
+  // самого объявления (см. _prefillFromCar).
+  String? _listingType;
+
+  // Подписи типа для пикера (ключ БД → текст пользователю).
+  static const Map<String, String> _listingTypeLabels = {
+    'sale': 'Продажа',
+    'rent': 'Аренда',
+  };
 
   // Загруженные публичные URL фото (по порядку)
   final List<String> _photoUrls = [];
@@ -236,11 +243,12 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     required Map<String, String> items,
     required String? current,
     required ValueChanged<String?> onPicked,
+    bool allowNone = true, // false — без опции «— Не указано —» (обязательное поле)
   }) async {
     final currentLabel = current == null ? null : items[current];
     await _pick(
       title: title,
-      options: ['— Не указано —', ...items.values],
+      options: [if (allowNone) '— Не указано —', ...items.values],
       current: currentLabel,
       onPicked: (picked) {
         if (picked == null || picked == '— Не указано —') {
@@ -357,6 +365,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   // Публикация объявления
   Future<void> _publish() async {
+    // Тип объявления обязателен (первое поле формы) — сервер требует 'sale'/'rent'.
+    if (_listingType == null) {
+      _snack('Выберите тип объявления: продажа или аренда');
+      return;
+    }
     final year = int.tryParse(_year ?? '');
     // Из строки убираем пробелы-разделители тысяч (формат «1 000») перед парсингом.
     final priceDigits = _digitsOnly(_priceCtrl.text);
@@ -396,12 +409,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       return;
     }
 
+    // Согласие с политикой не спрашиваем здесь: публикация проходит через
+    // SMS-вход (_ensureAuth при загрузке фото), а политика принимается один
+    // раз именно на входе.
+
     // Телефон в БД хранится в E.164 без пробелов (constraint
     // cars_contact_phone_serbian: ^\+381[1-36]\d{7,8}$). Поле ввода содержит
     // пробелы («+381 64 123 456») — приводим к слитному виду перед отправкой.
     final phoneE164 = serbianPhoneToE164(_phoneCtrl.text);
     if (phoneE164 == null) {
-      _snack('Введите корректный сербский номер телефона');
+      _snack('Введите корректный номер телефона');
       return;
     }
 
@@ -414,7 +431,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         // Редактирование: обновляем объявление, статус → снова на модерацию.
         id = await _carsRepo.updateCarV2(
           carId: widget.editCar!.id,
-          listingType: _listingType,
+          listingType: _listingType!,
           brand: _brand!.trim(),
           model: _model!.trim(),
           year: year!,
@@ -430,7 +447,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         );
       } else {
         id = await _carsRepo.createCarV2(
-          listingType: _listingType,
+          listingType: _listingType!,
           brand: _brand!.trim(),
           model: _model!.trim(),
           year: year!,
@@ -476,15 +493,24 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ---------- Тип объявления (металлик, как в каталоге) ----------
-            MetalToggle(
-              value: _listingType,
-              segments: const [('sale', 'Продажа'), ('rent', 'Аренда')],
-              onChanged: (v) => setState(() => _listingType = v),
+            // ---------- Тип объявления (обязательное поле-пикер) ----------
+            _pickerField(
+              label: 'Тип объявления',
+              value: _listingType == null
+                  ? null
+                  : _listingTypeLabels[_listingType],
+              hint: 'Продажа или аренда',
+              onTap: () => _pickMap(
+                title: 'Тип объявления',
+                items: _listingTypeLabels,
+                current: _listingType,
+                allowNone: false, // тип обязателен — «Не указано» не предлагаем
+                onPicked: (v) => setState(() => _listingType = v),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // ---------- Город (первым полем, справочник + ручной ввод) ----------
+            // ---------- Город (справочник + ручной ввод) ----------
             _pickerField(
               label: 'Город',
               value: _city,

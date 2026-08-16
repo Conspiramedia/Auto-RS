@@ -26,6 +26,14 @@ class FiltersScreen extends StatefulWidget {
 class _FiltersScreenState extends State<FiltersScreen> {
   final _repo = CarsRepository();
 
+  // Тип объявления: null (любой/«Все») | 'sale' | 'rent'.
+  String? _listingType;
+
+  // Подписи типа для пикера (ключ → текст пользователю).
+  static const Map<String, String> _listingTypeLabels = {
+    'sale': 'Продажа',
+    'rent': 'Аренда',
+  };
   String? _city;
   String? _brand;
   String? _model;
@@ -50,6 +58,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
   void initState() {
     super.initState();
     final f = widget.initial;
+    _listingType = f.listingType;
     _city = f.city;
     _brand = f.brand;
     _model = f.model;
@@ -105,6 +114,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
     double? pd(TextEditingController c) =>
         double.tryParse(c.text.trim().replaceAll(',', '.'));
     return CarFilters(
+      listingType: _listingType,
       city: _city,
       brand: _brand,
       model: _model,
@@ -121,6 +131,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
   void _reset() {
     setState(() {
+      _listingType = null;
       _city = null;
       _brand = null;
       _model = null;
@@ -155,6 +166,36 @@ class _FiltersScreenState extends State<FiltersScreen> {
     if (result != null) onPicked(result.isEmpty ? null : result);
   }
 
+  // Выбор типа объявления из трёх вариантов (Все / Продажа / Аренда).
+  // Всего 3 пункта — показываем компактным нижним листом без поиска.
+  // Значение: null (Все) | 'sale' | 'rent'.
+  Future<void> _pickListingType() async {
+    // Пары (значение, подпись); null-значение кодируем пустой строкой.
+    const options = [('', 'Все'), ('sale', 'Продажа'), ('rent', 'Аренда')];
+    final current = _listingType ?? '';
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (value, label) in options)
+              ListTile(
+                title: Text(label),
+                trailing: current == value
+                    ? const Icon(Icons.check, color: Colors.blue)
+                    : null,
+                onTap: () => Navigator.pop(ctx, value),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return; // закрыли лист без выбора
+    setState(() => _listingType = picked.isEmpty ? null : picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,10 +214,21 @@ class _FiltersScreenState extends State<FiltersScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 1) Город — первым полем
+          // 0) Тип объявления — поле-пикер (как «Город»). Выбор из трёх:
+          // Все / Продажа / Аренда. null (Все) → сервер отдаёт оба типа.
+          _pickerField(
+            label: 'Тип объявления',
+            value: _listingType == null ? null : _listingTypeLabels[_listingType],
+            hint: 'Все',
+            onTap: _pickListingType,
+          ),
+          const SizedBox(height: 12),
+
+          // 1) Город
           _pickerField(
             label: 'Город',
             value: _city,
+            hint: 'Не важно',
             onTap: () => _pickFromList(
               title: 'Город',
               options: ReferenceData.cities,
@@ -190,7 +242,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _pickerField(
             label: 'Марка',
             value: _brand,
-            hint: 'Любая',
+            hint: 'Не важно',
             onTap: () => _pickFromList(
               title: 'Марка',
               options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
@@ -226,7 +278,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
               _pickerField(
                 label: 'Модель',
                 value: _model,
-                hint: 'Любая',
+                hint: 'Не важно',
                 onTap: () => _pickFromList(
                   title: 'Модель',
                   options: _models,
@@ -237,18 +289,20 @@ class _FiltersScreenState extends State<FiltersScreen> {
           ],
           const SizedBox(height: 12),
 
-          _rangeRow('Год', _yearFromCtrl, _yearToCtrl),
+          _rangeRow('Год', _yearFromCtrl, _yearToCtrl,
+              hintFrom: 'Не важно', hintTo: 'Не важно'),
           const SizedBox(height: 12),
-          _numField(_mileageCtrl, 'Пробег, км', hint: 'до'),
+          _numField(_mileageCtrl, 'Пробег, км', hint: 'Не важно'),
           const SizedBox(height: 12),
-          _rangeRow('Цена, €', _priceFromCtrl, _priceToCtrl),
+          _rangeRow('Цена, €', _priceFromCtrl, _priceToCtrl,
+              hintFrom: 'Не важно', hintTo: 'Не важно'),
           const SizedBox(height: 12),
 
           _mapPickerField(
             label: 'Тип кузова',
             value: _bodyType,
             items: ReferenceData.bodyTypes,
-            hint: 'Любой',
+            hint: 'Не важно',
             onPicked: (v) => setState(() => _bodyType = v),
           ),
           const SizedBox(height: 12),
@@ -256,7 +310,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             label: 'Коробка передач',
             value: _transmission,
             items: ReferenceData.transmissions,
-            hint: 'Любая',
+            hint: 'Не важно',
             onPicked: (v) => setState(() => _transmission = v),
           ),
           const SizedBox(height: 12),
@@ -264,7 +318,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             label: 'Топливо',
             value: _fuel,
             items: ReferenceData.fuels,
-            hint: 'Любое',
+            hint: 'Не важно',
             onPicked: (v) => setState(() => _fuel = v),
           ),
 
@@ -299,7 +353,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              value ?? (hint ?? 'Любой'),
+              value ?? (hint ?? 'Не важно'),
               style: TextStyle(color: value == null ? Colors.grey : null),
             ),
             if (enabled) const Icon(Icons.arrow_drop_down),
@@ -369,13 +423,16 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
   // Диапазон «от/до»: два поля в ряд, у каждого лейбл в рамке — без
   // отдельного заголовка сверху, чтобы вид совпадал с остальными полями.
+  // hintFrom/hintTo — серые подсказки-плейсхолдеры внутри каждого поля,
+  // намекающие на границу диапазона («с любого» / «по любой»).
   Widget _rangeRow(
-      String label, TextEditingController from, TextEditingController to) {
+      String label, TextEditingController from, TextEditingController to,
+      {String? hintFrom, String? hintTo}) {
     return Row(
       children: [
-        Expanded(child: _numField(from, '$label от')),
+        Expanded(child: _numField(from, '$label от', hint: hintFrom)),
         const SizedBox(width: 12),
-        Expanded(child: _numField(to, '$label до')),
+        Expanded(child: _numField(to, '$label до', hint: hintTo)),
       ],
     );
   }
@@ -383,7 +440,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
 // ============================================================
 // Полноэкранный экран выбора из списка со строкой поиска.
-// Возвращает выбранное значение, '' для «Любой», null при отмене.
+// Возвращает выбранное значение, '' для «не важно» (сброс), null при отмене.
 // ============================================================
 class _PickerScreen extends StatefulWidget {
   const _PickerScreen({
@@ -438,7 +495,7 @@ class _PickerScreenState extends State<_PickerScreen> {
             child: ListView(
               children: [
                 ListTile(
-                  title: const Text('Любой'),
+                  title: const Text('Не важно'),
                   trailing: widget.current == null
                       ? const Icon(Icons.check, color: Colors.blue)
                       : null,

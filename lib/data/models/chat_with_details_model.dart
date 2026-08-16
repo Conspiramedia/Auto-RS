@@ -23,6 +23,12 @@ class ChatWithDetailsModel {
 
   final int unreadCount;     // непрочитанные входящие
   final DateTime? lastMessageAt;
+  final String? lastMessage; // текст последнего сообщения (превью в списке)
+
+  // Личные настройки диалога (миграция 0041)
+  final bool pinned;         // закреплён текущим пользователем
+  final DateTime? pinnedAt;  // момент закрепления (сортировка закреплённых)
+  final bool peerBlocked;    // текущий пользователь заблокировал собеседника
 
   const ChatWithDetailsModel({
     required this.id,
@@ -39,10 +45,26 @@ class ChatWithDetailsModel {
     this.carPhoto,
     required this.unreadCount,
     this.lastMessageAt,
+    this.lastMessage,
+    this.pinned = false,
+    this.pinnedAt,
+    this.peerBlocked = false,
   });
 
   // true, если есть непрочитанные (для показа бэйджа)
   bool get hasUnread => unreadCount > 0;
+
+  // Заголовок объявления для подписи строки диалога.
+  String get carTitle => '$brand $model';
+
+  // Инициалы собеседника для аватара-заглушки (когда фото нет).
+  String get opponentInitials {
+    final name = (opponentName ?? '').trim();
+    if (name.isEmpty) return '?';
+    final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+  }
 
   factory ChatWithDetailsModel.fromMap(Map<String, dynamic> map) {
     return ChatWithDetailsModel(
@@ -62,6 +84,12 @@ class ChatWithDetailsModel {
       lastMessageAt: map['last_message_at'] == null
           ? null
           : DateTime.parse(map['last_message_at'] as String),
+      lastMessage: map['last_message'] as String?,
+      pinned: map['pinned'] as bool? ?? false,
+      pinnedAt: map['pinned_at'] == null
+          ? null
+          : DateTime.parse(map['pinned_at'] as String),
+      peerBlocked: map['peer_blocked'] as bool? ?? false,
     );
   }
 }

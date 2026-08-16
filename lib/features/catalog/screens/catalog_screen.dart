@@ -15,7 +15,6 @@ import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/viewed_cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/metal_toggle.dart';
 import '../../../shared/widgets/smart_search_bar.dart';
 import '../models/car_filters.dart';
 import 'filters_screen.dart';
@@ -34,10 +33,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Локальный реестр просмотренных объявлений (плашка «Просмотрено»).
   final _viewed = ViewedCarsRepository.instance;
 
-  // 'sale' — купить, 'rent' — аренда
-  String _listingType = 'sale';
-
-  // Выбранные фильтры (город, марка, год, пробег, цена и т.д.)
+  // Выбранные фильтры (город, марка, год, пробег, цена, ТИП объявления).
+  // Тип объявления теперь тоже часть фильтров (_filters.listingType):
+  // отдельного переключателя Prodaja/Najam в каталоге больше нет — лента
+  // показывает продажу и аренду вперемешку, а тип выбирается в фильтрах.
   CarFilters _filters = CarFilters.empty;
 
   // Текстовый запрос из строки поиска (двуалфавитный поиск на бэке).
@@ -71,12 +70,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int _lapSeed = 0;    // seed круга (стабильный порядок на все его страницы)
   int _lapOffset = 0;  // серверный offset внутри круга
   bool _looping = false; // круги 2+: полная перетасовка (p_shuffle_all=true)
-
-  // Видимость переключателя Prodaja/Najam: прячется при скролле вниз,
-  // показывается при скролле вверх (накопленных ~50px).
-  bool _toggleVisible = true;
-  double _lastScrollPx = 0;   // позиция на прошлом событии
-  double _scrollUpAccum = 0;  // сколько «вверх» накопили подряд
 
   // Язык интерфейса: 'sr' | 'ru'. Пока только UI-переключатель (переводы
   // строк подключим позже через локализацию).
@@ -130,31 +123,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
     _reload();
   }
 
-  // Триггер подгрузки при приближении к концу списка + управление
-  // видимостью переключателя Prodaja/Najam по направлению скролла.
+  // Триггер подгрузки при приближении к концу списка.
   void _onScroll() {
     final px = _scrollCtrl.position.pixels;
 
     // Подгрузка следующей страницы у конца списка.
     if (px >= _scrollCtrl.position.maxScrollExtent - 600) {
       _loadMore();
-    }
-
-    final delta = px - _lastScrollPx;
-    _lastScrollPx = px;
-
-    if (delta > 0) {
-      // Скролл ВНИЗ — прячем переключатель, сбрасываем счётчик «вверх».
-      _scrollUpAccum = 0;
-      if (_toggleVisible && px > 20) {
-        setState(() => _toggleVisible = false);
-      }
-    } else if (delta < 0) {
-      // Скролл ВВЕРХ — копим; после ~50px показываем переключатель.
-      _scrollUpAccum += -delta;
-      if (!_toggleVisible && (_scrollUpAccum >= 50 || px <= 0)) {
-        setState(() => _toggleVisible = true);
-      }
     }
   }
 
@@ -253,7 +228,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     required bool shuffleAll,
   }) {
     return _repo.searchAdvanced(
-      listingType: _listingType,
+      listingType: _filters.listingType,
       // Пустую строку не шлём — иначе бэк будет искать по «».
       query: _query.trim().isEmpty ? null : _query.trim(),
       brand: _filters.brand,
@@ -377,9 +352,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
-  // Применить фильтры / сменить тип сделки — перезагрузка с первого круга
-  void _apply() => _reload();
-
   // Приводим технические ошибки к понятному пользователю виду.
   // «Failed to fetch» / таймаут обычно = нет связи или сервер «просыпается».
   String _friendlyError(Object? e) {
@@ -399,7 +371,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _ErrorState(message: _friendlyError(_error), onRetry: _apply);
+      return _ErrorState(message: _friendlyError(_error), onRetry: _reload);
     }
     // Пустой список = по фильтру объявлений нет вовсе (крутить нечего) —
     // единственный случай заглушки при бесконечной ленте.
@@ -482,18 +454,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
       body: SafeArea(
         child: Column(
         children: [
-          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле):
-          // логотип + Filteri + Rezervacije + колокольчик.
+          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле).
+          // Первый ряд: логотип + строка поиска (теперь во всю ширину).
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Row(
-              // Логотип и обе кнопки одной высоты, выровнены по центру.
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Image.asset('assets/images/logo.png', height: 60),
                 const SizedBox(width: 10),
-                // Строка поиска с «живой» подсказкой — занимает свободное
-                // место между логотипом и кнопками.
+                // Строка поиска — занимает всё свободное место справа.
                 Expanded(
                   child: SmartSearchBar(
                     value: _query,
@@ -501,14 +471,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     onSubmitted: _onSearchSubmitted,
                   ),
                 ),
-                const SizedBox(width: 10),
-                // Кнопка «Фильтры» — только иконка, размер как у языка.
-                _FilterButton(
-                  count: _filters.activeCount,
-                  onTap: _openFilters,
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Второй ряд: «Фильтры» (с полным названием, растянута) + язык.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _FilterButton(
+                    count: _filters.activeCount,
+                    onTap: _openFilters,
+                  ),
                 ),
                 const SizedBox(width: 10),
-                // Переключатель языка RU / SR
                 _LangToggle(
                   value: _lang,
                   onChanged: (v) => setState(() => _lang = v),
@@ -517,27 +497,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           ),
 
-          // Переключатель Prodaja/Najam — на всю ширину карточек, прячется
-          // при скролле вниз и выезжает при скролле вверх (~50px).
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            child: _toggleVisible
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(5, 10, 5, 6),
-                    child: MetalToggle(
-                      value: _listingType,
-                      segments: const [('sale', 'Prodaja'), ('rent', 'Najam')],
-                      onChanged: (v) {
-                        setState(() => _listingType = v);
-                        _apply();
-                      },
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
+          const SizedBox(height: 6),
 
-          // Список результатов
+          // Список результатов (продажа и аренда вперемешку; тип — в фильтрах)
           Expanded(child: _buildList()),
         ],
         ),
@@ -556,9 +518,9 @@ const Color _kRed = Color(0xFFE01E23);
 // Золотой акцент иконки на тёмных плашках бренда.
 const Color _kGold = Color(0xFFE8A73C);
 
-// Кнопка «Фильтры» — только иконка, тот же размер и стиль, что у языкового
-// тумблера (тёмный фон, скругление 16). При активных фильтрах в углу —
-// красный бейдж с их числом.
+// Кнопка «Фильтры» — иконка + подпись «Фильтры», тёмный фон, скругление 16.
+// Растягивается на доступную ширину (во втором ряду шапки). При активных
+// фильтрах — красный бейдж с их числом на иконке.
 class _FilterButton extends StatelessWidget {
   const _FilterButton({required this.count, required this.onTap});
   final int count;            // число активных фильтров (0 — бейджа нет)
@@ -579,39 +541,54 @@ class _FilterButton extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: SizedBox(
-              width: 52,
               height: 49,
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.tune, color: _kGold, size: 22),
-                  // Бейдж числа активных фильтров.
-                  if (count > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: _kRed,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                            minWidth: 15, minHeight: 15),
-                        child: Text(
-                          '$count',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            height: 1.1,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Иконка + бейдж активных фильтров.
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.tune, color: _kGold, size: 22),
+                        if (count > 0)
+                          Positioned(
+                            right: -6,
+                            top: -6,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: _kRed,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                  minWidth: 15, minHeight: 15),
+                              child: Text(
+                                '$count',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Фильтры',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -993,7 +970,7 @@ class _CarThumbState extends State<_CarThumb> {
 
   @override
   Widget build(BuildContext context) {
-    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto.RS.
+    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto RS.
     // cover — заполняет область как реальное фото, без полей по краям, чтобы
     // карточка-заглушка выглядела так же, как карточка с фото-логотипом.
     final placeholder = Container(
