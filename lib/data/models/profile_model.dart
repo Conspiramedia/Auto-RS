@@ -15,7 +15,13 @@ class ProfileModel {
   final bool roleSelected;    // прошёл ли онбординг выбора роли
   final String? avatarUrl;
 
-  final DateTime createdAt;
+  // Тип продавца: 'private' (частник) | 'dealer' (автосалон).
+  // Ортогонален userType: и частник, и дилер могут быть vendor.
+  final String sellerKind;
+  final String? companyName;  // название салона (только у дилера)
+  final String? logoUrl;      // логотип салона (только у дилера)
+
+  final DateTime createdAt;   // он же «на площадке с…»
   final DateTime updatedAt;
 
   const ProfileModel({
@@ -28,9 +34,18 @@ class ProfileModel {
     this.userType = 'customer',
     this.roleSelected = false,
     this.avatarUrl,
+    this.sellerKind = sellerKindPrivate,
+    this.companyName,
+    this.logoUrl,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  // Допустимые значения sellerKind — синхронизированы с chk_seller_kind в БД.
+  static const String sellerKindPrivate = 'private';
+  static const String sellerKindDealer = 'dealer';
+
+  bool get isDealer => sellerKind == sellerKindDealer;
 
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
     return ProfileModel(
@@ -43,6 +58,9 @@ class ProfileModel {
       userType: map['user_type'] as String? ?? 'customer',
       roleSelected: map['role_selected'] as bool? ?? false,
       avatarUrl: map['avatar_url'] as String?,
+      sellerKind: map['seller_kind'] as String? ?? sellerKindPrivate,
+      companyName: map['company_name'] as String?,
+      logoUrl: map['logo_url'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );

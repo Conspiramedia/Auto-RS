@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
+import '../models/car_details_model.dart';
 import '../models/car_image_model.dart';
 import '../models/car_model.dart';
 
@@ -373,6 +374,48 @@ class CarsRepository {
   // ----------------------------------------------------------
   Future<void> hideCity(String city) async {
     await _client.rpc('hide_city', params: {'p_city': city});
+  }
+
+  // ----------------------------------------------------------
+  // Карточка объявления с каноническим адресом (site_url), статусом
+  // продвижения и витриной продавца — RPC get_car_details.
+  //
+  // Отличие от fetchById: прямой SELECT не может вернуть site_url, потому что
+  // это вычисляемое значение (домен хранится в настройках сервера, не в
+  // строке объявления). Ссылка нужна кнопке «Поделиться» и deep links.
+  //
+  // Проданное объявление доступно по прямой ссылке (в каталоге его нет) —
+  // экран покажет плашку «Продано». Возвращает null, если объявления нет или
+  // оно недоступно (чужая модерация/архив).
+  // ----------------------------------------------------------
+  Future<CarDetailsModel?> fetchDetails(String carId) async {
+    final rows = await _client.rpc('get_car_details', params: {
+      'p_car_id': carId,
+    });
+
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return CarDetailsModel.fromMap(list.first as Map<String, dynamic>);
+  }
+
+  // ----------------------------------------------------------
+  // Продвижение объявления («Продвинуть» в кабинете продавца).
+  //
+  // ЭТАП 0: режим «подарок» — с баланса ничего не списывается, в кошельке
+  // фиксируется gift-транзакция. Paywall нет.
+  //
+  // Сервер проверяет владельца и статус: продвигать можно только СВОЁ и
+  // только активное объявление. Повторный вызов продлевает срок, добавляя
+  // дни к остатку, а не обнуляя его.
+  //
+  // Возвращает обновлённое объявление — карточка сразу покажет значок VIP.
+  // ----------------------------------------------------------
+  Future<CarModel> activatePromotion(String carId, {int days = 7}) async {
+    final row = await _client.rpc('activate_promotion', params: {
+      'p_car_id': carId,
+      'p_days': days,
+    });
+    return CarModel.fromMap(row as Map<String, dynamic>);
   }
 
   List<CarModel> _mapRows(dynamic rows) {

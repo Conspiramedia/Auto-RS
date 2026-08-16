@@ -8,11 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/models/profile_model.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
-import '../../../data/repositories/transactions_repository.dart';
+import '../../../data/repositories/wallet_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
@@ -31,7 +32,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = AuthRepository();
   final _profileRepo = ProfileRepository();
-  final _txRepo = TransactionsRepository();
+  final _walletRepo = WalletRepository();
   final _admin = AdminRepository();
   final _picker = ImagePicker();
 
@@ -55,12 +56,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (file == null) return;
 
+    // Текст читаем до await: после асинхронного разрыва обращаться к
+    // context нельзя — экран мог быть закрыт.
+    if (!mounted) return;
+    final okMessage = context.t.profilePhotoUpdated;
+
     setState(() => _savingAvatar = true);
     try {
       final bytes = await file.readAsBytes();
       final url = await _profileRepo.uploadAvatar(bytes);
       await _profileRepo.updateProfile(avatarUrl: url);
-      _snack('Фото профиля обновлено', success: true);
+      _snack(okMessage, success: true);
       _reload();
     } catch (e) {
       _snack('Не удалось обновить фото: ${humanizeError(e)}');
@@ -75,14 +81,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Ваше имя'),
+        title: Text(context.t.profileYourName),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'Как вас показывать другим',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: context.t.profileNameHint,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -98,10 +104,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (name == null) return; // отмена
+    if (!mounted) return;
+    final savedMessage = context.t.profileNameSaved;
 
     try {
       await _profileRepo.updateProfile(fullName: name);
-      _snack('Имя сохранено', success: true);
+      _snack(savedMessage, success: true);
       _reload();
     } catch (e) {
       _snack('Не удалось сохранить имя: ${humanizeError(e)}');
@@ -122,7 +130,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     double balance = 0;
     bool admin = false;
     if (uid != null) {
-      balance = await _txRepo.getVendorBalance(uid);
+      // Баланс КОШЕЛЬКА (get_balance = сумма wallet_transactions), а не
+      // прежний getVendorBalance — тот считает завершённые выплаты по
+      // арендным броням и к личному балансу отношения не имеет.
+      balance = await _walletRepo.getBalance();
       admin = await _admin.isAdmin();
     }
     _isAdmin = admin;
@@ -138,21 +149,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  // Пополнение баланса. Оплата/монетизация (VIP-размещение и др.) появятся
-  // позже — пока честно сообщаем, что функция в разработке.
+  // Пополнение баланса. Платёжный провайдер не подключён (TODO Этапа 0):
+  // на площадке нет платных услуг — продвижение сейчас работает в режиме
+  // «подарок». Честно сообщаем, что функция появится позже.
   void _topUp() {
+    final t = context.t;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Пополнение баланса'),
-        content: const Text(
-          'Оплата скоро будет доступна. Баланс понадобится для платных '
-          'услуг: VIP-размещение объявлений и продвижение.',
-        ),
+        title: Text(t.profileTopUp),
+        content: Text(t.profileTopUpSoon),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Понятно'),
+            child: Text(t.commonClose),
           ),
         ],
       ),
@@ -164,8 +174,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Выйти из аккаунта?'),
-        content: const Text('Для повторного входа понадобится номер телефона.'),
+        title: Text(context.t.profileLogoutTitle),
+        content: Text(context.t.profileLogoutBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -201,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Scaffold(
         appBar: AppBar(
           leading: const PillBackButton(),
-          title: const Text('Профиль'),
+          title: Text(context.t.profileTitle),
           // Язык доступен и без входа: иначе гость с чужим системным языком
           // не смог бы переключиться до авторизации.
           actions: const [LangButton(), SizedBox(width: 8)],
@@ -213,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const CircleAvatar(
                   radius: 40, child: Icon(Icons.person, size: 40)),
               const SizedBox(height: 16),
-              const Text('Гость'),
+              Text(context.t.profileGuest),
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: () => context.go('/login'),
@@ -413,7 +423,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: ListTile(
                                 leading:
                                     const Icon(Icons.account_balance_wallet),
-                                title: const Text('Баланс'),
+                                title: Text(context.t.profileBalance),
+                                // Вся плашка ведёт в историю операций —
+                                // естественный жест «нажать на баланс, чтобы
+                                // посмотреть, откуда он взялся».
+                                onTap: () async {
+                                  await context.push('/wallet');
+                                  _reload();
+                                },
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -425,13 +442,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     // Пополнить баланс (зелёный «+»).
+                                    // Провайдер не подключён — показываем
+                                    // честное «скоро», кнопку не прячем,
+                                    // чтобы было видно, что она появится.
                                     IconButton(
                                       onPressed: _topUp,
                                       icon: const Icon(Icons.add_circle,
                                           color: AppButtonColors.green),
-                                      tooltip: 'Пополнить',
+                                      tooltip: context.t.profileTopUp,
                                       visualDensity: VisualDensity.compact,
                                     ),
+                                    const Icon(Icons.chevron_right,
+                                        size: 20, color: Color(0xFF9CA3AF)),
                                   ],
                                 ),
                               ),

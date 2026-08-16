@@ -12,6 +12,7 @@ import 'core/config/supabase_config.dart';
 import 'core/i18n/app_language.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/onboarding/onboarding_service.dart';
 
 Future<void> main() async {
   // Гарантируем инициализацию биндингов Flutter до асинхронных операций
@@ -26,6 +27,12 @@ Future<void> main() async {
   // Читаем сохранённый выбор языка ДО первого кадра, чтобы интерфейс сразу
   // поднялся на нужном языке (иначе был бы кадр на языке по умолчанию).
   await AppLanguageService.instance.load();
+
+  // Проходил ли пользователь онбординг. Читаем здесь, а не в redirect
+  // роутера: проверка асинхронная (диск), а redirect синхронный. Значение
+  // должно быть готово до создания GoRouter — он берёт initialLocation один
+  // раз при инициализации.
+  AppRouter.showOnboarding = !await OnboardingService.instance.isCompleted();
 
   runApp(const AutoRsApp());
 }

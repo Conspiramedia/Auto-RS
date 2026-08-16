@@ -42,6 +42,11 @@ class CarModel {
   final double ratingAvg;
   final int reviewsCount;
 
+  // Продвижение объявления. Действует, только когда подняты ОБА:
+  // isVip = true и boostedUntil в будущем — см. геттер isPromoted.
+  final bool isVip;
+  final DateTime? boostedUntil;
+
   // Служебное
   final CarStatus status;
   final String? moderationComment;  // причина отклонения модератором (если status = rejected)
@@ -68,11 +73,19 @@ class CarModel {
     this.contactPhone,
     this.ratingAvg = 0.0,
     this.reviewsCount = 0,
+    this.isVip = false,
+    this.boostedUntil,
     required this.status,
     this.moderationComment,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  // Продвигается ли объявление ПРЯМО СЕЙЧАС. Значок VIP на карточке рисуем
+  // только по этому геттеру: флаг сам по себе не истекает, поэтому проверять
+  // его в одиночку нельзя — иначе значок остался бы навсегда.
+  bool get isPromoted =>
+      isVip && boostedUntil != null && boostedUntil!.isAfter(DateTime.now());
 
   // Парсинг строки из Supabase (JSON → модель)
   factory CarModel.fromMap(Map<String, dynamic> map) {
@@ -97,6 +110,11 @@ class CarModel {
       contactPhone: map['contact_phone'] as String?,
       ratingAvg: _toDouble(map['rating_avg']) ?? 0.0,
       reviewsCount: map['reviews_count'] as int? ?? 0,
+      isVip: map['is_vip'] as bool? ?? false,
+      // Поле nullable: у объявлений, которые никогда не продвигались, NULL.
+      boostedUntil: map['boosted_until'] == null
+          ? null
+          : DateTime.parse(map['boosted_until'] as String),
       status: CarStatus.fromValue(map['status'] as String?),
       moderationComment: map['moderation_comment'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),

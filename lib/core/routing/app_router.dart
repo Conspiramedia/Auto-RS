@@ -16,11 +16,14 @@ import '../../features/chat/screens/chat_room_screen.dart';
 import '../../features/chat/screens/chats_list_screen.dart';
 import '../../features/favorites/screens/favorites_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
+import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/catalog/screens/catalog_screen.dart';
 import '../../features/legal/screens/policy_screen.dart';
 import '../../features/listings/screens/create_car_screen.dart';
 import '../../features/listings/screens/my_cars_screen.dart';
+import '../../features/profile/screens/dealer_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/profile/screens/wallet_screen.dart';
 import '../../shared/screens/home_shell.dart';
 
 class AppRouter {
@@ -28,11 +31,22 @@ class AppRouter {
 
   static final _auth = AuthRepository();
 
+  // Стартовый маршрут. Онбординг показывается только при первом запуске:
+  // флаг читается с диска в main() ДО создания роутера (проверка
+  // асинхронная, а redirect у go_router синхронный — держать в нём
+  // обращение к диску нельзя).
+  static bool showOnboarding = false;
+
   static final GoRouter router = GoRouter(
-    initialLocation: '/catalog',
+    initialLocation: showOnboarding ? '/onboarding' : '/catalog',
     // Роутер пересобирается при смене состояния авторизации
     refreshListenable: _AuthNotifier(_auth),
     routes: [
+      // Онбординг — первый запуск, вне нижней навигации.
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
       GoRoute(
         path: '/login',
         // extra — необязательный префилл телефона (например, из формы
@@ -57,7 +71,26 @@ class AppRouter {
         builder: (context, state) =>
             CreateCarScreen(editCar: state.extra as CarModel?),
       ),
+      // Дублирование: форма заполнена полями исходного объявления, но
+      // сохранение создаёт НОВОЕ (в отличие от /edit-car).
+      GoRoute(
+        path: '/duplicate-car',
+        builder: (context, state) =>
+            CreateCarScreen(duplicateFrom: state.extra as CarModel?),
+      ),
       // Мои объявления (продавец) — требует авторизации
+      // Витрина продавца. Доступна гостю: человек может прийти по прямой
+      // ссылке, и требовать вход ради просмотра салона незачем.
+      GoRoute(
+        path: '/dealer/:id',
+        builder: (context, state) =>
+            DealerScreen(sellerId: state.pathParameters['id']!),
+      ),
+      // Кошелёк: баланс и история операций.
+      GoRoute(
+        path: '/wallet',
+        builder: (context, state) => const WalletScreen(),
+      ),
       GoRoute(
         path: '/my-cars',
         builder: (context, state) => const MyCarsScreen(),
@@ -119,7 +152,9 @@ class AppRouter {
       // «Опубликовать» (см. _publish в create_car_screen). «Ленивый» вход.
       final protected = state.matchedLocation.startsWith('/profile') ||
           state.matchedLocation.startsWith('/my-cars') ||
+          state.matchedLocation.startsWith('/wallet') ||
           state.matchedLocation.startsWith('/edit-car') ||
+          state.matchedLocation.startsWith('/duplicate-car') ||
           state.matchedLocation.startsWith('/moderation') ||
           state.matchedLocation.startsWith('/chat') ||
           state.matchedLocation.startsWith('/favorites') ||

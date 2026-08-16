@@ -10,12 +10,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/enums/car_status.dart';
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
+import '../../../data/models/dealer_profile_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
+import '../../../data/repositories/profile_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
@@ -33,6 +36,7 @@ class CarDetailScreen extends StatefulWidget {
 class _CarDetailScreenState extends State<CarDetailScreen> {
   final _carsRepo = CarsRepository();
   final _chatRepo = ChatRepository();
+  final _profileRepo = ProfileRepository();
   final _auth = AuthRepository();
 
   bool _startingChat = false;
@@ -45,14 +49,39 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
     _future = _load();
   }
 
-  // Грузим машину + фото
+  // Грузим машину + фото + витрину продавца.
+  //
+  // Текст ошибки берём ДО первого await: обращаться к context после
+  // асинхронного разрыва нельзя — виджет мог быть уже размонтирован.
   Future<_DetailData> _load() async {
+    final notFoundMessage = context.t.carNotFound;
+
     final car = await _carsRepo.fetchById(widget.carId);
     if (car == null) {
-      throw Exception('Объявление не найдено');
+      throw Exception(notFoundMessage);
     }
-    final images = await _carsRepo.fetchImages(widget.carId);
-    return _DetailData(car: car, images: images);
+
+    // Фото и профиль продавца независимы — запускаем оба запроса сразу,
+    // не дожидаясь первого.
+    final imagesFuture = _carsRepo.fetchImages(widget.carId);
+    final sellerFuture = _loadSeller(car.userId);
+
+    return _DetailData(
+      car: car,
+      images: await imagesFuture,
+      seller: await sellerFuture,
+    );
+  }
+
+  // Витрина продавца. Ошибку гасим: не загрузился профиль (сеть, удалённый
+  // пользователь) — карточку объявления это рушить не должно, просто не
+  // покажем блок продавца.
+  Future<DealerProfileModel?> _loadSeller(String userId) async {
+    try {
+      return await _profileRepo.fetchDealerProfile(userId);
+    } catch (_) {
+      return null;
+    }
   }
 
   void _snack(String msg) {
@@ -63,9 +92,13 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
   // Позвонить продавцу: открываем набор номера (tel:). Единая точка события
   // «звонок» — сюда позже подключим серверную аналитику/конверсию (цель).
   Future<void> _call(CarModel car) async {
+    // Обе подсказки читаем до await по той же причине, что и в _load.
+    final noPhoneMessage = context.t.carNoPhone;
+    final callFailedMessage = context.t.carCallFailed;
+
     final phone = car.contactPhone;
     if (phone == null || phone.trim().isEmpty) {
-      _snack('У этого объявления нет номера телефона');
+      _snack(noPhoneMessage);
       return;
     }
     // Звонок гостю свободен: набор номера (tel:) сам по себе данные не
@@ -75,14 +108,14 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      _snack('Не удалось открыть набор номера');
+      _snack(callFailedMessage);
     }
   }
 
   // Начать чат с продавцом (RPC start_chat) и перейти в комнату
   Future<void> _startChat(CarModel car) async {
     if (_auth.currentUser == null) {
-      _snack('Войдите, чтобы написать');
+      _snack(context.t.authRequiredWrite);
       return;
     }
     // Согласие с политикой уже получено на SMS-входе (чат требует входа),
@@ -104,7 +137,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: const Text('Объявление')),
+      appBar: AppBar(leading: const PillBackButton(), title: Text(context.t.carListingTitle)),
       body: FutureBuilder<_DetailData>(
         future: _future,
         builder: (context, snapshot) {
@@ -184,6 +217,13 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                 Text(car.description!),
               ],
 
+              // ---------- Продавец ----------
+              // У дилера строка ведёт на витрину, у частника — просто имя.
+              if (data.seller != null) ...[
+                const Divider(height: 32),
+                _SellerBlock(seller: data.seller!),
+              ],
+
               // ---------- Связь с продавцом: Позвонить + Написать ----------
               // У ПРОДАННОГО объявления связь скрыта: беспокоить продавца
               // по закрытой сделке незачем. Вместо кнопок — плашка-статус.
@@ -198,7 +238,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                         car.contactPhone!.trim().isNotEmpty)
                       Expanded(
                         child: DarkPillButton(
-                          label: 'Позвонить',
+                          label: context.t.carCall,
                           icon: Icons.phone,
                           expand: true,
                           variant: PillVariant.green,
@@ -211,7 +251,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                     // Написать — синяя (связь).
                     Expanded(
                       child: DarkPillButton(
-                        label: _startingChat ? 'Открываем…' : 'Написать',
+                        label: _startingChat ? context.t.carOpening : context.t.carWrite,
                         icon: Icons.chat_bubble_outline,
                         expand: true,
                         variant: PillVariant.blue,
@@ -232,10 +272,127 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
 class _DetailData {
   final CarModel car;
   final List<CarImageModel> images;
+  // Витрина продавца. null — профиль не загрузился; блок просто не рисуем.
+  final DealerProfileModel? seller;
   const _DetailData({
     required this.car,
     required this.images,
+    this.seller,
   });
+}
+
+// ============================================================
+// Блок продавца в карточке объявления.
+//
+// У ДИЛЕРА строка кликабельна и ведёт на витрину /dealer/{id}: покупателю
+// важно посмотреть, что ещё есть у салона и давно ли он на площадке.
+// У ЧАСТНИКА — просто имя без ссылки: у него нет витрины, а страница с
+// одним объявлением и нулями в счётчиках только запутала бы.
+// ============================================================
+class _SellerBlock extends StatelessWidget {
+  const _SellerBlock({required this.seller});
+
+  final DealerProfileModel seller;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    final theme = Theme.of(context);
+    final image = seller.imageUrl;
+    final isDealer = seller.isDealer;
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(isDealer ? 10 : 22),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: image != null && image.isNotEmpty
+                  ? Image.network(
+                      image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _placeholder(theme),
+                    )
+                  : _placeholder(theme),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        seller.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (isDealer) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppButtonColors.gold,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          t.carDealerBadge,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  t.memberSince(_formatMonthYear(context, seller.memberSince)),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          if (isDealer)
+            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+        ],
+      ),
+    );
+
+    // Частник кликабельным не делаем — витрины у него нет.
+    if (!isDealer) return content;
+
+    return InkWell(
+      onTap: () => context.push('/dealer/${seller.id}'),
+      child: content,
+    );
+  }
+
+  Widget _placeholder(ThemeData theme) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(
+          seller.isDealer ? Icons.storefront : Icons.person,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+
+  // «август 2025» — названия месяцев из словаря (в intl нет русской локали).
+  static String _formatMonthYear(BuildContext context, DateTime date) {
+    final months = context.t.monthNames;
+    return '${months[(date.month - 1).clamp(0, 11)]} ${date.year}';
+  }
 }
 
 // Галерея фото (горизонтальная прокрутка). Плейсхолдер, если фото нет.

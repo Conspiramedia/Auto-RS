@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/supabase_config.dart';
+import '../models/dealer_profile_model.dart';
 import '../models/profile_model.dart';
 
 class ProfileRepository {
@@ -74,6 +75,80 @@ class ProfileRepository {
 
     final base = _client.storage.from('avatars').getPublicUrl(path);
     // Обходим кэш: тот же путь после перезаписи вернул бы старое фото.
+    return '$base?v=${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  // ---------- ПРОДАВЕЦ: частник / автосалон ----------
+
+  // Публичная карточка продавца для страницы дилера. Доступна и гостю:
+  // прямой SELECT из profiles закрыт RLS, поэтому читаем через RPC, которая
+  // отдаёт только разрешённые к показу поля.
+  Future<DealerProfileModel?> fetchDealerProfile(String userId) async {
+    final rows = await _client.rpc('get_dealer_profile', params: {
+      'p_user_id': userId,
+    });
+
+    // RPC возвращает setof — при несуществующем id список пуст.
+    final list = rows as List;
+    if (list.isEmpty) return null;
+    return DealerProfileModel.fromMap(list.first as Map<String, dynamic>);
+  }
+
+  // Объявления продавца для страницы дилера.
+  // status: 'active' — витрина, 'sold' — блок «недавно проданные».
+  // Другие статусы сервер не отдаёт: модерация и архив — внутренняя кухня
+  // продавца, посторонним они не видны.
+  Future<List<SellerListingModel>> fetchSellerListings(
+    String userId, {
+    String status = 'active',
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final rows = await _client.rpc('get_seller_listings', params: {
+      'p_user_id': userId,
+      'p_status': status,
+      'p_limit': limit,
+      'p_offset': offset,
+    });
+
+    return (rows as List)
+        .map((e) => SellerListingModel.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // Переключение частник/дилер и поля витрины. Сервер валидирует: дилер без
+  // названия салона не сохранится, а при возврате в 'private' поля витрины
+  // очищаются, чтобы не оставался мусор от прошлой роли.
+  Future<ProfileModel> updateSellerProfile({
+    required String sellerKind,
+    String? companyName,
+    String? logoUrl,
+  }) async {
+    final row = await _client.rpc('update_seller_profile', params: {
+      'p_seller_kind': sellerKind,
+      'p_company_name': companyName,
+      'p_logo_url': logoUrl,
+    });
+    return ProfileModel.fromMap(row as Map<String, dynamic>);
+  }
+
+  // Загрузка логотипа автосалона в тот же bucket 'avatars', но отдельным
+  // путём — логотип и личный аватар должны существовать независимо.
+  Future<String> uploadDealerLogo(List<int> bytes) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Требуется авторизация');
+
+    final path = '$userId/logo.jpg';
+    await _client.storage.from('avatars').uploadBinary(
+          path,
+          Uint8List.fromList(bytes),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
+        );
+
+    final base = _client.storage.from('avatars').getPublicUrl(path);
     return '$base?v=${DateTime.now().millisecondsSinceEpoch}';
   }
 }

@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../widgets/chat_messages_list.dart';
@@ -32,6 +33,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final _inputCtrl = TextEditingController();
 
   bool _sending = false;
+  // Показывать ли ряд быстрых шаблонов. Скрывается после первой отправки.
+  bool _showTemplates = true;
 
   @override
   void initState() {
@@ -54,6 +57,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     try {
       await _repo.sendMessage(chatId: widget.chatId, text: text);
       _inputCtrl.clear();
+      // Шаблоны прячем после первого отправленного сообщения: они нужны,
+      // чтобы начать разговор, а дальше только занимают место над клавиатурой.
+      if (mounted && _showTemplates) setState(() => _showTemplates = false);
     } catch (e) {
       if (mounted) {
         showAppSnack(context, 'Не удалось отправить: ${humanizeError(e)}');
@@ -63,12 +69,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  // Тап по шаблону подставляет текст в поле, а НЕ отправляет сразу:
+  // человек должен успеть дописать деталь («Ещё актуально? Готов сегодня»)
+  // и не отправить случайное сообщение незнакомому продавцу.
+  void _applyTemplate(String text) {
+    _inputCtrl
+      ..text = text
+      ..selection = TextSelection.fromPosition(
+        TextPosition(offset: text.length),
+      );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = _auth.currentUser?.id ?? '';
+    final t = context.t;
 
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: Text(widget.peerName ?? 'Диалог')),
+      appBar: AppBar(
+        leading: const PillBackButton(),
+        title: Text(widget.peerName ?? t.chatsTitle),
+      ),
       body: Column(
         children: [
           // Realtime-лента сообщений (виджет с авто-скроллом)
@@ -78,6 +100,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               currentUserId: userId,
             ),
           ),
+
+          // Быстрые шаблоны: помогают начать разговор, когда не знаешь,
+          // с чего. Список локальный (context.t), на сервер не ходит.
+          if (_showTemplates)
+            _QuickTemplates(
+              templates: t.chatTemplateList,
+              onPick: _applyTemplate,
+            ),
 
           // Поле ввода + отправка
           SafeArea(
@@ -91,11 +121,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       controller: _inputCtrl,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Сообщение…',
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: InputDecoration(
+                        hintText: t.chatMessageHint,
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                       ),
                     ),
                   ),
@@ -115,6 +145,47 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// Ряд быстрых шаблонов над полем ввода.
+//
+// Горизонтальная прокрутка вместо переноса строк: шаблоны не должны
+// съедать половину экрана — лента сообщений важнее.
+// ============================================================
+class _QuickTemplates extends StatelessWidget {
+  const _QuickTemplates({required this.templates, required this.onPick});
+
+  final List<String> templates;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        itemCount: templates.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, i) {
+          final text = templates[i];
+          return Center(
+            child: ActionChip(
+              label: Text(text),
+              onPressed: () => onPick(text),
+              labelStyle: theme.textTheme.bodySmall,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              side: BorderSide.none,
+              visualDensity: VisualDensity.compact,
+            ),
+          );
+        },
       ),
     );
   }

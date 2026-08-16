@@ -11,12 +11,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
+import '../../../data/repositories/saved_searches_repository.dart';
 import '../../../data/repositories/viewed_cars_repository.dart';
+import '../../onboarding/screens/onboarding_screen.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/smart_search_bar.dart';
 import '../models/car_filters.dart';
+import '../widgets/catalog_empty_state.dart';
+import '../widgets/filter_chips_bar.dart';
 import 'filters_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
@@ -30,6 +35,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _repo = CarsRepository();
   final _favRepo = FavoritesRepository();
   final _auth = AuthRepository();
+  final _searchesRepo = SavedSearchesRepository();
+
+  // Подписка на смену состояния авторизации: нужна, чтобы создать
+  // отложенные подписки гостя сразу после входа.
+  StreamSubscription<dynamic>? _authSub;
   // Локальный реестр просмотренных объявлений (плашка «Просмотрено»).
   final _viewed = ViewedCarsRepository.instance;
 
@@ -78,6 +88,34 @@ class _CatalogScreenState extends State<CatalogScreen> {
     _reload();
     _loadFavorites();
     _loadViewed();
+    _applyPendingSearches();
+
+    // Вход мог произойти уже после открытия каталога (гость нажал
+    // «Сообщить, когда появится» или открыл защищённый экран). Тогда
+    // отложенные подписки нужно создать в момент авторизации.
+    _authSub = _auth.authStateChanges.listen((_) {
+      if (_auth.currentUser != null) _applyPendingSearches();
+    });
+  }
+
+  // Отложенные подписки гостя из онбординга.
+  //
+  // Вызывается в ДВУХ случаях: при старте приложения (гость прошёл онбординг,
+  // вошёл, но закрыл приложение до применения) и при входе внутри сессии.
+  // Оба пути ведут сюда, чтобы логика не разъезжалась по экранам.
+  //
+  // Порядок проверок важен: сначала дешёвая проверка диска, и только потом
+  // обращение к сети — на обычном запуске применять нечего.
+  Future<void> _applyPendingSearches() async {
+    if (_auth.currentUser == null) return;
+    if (!await OnboardingPrefs.hasPending()) return;
+
+    final applied = await OnboardingPrefs.applyPending(_searchesRepo);
+    if (!applied || !mounted) return;
+
+    // Снэкбар только когда реально что-то применили — молчаливые вызовы
+    // при каждом запуске ничего не сообщают.
+    showAppSnack(context, context.t.onboardingSearchesEnabled, success: true);
   }
 
   // Подтягиваем просмотренные id с диска и перерисовываем плашки.
@@ -98,6 +136,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _authSub?.cancel();
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -143,7 +182,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Переключение избранного с оптимистичным обновлением UI.
   Future<void> _toggleFavorite(String carId) async {
     if (_auth.currentUser == null) {
-      showAppSnack(context, 'Войдите, чтобы добавить в избранное');
+      showAppSnack(context, context.t.authRequiredFavorite);
       return;
     }
     final wasFav = _favoriteIds.contains(carId);
@@ -192,7 +231,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // «Не интересует это объявление» — скрыть конкретную карточку.
   // Оптимистично убираем из списка, затем сохраняем на сервере.
   Future<void> _hideCar(CarModel car) async {
-    if (!_requireAuth('Войдите, чтобы скрывать объявления')) return;
+    if (!_requireAuth(context.t.authRequiredHide)) return;
     setState(() => _cars.removeWhere((c) => c.id == car.id));
     try {
       await _repo.hideCar(car.id);
@@ -206,7 +245,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // «Не подходит город или регион» — скрыть все объявления города.
   // Оптимистично убираем из списка все карточки этого города.
   Future<void> _hideCity(CarModel car) async {
-    if (!_requireAuth('Войдите, чтобы скрывать города')) return;
+    if (!_requireAuth(context.t.authRequiredHide)) return;
     setState(() => _cars.removeWhere((c) => c.city == car.city));
     try {
       await _repo.hideCity(car.city);
@@ -348,6 +387,26 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
+  // Снять один фильтр по тапу на «×» в чипсе.
+  void _removeFilter(CarFilterKind kind) {
+    setState(() => _filters = _filters.removeFilter(kind));
+    _reload();
+  }
+
+  // Сбросить все фильтры и поисковую строку разом — действие из пустого
+  // состояния. Поле поиска очистится само: SmartSearchBar синхронизирует
+  // текст с внешним value в didUpdateWidget.
+  void _resetFilters() {
+    // Отменяем висящий дебаунс: иначе он через 400 мс вернул бы старый
+    // запрос обратно в _query и сброс отменился бы сам собой.
+    _searchDebounce?.cancel();
+    setState(() {
+      _filters = CarFilters.empty;
+      _query = '';
+    });
+    _reload();
+  }
+
   // Приводим технические ошибки к понятному пользователю виду.
   // «Failed to fetch» / таймаут обычно = нет связи или сервер «просыпается».
   String _friendlyError(Object? e) {
@@ -356,9 +415,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
         s.contains('SocketException') ||
         s.contains('timeout') ||
         s.contains('Connection')) {
-      return 'Нет связи с сервером.\nПроверьте интернет и попробуйте снова.';
+      return context.t.catalogNoConnection;
     }
-    return 'Не удалось загрузить каталог.\nПопробуйте ещё раз.';
+    return context.t.catalogLoadError;
   }
 
   // Рендер тела списка по состоянию: загрузка / ошибка / пусто / грид.
@@ -370,16 +429,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
       return _ErrorState(message: _friendlyError(_error), onRetry: _reload);
     }
     // Пустой список = по фильтру объявлений нет вовсе (крутить нечего) —
-    // единственный случай заглушки при бесконечной ленте.
+    // единственный случай заглушки при бесконечной ленте. Вместо тупика
+    // предлагаем действия: подписаться на поиск или сбросить фильтры.
     if (_cars.isEmpty) {
-      return RefreshIndicator(
+      return CatalogEmptyState(
+        filters: _filters,
+        query: _query,
+        onResetFilters: _resetFilters,
         onRefresh: _reload,
-        child: ListView(
-          children: const [
-            SizedBox(height: 120),
-            Center(child: Text('Пока нет объявлений по этому фильтру')),
-          ],
-        ),
       );
     }
     // Высота карточки считается динамически от ширины экрана:
@@ -475,6 +532,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
           const SizedBox(height: 6),
 
+          // Применённые фильтры чипсами. Показывают СОСТАВ фильтра (бейдж с
+          // числом на кнопке говорит только «их три»), тап по × снимает
+          // фильтр без открытия экрана фильтров.
+          FilterChipsBar(
+            filters: _filters,
+            onRemove: _removeFilter,
+            onClearAll: _resetFilters,
+          ),
+
           // Список результатов (продажа и аренда вперемешку; тип — в фильтрах)
           Expanded(child: _buildList()),
         ],
@@ -544,22 +610,23 @@ class _CarCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
-                'Скрыть рекомендацию',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                context.t.catalogHideRecommendation,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ),
             ListTile(
-              title: const Text('Не интересует это объявление'),
+              title: Text(context.t.catalogHideCar),
               onTap: () {
                 Navigator.pop(ctx);
                 onHide();
               },
             ),
             ListTile(
-              title: const Text('Не подходит город или регион'),
+              title: Text(context.t.catalogHideCity),
               onTap: () {
                 Navigator.pop(ctx);
                 onHideCity();
@@ -579,7 +646,7 @@ class _CarCard extends StatelessWidget {
         ? '${_money(car.rentPriceDaily!)} ${car.currency.value}/сутки'
         : car.salePrice != null
             ? '${_money(car.salePrice!)} ${car.currency.value}'
-            : 'Договорная';
+            : context.t.priceNegotiable;
 
     // Рейтинг в подзаголовке (если есть отзывы)
     final rating = car.reviewsCount > 0
@@ -772,7 +839,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton(onPressed: onRetry, child: const Text('Повторить')),
+            FilledButton(onPressed: onRetry, child: Text(context.t.commonRetry)),
           ],
         ),
       ),

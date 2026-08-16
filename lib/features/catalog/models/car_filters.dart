@@ -3,6 +3,21 @@
 // Хранит состояние фильтров между главным экраном и экраном фильтров.
 // ============================================================
 
+// Вид фильтра — что именно снимает «×» на чипсе. Год и цена одним значением:
+// они показаны диапазоном и снимаются целиком.
+enum CarFilterKind {
+  listingType,
+  brand,
+  model,
+  city,
+  year,
+  mileage,
+  price,
+  bodyType,
+  transmission,
+  fuel,
+}
+
 class CarFilters {
   // Тип объявления: 'sale' | 'rent' | null (любой — продажа и аренда вместе).
   final String? listingType;
@@ -50,6 +65,68 @@ class CarFilters {
     if (fuel != null) n++;
     return n;
   }
+
+  // Фильтры в формате jsonb для сохранённого поиска (RPC
+  // save_search_from_filters). Ключи совпадают с предикатом
+  // car_matches_filters на сервере — подписка проверяется ровно по тем же
+  // условиям, по которым каталог отбирает объявления, поэтому пуш не может
+  // прийти про машину, которой нет в результатах поиска.
+  //
+  // Пустые значения не включаем: сервер трактует отсутствие ключа как
+  // «фильтр не задан».
+  Map<String, dynamic> toSearchFilters() {
+    final map = <String, dynamic>{};
+    if (listingType != null) map['listing_type'] = listingType;
+    if (brand != null) map['brand'] = brand;
+    if (model != null) map['model'] = model;
+    if (city != null) map['city'] = city;
+    if (fuel != null) map['fuel'] = fuel;
+    if (bodyType != null) map['body_type'] = bodyType;
+    if (transmission != null) map['transmission'] = transmission;
+    if (mileageMax != null) map['mileage_max'] = mileageMax;
+    if (priceFrom != null) map['price_from'] = priceFrom;
+    if (priceTo != null) map['price_to'] = priceTo;
+    if (yearFrom != null) map['year_from'] = yearFrom;
+    if (yearTo != null) map['year_to'] = yearTo;
+    return map;
+  }
+
+  // ----------------------------------------------------------
+  // Снятие одного фильтра (тап по «×» на чипсе).
+  //
+  // Через copyWith это не сделать: там `value ?? this.value`, то есть
+  // передача null означает «не менять», а не «сбросить». Поэтому собираем
+  // новый объект явно, обнуляя нужное поле.
+  //
+  // Год и цена сбрасываются ПАРОЙ (от и до): на чипсе они показаны одним
+  // диапазоном «2015–2020», и снимать половину диапазона по тапу на × —
+  // не то, чего ждёт пользователь.
+  // ----------------------------------------------------------
+  CarFilters removeFilter(CarFilterKind kind) {
+    return CarFilters(
+      listingType: kind == CarFilterKind.listingType ? null : listingType,
+      brand: kind == CarFilterKind.brand ? null : brand,
+      // Снимая марку, снимаем и модель: модель без марки бессмысленна
+      // («3 серия» без BMW ничего не найдёт).
+      model: (kind == CarFilterKind.model || kind == CarFilterKind.brand)
+          ? null
+          : model,
+      city: kind == CarFilterKind.city ? null : city,
+      yearFrom: kind == CarFilterKind.year ? null : yearFrom,
+      yearTo: kind == CarFilterKind.year ? null : yearTo,
+      mileageMax: kind == CarFilterKind.mileage ? null : mileageMax,
+      priceFrom: kind == CarFilterKind.price ? null : priceFrom,
+      priceTo: kind == CarFilterKind.price ? null : priceTo,
+      bodyType: kind == CarFilterKind.bodyType ? null : bodyType,
+      transmission: kind == CarFilterKind.transmission ? null : transmission,
+      fuel: kind == CarFilterKind.fuel ? null : fuel,
+    );
+  }
+
+  // Можно ли сохранить эти фильтры как подписку: сервер отклонит пустой
+  // набор («уведомлять обо всех объявлениях» = спам), поэтому кнопку
+  // «Сообщить, когда появится» показываем только при заданном фильтре.
+  bool get canSaveAsSearch => toSearchFilters().isNotEmpty;
 
   CarFilters copyWith({
     String? listingType,

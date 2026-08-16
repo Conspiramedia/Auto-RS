@@ -27,11 +27,21 @@ import '../utils/validate_car_form.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class CreateCarScreen extends StatefulWidget {
-  const CreateCarScreen({super.key, this.editCar});
+  const CreateCarScreen({super.key, this.editCar, this.duplicateFrom});
 
   // Если задано — режим РЕДАКТИРОВАНИЯ существующего объявления (поля
   // предзаполняются, вызывается update_car_v2). null — создание нового.
   final CarModel? editCar;
+
+  // Дублирование: поля предзаполняются из существующего объявления, но
+  // создаётся НОВОЕ (create_car_v2). Отличие от editCar принципиальное —
+  // при дублировании id исходного объявления не используется, иначе
+  // продавец вместо копии перезаписал бы оригинал.
+  //
+  // Фото не переносятся: они лежат в Storage по пути исходного объявления,
+  // и копировать их пришлось бы через сервер. Продавец, дублирующий
+  // объявление, обычно всё равно снимает новую машину заново.
+  final CarModel? duplicateFrom;
 
   @override
   State<CreateCarScreen> createState() => _CreateCarScreenState();
@@ -96,16 +106,26 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   // Режим редактирования (передан editCar).
   bool get _isEdit => widget.editCar != null;
 
+  // Дублирование: поля заполнены, но сохранение создаёт новое объявление.
+  bool get _isDuplicate => widget.duplicateFrom != null;
+
   @override
   void initState() {
     super.initState();
     _loadBrands();
     _phoneFocus.addListener(_onPhoneFocus);
-    if (_isEdit) _prefillFromCar(widget.editCar!);
+    if (_isEdit) {
+      _prefillFromCar(widget.editCar!);
+    } else if (_isDuplicate) {
+      // copyPhotos: false — фото исходного объявления не переносим,
+      // иначе они оказались бы привязаны сразу к двум объявлениям.
+      _prefillFromCar(widget.duplicateFrom!, copyPhotos: false);
+    }
   }
 
-  // Предзаполнение формы полями редактируемого объявления.
-  void _prefillFromCar(CarModel car) {
+  // Предзаполнение формы полями существующего объявления.
+  // copyPhotos = false при дублировании (см. комментарий выше).
+  void _prefillFromCar(CarModel car, {bool copyPhotos = true}) {
     _listingType = car.isForRent && !car.isForSale ? 'rent' : 'sale';
     _brand = car.brand;
     _model = car.model;
@@ -122,7 +142,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       _phoneCtrl.text = serbianPhoneDisplay(car.contactPhone!);
     }
     // Существующие фото объявления — сразу в набор (можно удалять/добавлять).
-    _loadExistingPhotos(car.id);
+    if (copyPhotos) _loadExistingPhotos(car.id);
     // Модели выбранной марки для пикера.
     if (car.brand.isNotEmpty) _loadModels(car.brand);
   }
@@ -487,7 +507,13 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     return Scaffold(
       appBar: AppBar(
           leading: const PillBackButton(),
-          title: Text(_isEdit ? 'Редактирование' : 'Новое объявление')),
+          title: Text(_isEdit
+              ? 'Редактирование'
+              : _isDuplicate
+                  // Копия — это новое объявление, но пользователю важно
+                  // понимать, что поля заполнены не случайно.
+                  ? 'Копия объявления'
+                  : 'Новое объявление')),
       body: AbsorbPointer(
         absorbing: _publishing,
         child: ListView(

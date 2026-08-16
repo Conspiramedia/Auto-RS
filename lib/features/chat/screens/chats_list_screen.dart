@@ -22,6 +22,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/models/chat_with_details_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
@@ -32,7 +33,9 @@ import '../../../shared/widgets/pill_back_button.dart';
 
 // Подсказки поиска по теме экрана «Сообщения» (по диалогам).
 const List<String> _kChatsHints = [
-  'Поиск по диалогам',
+  // Примеры-подсказки в строке поиска. Это ОБРАЗЦЫ ввода (имена, марки),
+  // а не элементы интерфейса: они одинаковы на обоих языках, поэтому
+  // остаются константами и в словари не выносятся.
   'Имя собеседника',
   'Марка или модель авто',
   'Marko',
@@ -106,7 +109,7 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
     try {
       await _repo.setChatPinned(chatId: chat.id, pinned: pin);
       if (!mounted) return;
-      showAppSnack(context, pin ? 'Диалог закреплён' : 'Диалог откреплён',
+      showAppSnack(context, pin ? context.t.chatPinned : context.t.chatUnpinned,
           success: true);
       _reload();
     } catch (e) {
@@ -142,11 +145,10 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: Text('Заблокировать $name?'),
-        content: const Text(
-          'Пользователь больше не сможет писать вам сообщения. '
-          'Блокировку можно снять в любой момент свайпом по диалогу.',
-          style: TextStyle(fontSize: 14, height: 1.4),
+        title: Text(context.t.blockConfirmTitle(name)),
+        content: Text(
+          context.t.chatBlockConfirmBody,
+          style: const TextStyle(fontSize: 14, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -155,9 +157,9 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Заблокировать',
-              style: TextStyle(
+            child: Text(
+              context.t.chatBlock,
+              style: const TextStyle(
                 color: AppButtonColors.red,
                 fontWeight: FontWeight.w600,
               ),
