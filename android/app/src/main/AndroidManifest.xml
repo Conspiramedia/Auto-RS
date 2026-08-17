@@ -36,6 +36,27 @@
                 <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+
+            <!-- App Links: ссылка на объявление с сайта открывается в
+                 приложении, а не в браузере.
+                 Путь /car/* совпадает с роутом приложения (см. app_router).
+
+                 autoVerify="true" заставляет Android при установке проверить
+                 https://rsauto-rs.vercel.app/.well-known/assetlinks.json.
+                 ВАЖНО: на *.vercel.app проверка НЕ пройдёт — субдомены
+                 публичного хостинга входят в Public Suffix List, и Android
+                 не связывает их с приложением. До перехода на собственный
+                 домен ссылки будут открываться через диалог выбора
+                 приложения, а не автоматически. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="rsauto-rs.vercel.app"
+                    android:pathPrefix="/car/"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

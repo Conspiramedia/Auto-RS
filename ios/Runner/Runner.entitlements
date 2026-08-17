@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: ссылка вида https://rsauto-rs.vercel.app/car/{id}
+	     открывается в приложении, а не в Safari.
+
+	     iOS проверяет файл apple-app-site-association на домене, поэтому
+	     запись должна совпадать с тем, что реально отдаёт сайт.
+
+	     ВНИМАНИЕ: на *.vercel.app проверка Apple не пройдёт — субдомены
+	     публичного хостинга не считаются доменом разработчика. Кроме того,
+	     в apple-app-site-association нужен реальный TEAM_ID вместо
+	     плейсхолдера. До перехода на собственный домен ссылки будут
+	     открываться в браузере. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:rsauto-rs.vercel.app</string>
+	</array>
+
+	<!-- Push-уведомления. development — для отладочных сборок; в Release
+	     ниже стоит production. Без этого ключа APNs не выдаст токен, и
+	     firebase_messaging не сможет получить FCM-токен на устройстве. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>
