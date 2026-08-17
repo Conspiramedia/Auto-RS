@@ -24,6 +24,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/saved_searches_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/app_button_colors.dart';
+import '../../onboarding/widgets/push_permission_sheet.dart';
 import '../models/car_filters.dart';
 
 class CatalogEmptyState extends StatefulWidget {
@@ -87,6 +88,17 @@ class _CatalogEmptyStateState extends State<CatalogEmptyState> {
       if (!mounted) return;
       setState(() => _subscribed = true);
       showAppSnack(context, t.catalogNotifySaved, success: true);
+
+      // Запасной запрос разрешения на пуши.
+      //
+      // Онбординг можно пропустить, и тогда разрешение не спрашивалось
+      // вовсе — подписка «сообщить, когда появится» молча не работала бы.
+      // Здесь момент даже удачнее онбординга: человек только что явно
+      // попросил уведомить его о новых объявлениях.
+      //
+      // Внутри стоит защита от повторов (wasPushAsked), так что прошедших
+      // онбординг лист не побеспокоит.
+      await maybeAskPushPermission(context);
     } catch (e) {
       if (!mounted) return;
       showErrorSnack(context, e);

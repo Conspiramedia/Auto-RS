@@ -17,8 +17,9 @@ import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/saved_searches_repository.dart';
 import '../../../data/repositories/viewed_cars_repository.dart';
 import '../../onboarding/screens/onboarding_screen.dart';
+import '../../onboarding/widgets/push_permission_sheet.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/smart_search_bar.dart';
+import '../../../shared/widgets/app_search_header.dart';
 import '../models/car_filters.dart';
 import '../widgets/catalog_empty_state.dart';
 import '../widgets/filter_chips_bar.dart';
@@ -206,6 +207,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
           }
         });
       }
+
+      // Запасной запрос разрешения на пуши — для тех, кто пропустил
+      // онбординг. Спрашиваем только при ДОБАВЛЕНИИ (nowFav): при снятии
+      // сердечка предлагать уведомления бессмысленно.
+      //
+      // Момент подходящий: по избранному приходят уведомления о снижении
+      // цены, то есть разрешение здесь напрямую связано с только что
+      // совершённым действием. Повторов не будет — внутри проверяется
+      // wasPushAsked.
+      if (nowFav && mounted) await maybeAskPushPermission(context);
     } catch (_) {
       // Откат при ошибке
       if (mounted) {
@@ -506,31 +517,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
       body: SafeArea(
         child: Column(
         children: [
-          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле): один ряд —
-          // логотип + строка поиска с иконкой фильтров в хвосте. Отдельный
-          // ряд с кнопкой «Фильтры» убран, высота отдана карточкам.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Image.asset('assets/images/logo.png', height: 60),
-                const SizedBox(width: 10),
-                // Строка поиска — занимает всё свободное место справа.
-                Expanded(
-                  child: SmartSearchBar(
-                    value: _query,
-                    onChanged: _onSearchChanged,
-                    onSubmitted: _onSearchSubmitted,
-                    onFilterTap: _openFilters,
-                    filterCount: _filters.activeCount,
-                  ),
-                ),
-              ],
-            ),
+          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле): логотип + строка
+          // поиска с иконкой фильтров в хвосте. Тот же AppSearchHeader, что
+          // в Избранном и Сообщениях — раньше каталог собирал этот ряд
+          // вручную, и правки разъезжались по трём экранам.
+          AppSearchHeader(
+            query: _query,
+            onSearchChanged: _onSearchChanged,
+            onSubmitted: _onSearchSubmitted,
+            onFilterTap: _openFilters,
+            filterCount: _filters.activeCount,
           ),
 
-          const SizedBox(height: 6),
+          // Тот же отступ под шапкой, что в Избранном и Сообщениях.
+          const SizedBox(height: 8),
 
           // Применённые фильтры чипсами. Показывают СОСТАВ фильтра (бейдж с
           // числом на кнопке говорит только «их три»), тап по × снимает

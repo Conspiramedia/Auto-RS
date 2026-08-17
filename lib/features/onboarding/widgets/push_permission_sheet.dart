@@ -23,25 +23,50 @@ import '../onboarding_service.dart';
 
 // Показывает лист один раз за установку. Возвращает true, если пользователь
 // согласился получать уведомления.
+//
+// ТОЧКИ ВЫЗОВА (первая сработавшая закрывает вопрос):
+//   1) конец онбординга — основной путь;
+//   2) подписка «Сообщить, когда появится» в пустом каталоге;
+//   3) первое добавление объявления в избранное.
+//
+// Пункты 2–3 нужны тем, кто нажал «Пропустить»: без них человек подписался
+// бы на уведомления, которые физически не могут прийти. Момент в обоих
+// случаях уместный — пользователь только что попросил его уведомлять.
 Future<bool> maybeAskPushPermission(BuildContext context) async {
   // Уже спрашивали — второй раз не беспокоим.
   if (await OnboardingService.instance.wasPushAsked()) return false;
+
+  // Разрешение уже выдано (например, через системные настройки) —
+  // объяснять смысл уведомлений незачем, просто фиксируем факт и
+  // убеждаемся, что токен зарегистрирован.
+  if (await PushService.instance.hasPermission()) {
+    await OnboardingService.instance.markPushAsked();
+    await PushService.instance.syncToken();
+    return true;
+  }
+
   if (!context.mounted) return false;
 
-  final agreed = await showModalBottomSheet<bool>(
-        context: context,
-        isDismissible: true,
-        showDragHandle: true,
-        builder: (ctx) => const _PushPermissionSheet(),
-      ) ??
-      false;
+  // null = лист смахнули, не нажав ни одной кнопки.
+  final choice = await showModalBottomSheet<bool>(
+    context: context,
+    isDismissible: true,
+    showDragHandle: true,
+    builder: (ctx) => const _PushPermissionSheet(),
+  );
+
+  // Флаг ставим только при ОСОЗНАННОМ выборе — «Включить» или «Позже».
+  // Смахнутый лист выбором не считается: иначе случайный свайп навсегда
+  // лишал бы человека уведомлений, и следующая точка вызова (избранное,
+  // подписка) уже не сработала бы.
+  if (choice == null) return false;
 
   await OnboardingService.instance.markPushAsked();
 
-  if (agreed) {
+  if (choice) {
     await _requestSystemPermission();
   }
-  return agreed;
+  return choice;
 }
 
 // ------------------------------------------------------------

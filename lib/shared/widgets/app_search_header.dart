@@ -22,6 +22,8 @@ class AppSearchHeader extends StatelessWidget {
     this.onSubmitted,
     this.trailing,
     this.hints = kDefaultCatalogHints,
+    this.onFilterTap,
+    this.filterCount = 0,
   });
 
   /// Подсказки поиска под тему экрана (по умолчанию — каталог авто).
@@ -39,6 +41,14 @@ class AppSearchHeader extends StatelessWidget {
   /// Необязательный виджет справа от поиска (например, «Фильтры»).
   final Widget? trailing;
 
+  /// Тап по иконке фильтров В ХВОСТЕ строки поиска. null — иконки нет
+  /// (Избранное и Сообщения фильтруют список локально, экрана фильтров
+  /// у них не существует).
+  final VoidCallback? onFilterTap;
+
+  /// Сколько фильтров применено — цифра на бейдже иконки.
+  final int filterCount;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -54,6 +64,8 @@ class AppSearchHeader extends StatelessWidget {
               onChanged: onSearchChanged,
               onSubmitted: onSubmitted,
               hints: hints,
+              onFilterTap: onFilterTap,
+              filterCount: filterCount,
             ),
           ),
           if (trailing != null) ...[
