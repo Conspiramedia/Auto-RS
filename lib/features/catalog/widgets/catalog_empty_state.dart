@@ -23,7 +23,7 @@ import '../../../core/i18n/app_strings.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/saved_searches_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/app_button_colors.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../onboarding/widgets/push_permission_sheet.dart';
 import '../models/car_filters.dart';
 
@@ -110,7 +110,6 @@ class _CatalogEmptyStateState extends State<CatalogEmptyState> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
     final hasFilters = widget.filters.activeCount > 0 ||
         widget.query.trim().isNotEmpty;
 
@@ -121,33 +120,41 @@ class _CatalogEmptyStateState extends State<CatalogEmptyState> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(32, 80, 32, 32),
         children: [
-          Icon(
+          const Icon(
             Icons.search_off,
             size: 64,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            color: AppBrandColors.neutral30,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppBrandSpacing.md),
+          // Причина, по которой выдача пуста, — первым делом: без неё
+          // пустой экран читается как поломка.
           Text(
             t.catalogEmptyTitle,
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppBrandSpacing.sm),
           Text(
             t.catalogEmptyBody,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: AppBrandText.body.copyWith(color: AppBrandColors.neutral60),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppBrandSpacing.lg),
 
-          // Главное действие: подписка на текущий поиск.
+          // Главное действие: подписка на текущий поиск — зелёный CTA,
+          // единственный акцент на экране.
           if (_canSubscribe)
             SizedBox(
               height: 50,
               child: FilledButton.icon(
                 onPressed: (_saving || _subscribed) ? null : _subscribe,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppBrandColors.green,
+                  foregroundColor: Colors.white,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppBrandRadius.controlAll,
+                  ),
+                ),
                 icon: _saving
                     ? const SizedBox(
                         width: 18,
@@ -162,26 +169,32 @@ class _CatalogEmptyStateState extends State<CatalogEmptyState> {
                         : Icons.notifications_active_outlined),
                 label: Text(
                   _subscribed ? t.catalogNotifySaved : t.catalogEmptyNotify,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppBrandText.caption
+                      .copyWith(fontWeight: AppBrandFont.semibold),
                 ),
               ),
             ),
 
           // Второе действие: сброс фильтров — только если они заданы.
+          // Вторичная кнопка: нейтральная рамка, без второго яркого CTA.
           if (hasFilters) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AppBrandSpacing.sm),
             SizedBox(
               height: 50,
               child: OutlinedButton.icon(
                 onPressed: widget.onResetFilters,
-                icon: const Icon(Icons.filter_alt_off_outlined),
-                label: Text(t.catalogEmptyResetFilters),
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 20),
+                label: Text(
+                  t.catalogEmptyResetFilters,
+                  style: AppBrandText.caption
+                      .copyWith(fontWeight: AppBrandFont.medium),
+                ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppButtonColors.green,
-                  side: const BorderSide(color: AppButtonColors.green),
+                  foregroundColor: AppBrandColors.neutral100,
+                  side: const BorderSide(color: AppBrandColors.neutral15),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppBrandRadius.controlAll,
+                  ),
                 ),
               ),
             ),

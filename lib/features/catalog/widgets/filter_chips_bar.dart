@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../models/car_filters.dart';
 
 class FilterChipsBar extends StatelessWidget {
@@ -52,9 +53,16 @@ class FilterChipsBar extends StatelessWidget {
                 onPressed: onClearAll,
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppBrandSpacing.sm),
+                  // Сброс — деструктивное действие, красный из бренда.
+                  foregroundColor: AppBrandColors.red,
                 ),
-                child: Text(t.catalogFiltersReset),
+                child: Text(
+                  t.catalogFiltersReset,
+                  style: AppBrandText.caption
+                      .copyWith(fontWeight: AppBrandFont.medium),
+                ),
               ),
             );
           }
@@ -170,8 +178,9 @@ class _ChipItem {
   final String label;
 }
 
-// Один чипс: подпись + «×». Компактный, чтобы в строку помещалось
-// несколько штук без прокрутки в типичном случае (2–3 фильтра).
+// Один чипс применённого фильтра: подпись + «×». Тёмная плашка бренда,
+// капсула — так же выглядит применённый фильтр на сайте: он «включён»,
+// в отличие от неактивных элементов управления.
 class _FilterChip extends StatelessWidget {
   const _FilterChip({required this.label, required this.onRemove});
 
@@ -180,14 +189,12 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
+      color: AppBrandColors.dark,
+      borderRadius: AppBrandRadius.pillAll,
       child: InkWell(
         onTap: onRemove,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppBrandRadius.pillAll,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
           child: Row(
@@ -195,15 +202,13 @@ class _FilterChip extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500),
+                style: AppBrandText.caption.copyWith(
+                  color: Colors.white,
+                  fontWeight: AppBrandFont.medium,
+                ),
               ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.close,
-                size: 15,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              const SizedBox(width: AppBrandSpacing.xs),
+              const Icon(Icons.close, size: 15, color: Colors.white),
             ],
           ),
         ),

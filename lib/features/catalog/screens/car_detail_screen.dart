@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../data/enums/car_status.dart';
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
@@ -170,7 +171,8 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
               // Заголовок
               Text(
                 '${car.brand} ${car.model}, ${car.year}',
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: AppBrandText.h3
+                    .copyWith(color: AppBrandColors.neutral100),
               ),
               const SizedBox(height: 4),
               Row(
@@ -179,7 +181,7 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                   Text(car.city),
                   if (car.reviewsCount > 0) ...[
                     const SizedBox(width: 12),
-                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                    const Icon(Icons.star, size: 16, color: AppBrandColors.gold),
                     Text('${car.ratingAvg.toStringAsFixed(1)} '
                         '(${car.reviewsCount})'),
                   ],
@@ -212,7 +214,8 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
                   car.description!.trim().isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text('Описание',
-                    style: Theme.of(context).textTheme.titleMedium),
+                    style: AppBrandText.h4
+                        .copyWith(color: AppBrandColors.neutral100)),
                 const SizedBox(height: 4),
                 Text(car.description!),
               ],
@@ -220,14 +223,14 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
               // ---------- Продавец ----------
               // У дилера строка ведёт на витрину, у частника — просто имя.
               if (data.seller != null) ...[
-                const Divider(height: 32),
+                const Divider(height: 32, color: AppBrandColors.neutral10),
                 _SellerBlock(seller: data.seller!),
               ],
 
               // ---------- Связь с продавцом: Позвонить + Написать ----------
               // У ПРОДАННОГО объявления связь скрыта: беспокоить продавца
               // по закрытой сделке незачем. Вместо кнопок — плашка-статус.
-              const Divider(height: 32),
+              const Divider(height: 32, color: AppBrandColors.neutral10),
               if (car.status == CarStatus.sold)
                 const _SoldNotice()
               else
@@ -306,7 +309,7 @@ class _SellerBlock extends StatelessWidget {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(isDealer ? 10 : 22),
+            borderRadius: BorderRadius.circular(isDealer ? AppBrandRadius.sm : 22),
             child: SizedBox(
               width: 44,
               height: 44,
@@ -331,8 +334,10 @@ class _SellerBlock extends StatelessWidget {
                         seller.displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: AppBrandText.body.copyWith(
+                          color: AppBrandColors.neutral100,
+                          fontWeight: AppBrandFont.semibold,
+                        ),
                       ),
                     ),
                     if (isDealer) ...[
@@ -340,16 +345,19 @@ class _SellerBlock extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppButtonColors.gold,
-                          borderRadius: BorderRadius.circular(6),
+                        decoration: const BoxDecoration(
+                          color: AppBrandColors.gold,
+                          borderRadius: AppBrandRadius.smAll,
                         ),
                         child: Text(
                           t.carDealerBadge,
-                          style: const TextStyle(
+                          // Мельче ступени small: бейдж стоит в строке с
+                          // названием и не должен спорить с ним по весу.
+                          style: AppBrandText.small.copyWith(
                             fontSize: 10,
+                            height: 1.1,
                             color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: AppBrandFont.semibold,
                           ),
                         ),
                       ),
@@ -360,13 +368,13 @@ class _SellerBlock extends StatelessWidget {
                 Text(
                   t.memberSince(_formatMonthYear(context, seller.memberSince)),
                   style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ?.copyWith(color: AppBrandColors.neutral60),
                 ),
               ],
             ),
           ),
           if (isDealer)
-            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+            const Icon(Icons.chevron_right, color: AppBrandColors.neutral40),
         ],
       ),
     );
@@ -381,10 +389,10 @@ class _SellerBlock extends StatelessWidget {
   }
 
   Widget _placeholder(ThemeData theme) => Container(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: AppBrandColors.surfaceMuted,
         child: Icon(
           seller.isDealer ? Icons.storefront : Icons.person,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: AppBrandColors.neutral40,
         ),
       );
 
@@ -402,17 +410,27 @@ class _Gallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Пропорция 4:3 — та же, что у карточек каталога и на сайте: переход
+    // из списка в объявление не меняет геометрию фотографии. Раньше здесь
+    // стояла фиксированная высота 300px, и на узких экранах кадр выглядел
+    // непропорционально вытянутым.
     if (images.isEmpty) {
-      // Нет фото — та же заглушка-лого, что в карточках каталога.
-      return Container(
-        height: 300,
-        color: const Color(0xFFFFFFFF),
-        alignment: Alignment.center,
-        child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+      // Нет фото — подложка surfaceMuted, как в карточке каталога.
+      return AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Container(
+          color: AppBrandColors.surfaceMuted,
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.directions_car_outlined,
+            size: 64,
+            color: AppBrandColors.neutral30,
+          ),
+        ),
       );
     }
-    return SizedBox(
-      height: 300,
+    return AspectRatio(
+      aspectRatio: 4 / 3,
       child: PageView.builder(
         itemCount: images.length,
         itemBuilder: (context, i) => _GalleryItem(url: images[i].imageUrl),
@@ -420,7 +438,6 @@ class _Gallery extends StatelessWidget {
     );
   }
 }
-
 // Один кадр галереи. Форматы фото у клиентов разные (вертикальные,
 // квадратные, широкие), поэтому подгоняем универсально:
 //   • фон — то же фото, растянутое на весь кадр (cover) и РАЗМЫТОЕ;
@@ -433,11 +450,15 @@ class _GalleryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Фото не загрузилось — та же заглушка-лого.
+    // Фото не загрузилось — подложка surfaceMuted, как в карточке каталога.
     final placeholder = Container(
-      color: const Color(0xFFFFFFFF),
+      color: AppBrandColors.surfaceMuted,
       alignment: Alignment.center,
-      child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+      child: const Icon(
+        Icons.directions_car_outlined,
+        size: 64,
+        color: AppBrandColors.neutral30,
+      ),
     );
     return Stack(
       fit: StackFit.expand,
@@ -510,9 +531,9 @@ class _SpecsGrid extends StatelessWidget {
     return Builder(
       builder: (context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+        decoration: const BoxDecoration(
+          color: AppBrandColors.surfaceMuted,
+          borderRadius: AppBrandRadius.smAll,
         ),
         child: Text(
           '${e.key}: ${e.value}',
@@ -533,17 +554,30 @@ class _PriceLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppBrandSpacing.xs),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyLarge),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
+          // Подпись сжимается первой: суть строки — сумма, и обрезать
+          // нужно «Цена продажи», а не цифры.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  AppBrandText.body.copyWith(color: AppBrandColors.neutral60),
+            ),
+          ),
+          const SizedBox(width: AppBrandSpacing.sm),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppBrandText.h2.copyWith(color: AppBrandColors.primary),
+            ),
           ),
         ],
       ),
@@ -557,31 +591,31 @@ class _PriceLine extends StatelessWidget {
 // ============================================================
 class _SoldNotice extends StatelessWidget {
   const _SoldNotice();
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppBrandSpacing.md,
+        vertical: 14,
+      ),
+      decoration: const BoxDecoration(
+        color: AppBrandColors.surfaceMuted,
+        borderRadius: AppBrandRadius.cardAll,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle_outline,
-              size: 20, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 8),
+          const Icon(Icons.check_circle_outline,
+              size: 20, color: AppBrandColors.neutral60),
+          const SizedBox(width: AppBrandSpacing.sm),
           Flexible(
             child: Text(
               'Объявление продано — связь с продавцом закрыта',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: scheme.onSurfaceVariant,
+              style: AppBrandText.caption.copyWith(
+                fontWeight: AppBrandFont.medium,
+                color: AppBrandColors.neutral60,
               ),
             ),
           ),

@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
 import '../../../data/repositories/saved_searches_repository.dart';
@@ -21,6 +22,7 @@ import '../../onboarding/widgets/push_permission_sheet.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/app_search_header.dart';
 import '../models/car_filters.dart';
+import '../widgets/car_card.dart';
 import '../widgets/catalog_empty_state.dart';
 import '../widgets/filter_chips_bar.dart';
 import 'filters_screen.dart';
@@ -450,9 +452,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
         onRefresh: _reload,
       );
     }
-    // Высота карточки считается динамически от ширины экрана:
-    //   фото (4:3 от ширины карточки) + текстовый блок + запас снизу.
-    // Так на любом экране запас минимальный (~10px), без «пустоты».
+    // Высота карточки считается динамически: фото 4:3 от ширины карточки
+    // плюс фактическая высота текстового блока.
+    //
+    // Раньше высота текста была константой 140, подобранной на глаз. При
+    // другом системном масштабе текста контент переставал помещаться —
+    // отсюда «BOTTOM OVERFLOWED BY 2.5 PIXELS». Теперь блок считается из
+    // самих токенов и множителя textScaler, поэтому сходится при любом
+    // размере шрифта, а сама карточка ужимает фото, если места всё же мало.
     return LayoutBuilder(builder: (context, constraints) {
       const outerPad = 5.0;   // SliverPadding.all(5)
       const crossGap = 5.0;   // crossAxisSpacing
@@ -460,12 +467,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
       // Ширина одной карточки при 2 колонках.
       final cardW =
           (constraints.maxWidth - outerPad * 2 - crossGap * (cols - 1)) / cols;
-      // Высота инфо-блока под фото: paddings(16) + название(40) + gaps(12)
-      // + 3 мелкие строки(~16) + цена(~20) ≈ 140 (небольшой запас, чтобы при
-      // особенностях шрифта не было overflow). + маленький запас снизу.
-      const textBlockH = 140.0;
-      const bottomPad = 8.0;
-      final extent = cardW * 3 / 4 + textBlockH + bottomPad;
+
+      // Четыре строки текста: заголовок (body), цена (body), мета и город
+      // (caption). Высоты берём из шкалы бренда — те же стили стоят в
+      // CarCard, поэтому расчёт и разметка не разъезжаются.
+      final scaler = MediaQuery.textScalerOf(context);
+      final lineBody = scaler.scale(AppBrandText.body.fontSize!) *
+          AppBrandText.body.height!;
+      final lineCaption = scaler.scale(AppBrandText.caption.fontSize!) *
+          AppBrandText.caption.height!;
+      // Вертикальные отступы блока: padding sm сверху и снизу.
+      const blockPadding = AppBrandSpacing.sm * 2;
+      final textBlockH = lineBody * 2 + lineCaption * 2 + blockPadding;
+
+      final extent = cardW * 3 / 4 + textBlockH;
 
       return RefreshIndicator(
         onRefresh: _reload,
@@ -482,7 +497,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   mainAxisExtent: extent, // точная высота вместо соотношения
                 ),
                 delegate: SliverChildBuilderDelegate(
-                  (context, i) => _CarCard(
+                  (context, i) => CarCard(
                     car: _cars[i],
                     isFavorite: _favoriteIds.contains(_cars[i].id),
                     isViewed: _viewed.isViewed(_cars[i].id),
@@ -512,6 +527,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppBrandColors.bg,
       // AppBar убран: логотип и поиск — в самом верху тела (SafeArea).
       // Создание объявления — центральная «+» в нижней навигации (home_shell).
       body: SafeArea(
@@ -550,277 +566,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 }
 
-// ============================================================
-// Элементы шапки в стиле макета (золотой акцент + металлик)
-// ============================================================
-
-// Бренд-красный (активные сердечки, колокольчик с уведомлениями)
-const Color _kRed = Color(0xFFE01E23);
-
-// Карточка объявления в списке
-class _CarCard extends StatelessWidget {
-  const _CarCard({
-    required this.car,
-    required this.isFavorite,
-    required this.isViewed,
-    required this.onOpen,
-    required this.onToggleFavorite,
-    required this.onHide,
-    required this.onHideCity,
-  });
-  final CarModel car;
-  final bool isFavorite;
-  final bool isViewed;            // true → показываем плашку «Просмотрено»
-  final VoidCallback onOpen;      // открыть карточку (и пометить просмотренной)
-  final VoidCallback onToggleFavorite;
-  final VoidCallback onHide;      // «Не интересует это объявление»
-  final VoidCallback onHideCity;  // «Не подходит город или регион»
-
-  // Число с разделителем разрядов пробелом: 1000000 → «1 000 000».
-  String _money(num v) {
-    final s = v.toStringAsFixed(0);
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
-      buf.write(s[i]);
-    }
-    return buf.toString();
-  }
-
-  // Километраж — отдельной строкой.
-  String _mileageLine(CarModel c) =>
-      c.mileage != null ? '${_money(c.mileage!)} км' : '—';
-
-  // Описание: кузов · КПП · топливо (что задано) — отдельной строкой.
-  String _descLine(CarModel c) {
-    final parts = <String>[
-      if (c.bodyType != null) c.bodyType!.value,
-      if (c.transmission != null) c.transmission!.value,
-      if (c.fuel != null) c.fuel!.value,
-    ];
-    return parts.isEmpty ? '—' : parts.join(' · ');
-  }
-
-  // Меню «три точки» — «Скрыть рекомендацию» (как на Avito).
-  void _openHideMenu(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                context.t.catalogHideRecommendation,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-            ),
-            ListTile(
-              title: Text(context.t.catalogHideCar),
-              onTap: () {
-                Navigator.pop(ctx);
-                onHide();
-              },
-            ),
-            ListTile(
-              title: Text(context.t.catalogHideCity),
-              onTap: () {
-                Navigator.pop(ctx);
-                onHideCity();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Показываем цену по типу назначения. Нет цены → «Договорная».
-    // Сумма форматируется с разделителем разрядов: «1 000».
-    final priceText = car.isForRent && car.rentPriceDaily != null
-        ? '${_money(car.rentPriceDaily!)} ${car.currency.value}/сутки'
-        : car.salePrice != null
-            ? '${_money(car.salePrice!)} ${car.currency.value}'
-            : context.t.priceNegotiable;
-
-    // Рейтинг в подзаголовке (если есть отзывы)
-    final rating = car.reviewsCount > 0
-        ? ' · ⭐ ${car.ratingAvg.toStringAsFixed(1)}'
-        : '';
-
-    return InkWell(
-      onTap: onOpen,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF),
-          borderRadius: BorderRadius.circular(3), // радиус 3px
-          // Тонкая серая обводка, чтобы карточка не сливалась с фоном
-          border: Border.all(color: const Color(0xFFCCCCCC)),
-          // Тень для эффекта «парения» над фоном
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Фото на всю ширину (4:3). Сердечко и «три точки» перенесены
-            // в текстовый блок ниже (как на Avito).
-            AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _CarThumb(carId: car.id),
-                  // Плашка «Просмотрено» в левом верхнем углу фото —
-                  // тёмная полупрозрачная, как на Avito.
-                  if (isViewed)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: const BorderRadius.only(
-                            bottomRight: Radius.circular(6),
-                          ),
-                        ),
-                        child: const Text(
-                          'Просмотрено',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // Инфо-блок под фото — растянут до низа карточки, фон чуть темнее
-            Expanded(
-              child: Container(
-              width: double.infinity,
-              color: const Color(0xFFF0F0F0),
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Заголовок + год (слева) и сердечко (справа) — как на Avito.
-                  // Высота фиксирована под 2 строки ВСЕГДА: даже если название
-                  // в одну строку, место под вторую резервируется — тогда
-                  // километраж/цена/город у всех карточек на одном уровне.
-                  SizedBox(
-                    height: 40,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${car.brand} ${car.model}, ${car.year}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              height: 1.25,
-                            ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: onToggleFavorite,
-                          customBorder: const CircleBorder(),
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Icon(
-                              isFavorite
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 22,
-                              color: isFavorite ? _kRed : Colors.black54,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Километраж — отдельной строкой
-                  Text(
-                    _mileageLine(car),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 2),
-                  // Описание (кузов · КПП · топливо) — отдельной строкой ниже
-                  Text(
-                    _descLine(car),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  // Цена (слева, крупно) и «три точки» (справа) — под
-                  // километражом/описанием, как просили
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          priceText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () => _openHideMenu(context),
-                        customBorder: const CircleBorder(),
-                        child: const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: Icon(Icons.more_horiz,
-                              size: 22, color: Colors.black54),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  // Город (+ рейтинг), мелко серым — последним
-                  Text(
-                    '${car.city}$rating',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // Состояние ошибки с кнопкой повтора
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
@@ -843,53 +588,6 @@ class _ErrorState extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// Миниатюра первого фото машины (ленивая подгрузка из car_images).
-// Пока грузится / если фото нет — иконка машины.
-class _CarThumb extends StatefulWidget {
-  const _CarThumb({required this.carId});
-  final String carId;
-
-  @override
-  State<_CarThumb> createState() => _CarThumbState();
-}
-
-class _CarThumbState extends State<_CarThumb> {
-  final _repo = CarsRepository();
-  String? _url;
-
-  @override
-  void initState() {
-    super.initState();
-    _repo.fetchImages(widget.carId).then((imgs) {
-      if (mounted && imgs.isNotEmpty) {
-        setState(() => _url = imgs.first.imageUrl);
-      }
-    }).catchError((_) {
-      // молча — оставим иконку-плейсхолдер
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Плейсхолдер на всю область (фото нет или ещё грузится) — логотип Auto RS.
-    // cover — заполняет область как реальное фото, без полей по краям, чтобы
-    // карточка-заглушка выглядела так же, как карточка с фото-логотипом.
-    final placeholder = Container(
-      color: const Color(0xFFFFFFFF),
-      alignment: Alignment.center,
-      child: Image.asset('assets/images/logo.png', fit: BoxFit.cover),
-    );
-    if (_url == null) return placeholder;
-    return Image.network(
-      _url!,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (_, __, ___) => placeholder,
     );
   }
 }
