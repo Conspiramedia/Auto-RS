@@ -13,12 +13,15 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/theme/app_brand.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/config/reference_data.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/utils/number_formatters.dart';
 import '../../../shared/utils/serbian_phone.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
@@ -87,6 +90,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   // проверяется при «Опубликовать». В режиме редактирования выставляется из
   // самого объявления (см. _prefillFromCar).
   String? _listingType;
+
+  // Текст последней ошибки валидации: показывается над кнопкой публикации
+  // и сбрасывается при новой попытке.
+  String? _validationError;
 
   // Подписи типа для пикера (ключ БД → текст пользователю).
   static const Map<String, String> _listingTypeLabels = {
@@ -222,6 +229,14 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   void _snack(String msg) {
     if (!mounted) return;
     showAppSnack(context, msg);
+  }
+
+  /// Ошибка валидации: и всплывающей подсказкой, и текстом над кнопкой.
+  /// Снэкбар замечают сразу, надпись остаётся, пока причину не устранят.
+  void _failValidation(String msg) {
+    if (!mounted) return;
+    setState(() => _validationError = msg);
+    showAppSnack(context, msg, isError: true);
   }
 
   // Список годов: от текущего+1 до 1900 (свежие сверху)
@@ -385,9 +400,12 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   // Публикация объявления
   Future<void> _publish() async {
+    // Новая попытка — снимаем прежнюю ошибку: иначе старый текст висел бы
+    // под кнопкой уже после того, как причину устранили.
+    if (_validationError != null) setState(() => _validationError = null);
     // Тип объявления обязателен (первое поле формы) — сервер требует 'sale'/'rent'.
     if (_listingType == null) {
-      _snack('Выберите тип объявления: продажа или аренда');
+      _failValidation('Выберите тип объявления: продажа или аренда');
       return;
     }
     final year = int.tryParse(_year ?? '');
@@ -407,16 +425,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       _phoneCtrl.text,
     );
     if (err != null) {
-      _snack(err);
+      _failValidation(err);
       return;
     }
     // Если цена введена, но некорректна (например, 0) — предупреждаем.
     if (priceDigits.isNotEmpty && (price == null || price <= 0)) {
-      _snack('Цена должна быть больше нуля или оставьте поле пустым');
+      _failValidation('Цена должна быть больше нуля или оставьте поле пустым');
       return;
     }
     if (_uploading) {
-      _snack('Дождитесь загрузки фото');
+      _failValidation('Дождитесь загрузки фото');
       return;
     }
 
@@ -519,23 +537,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ---------- Тип объявления (обязательное поле-пикер) ----------
-            _pickerField(
-              label: 'Тип объявления',
-              value: _listingType == null
-                  ? null
-                  : _listingTypeLabels[_listingType],
-              hint: 'Продажа или аренда',
-              onTap: () => _pickMap(
-                title: 'Тип объявления',
-                items: _listingTypeLabels,
-                current: _listingType,
-                allowNone: false, // тип обязателен — «Не указано» не предлагаем
-                onPicked: (v) => setState(() => _listingType = v),
-              ),
+            // ---------- Тип объявления (обязательный, сегмент) ----------
+            // Сегмент вместо пикера-списка: вариантов всего два, и открывать
+            // ради них модальный лист — лишний шаг. Так же выбирается тип
+            // на форме подачи сайта.
+            _ListingTypeSegment(
+              value: _listingType,
+              labels: _listingTypeLabels,
+              onChanged: (v) => setState(() => _listingType = v),
             ),
             const SizedBox(height: 12),
-
             // ---------- Город (справочник + ручной ввод) ----------
             _pickerField(
               label: 'Город',
@@ -674,10 +685,8 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               decoration: const InputDecoration(
                 labelText: 'Описание',
                 hintText: 'Состояние, комплектация, история…',
-                hintStyle: _hintStyle,
                 alignLabelWithHint: true,
                 floatingLabelBehavior: FloatingLabelBehavior.always,
-                border: OutlineInputBorder(),
               ),
             ),
 
@@ -692,9 +701,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               decoration: const InputDecoration(
                 labelText: 'Телефон',
                 hintText: '+381 6X XXX XXX',
-                hintStyle: _hintStyle,
                 floatingLabelBehavior: FloatingLabelBehavior.always,
-                border: OutlineInputBorder(),
               ),
             ),
 
@@ -702,7 +709,8 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             // ---------- Фото (до 10) ----------
             Text('Фотографии (${_photoUrls.length}/$_maxPhotos)',
-                style: Theme.of(context).textTheme.titleMedium),
+                style: AppBrandText.h4
+                    .copyWith(color: AppBrandColors.neutral100)),
             const SizedBox(height: 8),
             _PhotoStrip(
               urls: _photoUrls,
@@ -714,19 +722,35 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             const SizedBox(height: 24),
 
-            // ---------- Публикация / сохранение (тёмная плашка) ----------
+            // Текст последней ошибки валидации — красным над кнопкой.
+            // Снэкбар исчезает через несколько секунд, а причина отказа
+            // нужна ровно в момент, когда человек снова тянется к CTA.
+            if (_validationError != null) ...[
+              Text(
+                _validationError!,
+                textAlign: TextAlign.center,
+                style: AppBrandText.caption
+                    .copyWith(color: AppBrandColors.error),
+              ),
+              const SizedBox(height: AppBrandSpacing.sm),
+            ],
+
+            // ---------- Публикация / сохранение ----------
+            // Главное действие формы: зелёный CTA на всю ширину.
             DarkPillButton(
               label: _publishing
                   ? 'Сохраняем…'
                   : (_isEdit ? 'Сохранить и отправить' : 'Опубликовать'),
               variant: PillVariant.green,
+              expand: true,
               onTap: _publishing ? null : _publish,
             ),
             const SizedBox(height: 8),
             Text(
               'После публикации объявление уходит на модерацию и появится '
               'в каталоге после одобрения.',
-              style: Theme.of(context).textTheme.bodySmall,
+              style: AppBrandText.caption
+                  .copyWith(color: AppBrandColors.neutral60),
               textAlign: TextAlign.center,
             ),
           ],
@@ -745,75 +769,59 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   }) {
     return InkWell(
       onTap: enabled ? onTap : null,
+      borderRadius: AppBrandRadius.controlAll,
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           enabled: enabled,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              value ?? (hint ?? 'Выберите'),
-              style: TextStyle(color: value == null ? Colors.grey : null),
-            ),
-            if (enabled) const Icon(Icons.arrow_drop_down),
-          ],
+        child: SizedBox(
+          height: AppTheme.controlHeight - 24,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  value ?? (hint ?? 'Выберите'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppBrandText.body.copyWith(
+                    color: value == null
+                        ? AppBrandColors.neutral30
+                        : AppBrandColors.neutral100,
+                  ),
+                ),
+              ),
+              if (enabled)
+                const Icon(
+                  Icons.arrow_drop_down,
+                  color: AppBrandColors.neutral60,
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Единый стиль подсказки-плейсхолдера: мелкий и тусклый, как «Не указано»
-  // в пикерах. Используется для hint в текстовых полях.
-  static const TextStyle _hintStyle =
-      TextStyle(color: Colors.grey, fontSize: 14);
-
   // Числовое поле: только цифры, сумма форматируется как «1 000».
-  // Лейбл — в разрыве рамки, подсказка (hint) — серым внутри поля.
+  // Рамка/радиус/фокус — из inputDecorationTheme (пакет А1).
   Widget _numField(TextEditingController ctrl, String label, {String? hint}) {
     return TextField(
       controller: ctrl,
       keyboardType: TextInputType.number,
-      inputFormatters: [_ThousandsFormatter()],
+      inputFormatters: const [ThousandsFormatter()],
+      style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: _hintStyle,
         // Лейбл всегда «поднят» в рамку, чтобы hint не сливался с ним.
         floatingLabelBehavior: FloatingLabelBehavior.always,
-        border: const OutlineInputBorder(),
       ),
     );
   }
 }
 
-// Форматтер: оставляет только цифры и разбивает на разряды пробелом
-// (например, 1000000 → «1 000 000»). Курсор ставим в конец.
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) {
-      return const TextEditingValue(text: '');
-    }
-    // Разбиваем на группы по 3 справа налево.
-    final buf = StringBuffer();
-    for (int i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final formatted = buf.toString();
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
 
 // Форматтер: делает заглавной первую букву предложения — в начале текста и
 // после . ! ? (с учётом пробелов/переводов строк). Длину текста не меняет,
@@ -909,7 +917,6 @@ class _SelectScreenState extends State<_SelectScreen> {
               decoration: InputDecoration(
                 hintText: widget.allowCustom ? 'Поиск или ввод своего…' : 'Поиск…',
                 prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
               ),
             ),
           ),
@@ -928,7 +935,7 @@ class _SelectScreenState extends State<_SelectScreen> {
                   (o) => ListTile(
                     title: Text(o),
                     trailing: widget.current == o
-                        ? const Icon(Icons.check, color: Colors.blue)
+                        ? const Icon(Icons.check, color: AppBrandColors.green)
                         : null,
                     onTap: () => Navigator.pop(context, o),
                   ),
@@ -960,8 +967,15 @@ class _PhotoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Превью 4:3 — та же пропорция, что у карточки каталога и галереи:
+    // человек сразу видит, каким кадр будет в выдаче. Раньше миниатюры
+    // были квадратными 100×100, и кадр в объявлении оказывался обрезан
+    // не так, как в превью.
+    const previewH = 90.0;
+    const previewW = previewH * 4 / 3;
+
     return SizedBox(
-      height: 100,
+      height: previewH,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -970,15 +984,20 @@ class _PhotoStrip extends StatelessWidget {
             GestureDetector(
               onTap: uploading ? null : onAdd,
               child: Container(
-                width: 100,
-                margin: const EdgeInsets.only(right: 8),
+                width: previewW,
+                margin: const EdgeInsets.only(right: AppBrandSpacing.sm),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppBrandColors.surfaceMuted,
+                  border: Border.all(color: AppBrandColors.neutral15),
+                  borderRadius: AppBrandRadius.controlAll,
                 ),
                 child: uploading
                     ? const Center(child: CircularProgressIndicator())
-                    : const Icon(Icons.add_a_photo, size: 32),
+                    : const Icon(
+                        Icons.add_a_photo,
+                        size: 28,
+                        color: AppBrandColors.neutral60,
+                      ),
               ),
             ),
           // Миниатюры загруженных фото
@@ -986,11 +1005,11 @@ class _PhotoStrip extends StatelessWidget {
             Stack(
               children: [
                 Container(
-                  width: 100,
-                  height: 100,
-                  margin: const EdgeInsets.only(right: 8),
+                  width: previewW,
+                  height: previewH,
+                  margin: const EdgeInsets.only(right: AppBrandSpacing.sm),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: AppBrandRadius.controlAll,
                     image: DecorationImage(
                       image: NetworkImage(urls[i]),
                       fit: BoxFit.cover,
@@ -999,12 +1018,12 @@ class _PhotoStrip extends StatelessWidget {
                 ),
                 Positioned(
                   right: 12,
-                  top: 4,
+                  top: AppBrandSpacing.xs,
                   child: GestureDetector(
                     onTap: () => onRemove(i),
                     child: const CircleAvatar(
                       radius: 12,
-                      backgroundColor: Colors.black54,
+                      backgroundColor: AppBrandColors.dark,
                       child: Icon(Icons.close, size: 16, color: Colors.white),
                     ),
                   ),
@@ -1012,6 +1031,89 @@ class _PhotoStrip extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// СЕГМЕНТ «ПРОДАЮ / СДАЮ»
+// ============================================================
+// Активный сегмент — тёмная плашка бренда с белым текстом, неактивный —
+// нейтральная рамка на белом. Ровно так на сайте выглядит выбранный
+// вариант в паре кнопок: выбор читается по заливке, а не по оттенку.
+//
+// Пока тип не выбран, оба сегмента неактивны: подача требует явного
+// решения, и подсвечивать «Продаю» по умолчанию нельзя — человек
+// опубликовал бы аренду как продажу, не заметив.
+class _ListingTypeSegment extends StatelessWidget {
+  const _ListingTypeSegment({
+    required this.value,
+    required this.labels,
+    required this.onChanged,
+  });
+
+  /// null — тип ещё не выбран.
+  final String? value;
+
+  /// Ключ БД → подпись пользователю.
+  final Map<String, String> labels;
+
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = labels.entries.toList();
+
+    return Row(
+      children: [
+        for (int i = 0; i < entries.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppBrandSpacing.sm),
+          Expanded(
+            child: _segment(
+              label: entries[i].value,
+              selected: value == entries[i].key,
+              onTap: () => onChanged(entries[i].key),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _segment({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppBrandColors.dark : AppBrandColors.bg,
+      borderRadius: AppBrandRadius.controlAll,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppBrandRadius.controlAll,
+        child: Container(
+          height: AppTheme.controlHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: AppBrandRadius.controlAll,
+            border: Border.all(
+              color: selected
+                  ? AppBrandColors.dark
+                  : AppBrandColors.neutral15,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppBrandText.body.copyWith(
+              color: selected ? Colors.white : AppBrandColors.neutral100,
+              fontWeight:
+                  selected ? AppBrandFont.semibold : AppBrandFont.regular,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -9,6 +9,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../core/theme/app_brand.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/utils/number_formatters.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../models/car_filters.dart';
@@ -110,9 +113,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
   }
 
   CarFilters _build() {
-    int? pi(TextEditingController c) => int.tryParse(c.text.trim());
-    double? pd(TextEditingController c) =>
-        double.tryParse(c.text.trim().replaceAll(',', '.'));
+    // Разбор через parseFormatted*: в полях стоит ThousandsFormatter,
+    // и «10 000» обычным int.tryParse не разобрался бы — фильтр цены
+    // молча оказался бы пустым.
+    int? pi(TextEditingController c) => parseFormattedInt(c.text);
+    double? pd(TextEditingController c) => parseFormattedDouble(c.text);
     return CarFilters(
       listingType: _listingType,
       city: _city,
@@ -184,7 +189,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
               ListTile(
                 title: Text(label),
                 trailing: current == value
-                    ? const Icon(Icons.check, color: Colors.blue)
+                    ? const Icon(Icons.check, color: AppBrandColors.green)
                     : null,
                 onTap: () => Navigator.pop(ctx, value),
               ),
@@ -199,14 +204,25 @@ class _FiltersScreenState extends State<FiltersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), 
-        title: const Text('Фильтры'),
+      backgroundColor: AppBrandColors.bg,
+      appBar: AppBar(
+        leading: const PillBackButton(),
+        title: Text(
+          'Фильтры',
+          style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
+        ),
         actions: [
+          // Сброс — ghost-кнопка: деструктивное действие красным, но без
+          // заливки, чтобы не спорить с зелёным CTA внизу экрана.
           TextButton(
             onPressed: _reset,
-            child: const Text(
+            style: TextButton.styleFrom(
+              foregroundColor: AppBrandColors.red,
+            ),
+            child: Text(
               'Сбросить',
-              style: TextStyle(color: Color(0xFFE01E23)), // фирменный красный
+              style: AppBrandText.caption
+                  .copyWith(fontWeight: AppBrandFont.medium),
             ),
           ),
         ],
@@ -323,9 +339,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
           ),
 
           const SizedBox(height: 24),
-          // Тёмная плашка-пилюля (как «Опубликовать») — по контенту, по центру.
+          // Главное действие экрана: зелёный CTA на всю ширину — так же
+          // выглядит «Показать результаты» на сайте.
           DarkPillButton(
             label: 'Показать объявления',
+            expand: true,
             variant: PillVariant.green,
             onTap: () => Navigator.pop(context, _build()),
           ),
@@ -334,6 +352,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
     );
   }
 
+  // Поле-пикер: выглядит как поле ввода, но открывает список выбора.
+  // Рамка, радиус и фокус приходят из inputDecorationTheme (пакет А1) —
+  // здесь они НЕ переопределяются, иначе поле разъедется с формой подачи.
   Widget _pickerField({
     required String label,
     required String? value,
@@ -343,21 +364,40 @@ class _FiltersScreenState extends State<FiltersScreen> {
   }) {
     return InkWell(
       onTap: enabled ? onTap : null,
+      borderRadius: AppBrandRadius.controlAll,
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           enabled: enabled,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              value ?? (hint ?? 'Не важно'),
-              style: TextStyle(color: value == null ? Colors.grey : null),
-            ),
-            if (enabled) const Icon(Icons.arrow_drop_down),
-          ],
+        child: SizedBox(
+          // Высота контрола из темы: поля и кнопки в одном столбце
+          // обязаны совпадать по ритму.
+          height: AppTheme.controlHeight - 24,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  value ?? (hint ?? 'Не важно'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  // Незаполненное значение — подсказка neutral30, как
+                  // hintStyle полей; выбранное — основной текст.
+                  style: AppBrandText.body.copyWith(
+                    color: value == null
+                        ? AppBrandColors.neutral30
+                        : AppBrandColors.neutral100,
+                  ),
+                ),
+              ),
+              if (enabled)
+                const Icon(
+                  Icons.arrow_drop_down,
+                  color: AppBrandColors.neutral60,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -400,23 +440,19 @@ class _FiltersScreenState extends State<FiltersScreen> {
     );
   }
 
-  // Единый стиль подсказки-плейсхолдера: мелкий и тусклый, как «Любой»
-  // в пикерах. Тот же вид, что на форме подачи объявления.
-  static const TextStyle _hintStyle =
-      TextStyle(color: Colors.grey, fontSize: 14);
-
-  // Числовое поле: лейбл в разрыве рамки (всегда), серая подсказка внутри —
-  // единообразно с пикерами и формой подачи.
+  // Числовое поле: лейбл в разрыве рамки (всегда), подсказка внутри.
+  // Рамка/радиус/фокус — из темы (пакет А1). Разряды разделяются
+  // пробелом тем же форматтером, что в форме подачи: «10 000».
   Widget _numField(TextEditingController ctrl, String label, {String? hint}) {
     return TextField(
       controller: ctrl,
       keyboardType: TextInputType.number,
+      inputFormatters: const [ThousandsFormatter()],
+      style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: _hintStyle,
         floatingLabelBehavior: FloatingLabelBehavior.always,
-        border: const OutlineInputBorder(),
       ),
     );
   }
@@ -484,10 +520,10 @@ class _PickerScreenState extends State<_PickerScreen> {
               controller: _searchCtrl,
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
+              style: AppBrandText.body,
               decoration: const InputDecoration(
                 hintText: 'Поиск…',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
               ),
             ),
           ),
@@ -497,7 +533,7 @@ class _PickerScreenState extends State<_PickerScreen> {
                 ListTile(
                   title: const Text('Не важно'),
                   trailing: widget.current == null
-                      ? const Icon(Icons.check, color: Colors.blue)
+                      ? const Icon(Icons.check, color: AppBrandColors.green)
                       : null,
                   onTap: () => Navigator.pop(context, ''),
                 ),
@@ -506,7 +542,7 @@ class _PickerScreenState extends State<_PickerScreen> {
                   (o) => ListTile(
                     title: Text(o),
                     trailing: widget.current == o
-                        ? const Icon(Icons.check, color: Colors.blue)
+                        ? const Icon(Icons.check, color: AppBrandColors.green)
                         : null,
                     onTap: () => Navigator.pop(context, o),
                   ),
