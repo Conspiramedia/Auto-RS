@@ -1,12 +1,14 @@
 // ============================================================
-// AUTO.RS — MetalToggle: две кнопки-сегмента с зазором 5px.
-// Активный сегмент — зелёный (с галочкой), неактивный — синий.
-// По тапу цвета меняются местами. Используется в каталоге (Prodaja/Najam)
-// и форме подачи (Продажа/Аренда).
+// RS AUTO — MetalToggle: две кнопки-сегмента с зазором 5px.
+// Активный сегмент — зелёный с галочкой, неактивный — нейтральная плашка
+// neutral15 с тёмным текстом. Раньше неактивный был синим: два ярких
+// сегмента спорили между собой и было неясно, какой из них выбран.
+// Используется в каталоге (Prodaja/Najam) и форме подачи (Продажа/Аренда).
 // ============================================================
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_brand.dart';
 import 'app_button_colors.dart';
 
 class MetalToggle extends StatelessWidget {
@@ -50,21 +52,17 @@ class MetalToggle extends StatelessWidget {
     required bool selected,
     required VoidCallback onTap,
   }) {
-    const radius = BorderRadius.all(Radius.circular(16));
-    final color = selected ? AppButtonColors.green : AppButtonColors.blue;
+    const radius = AppBrandRadius.controlAll;
+    // Активный — зелёный главного действия с белым текстом; неактивный —
+    // нейтральная плашка с тёмным текстом. Контраст ролей, а не двух
+    // ярких цветов: выбранный сегмент виден сразу.
+    final fill =
+        selected ? AppButtonColors.green : AppBrandColors.neutral15;
+    final content =
+        selected ? Colors.white : AppBrandColors.neutral100;
 
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: fill, borderRadius: radius),
       child: ClipRRect(
         borderRadius: radius,
         child: Material(
@@ -76,8 +74,7 @@ class MetalToggle extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (selected) ...[
-                    const Icon(Icons.check_circle_outline,
-                        color: Colors.white, size: 22),
+                    Icon(Icons.check_circle_outline, color: content, size: 22),
                     const SizedBox(width: 8),
                   ],
                   Flexible(
@@ -85,10 +82,9 @@ class MetalToggle extends StatelessWidget {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17,
+                      style: AppBrandText.body.copyWith(
+                        color: content,
+                        fontWeight: AppBrandFont.semibold,
                       ),
                     ),
                   ),

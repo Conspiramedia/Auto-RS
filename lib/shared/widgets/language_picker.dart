@@ -14,15 +14,15 @@
 import 'package:flutter/material.dart';
 
 import '../../core/i18n/app_language.dart';
-import 'app_button_colors.dart';
+import '../../core/theme/app_brand.dart';
 
-// Кнопка-глобус для AppBar. Цвет по умолчанию — чёрный (как просили),
+// Кнопка-глобус для AppBar. Цвет по умолчанию — тёмная плашка бренда,
 // но оставлен параметром: на тёмных шапках понадобится светлый.
 class LangButton extends StatelessWidget {
   const LangButton({
     super.key,
     this.size = 26,
-    this.color = Colors.black,
+    this.color = AppBrandColors.dark,
   });
 
   final double size;
@@ -56,28 +56,21 @@ Future<void> showLanguagePicker(BuildContext context) async {
           children: [
             // Заголовок на двух языках: настройку ищут и тогда, когда
             // интерфейс сейчас на непонятном языке.
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Язык / Jezik',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: AppBrandText.h4
+                      .copyWith(color: AppBrandColors.neutral100),
                 ),
               ),
             ),
             for (final option in AppLanguage.values)
-              ListTile(
-                leading: Icon(
-                  option == AppLanguage.system
-                      ? Icons.smartphone
-                      : Icons.translate,
-                ),
-                title: Text(option.label),
-                // Галочка у активного варианта — видно текущий выбор.
-                trailing: option == current
-                    ? const Icon(Icons.check, color: AppButtonColors.green)
-                    : null,
+              _LanguageRow(
+                option: option,
+                selected: option == current,
                 onTap: () => Navigator.pop(ctx, option),
               ),
             const SizedBox(height: 8),
@@ -89,4 +82,70 @@ Future<void> showLanguagePicker(BuildContext context) async {
 
   if (picked == null) return; // закрыли лист без выбора
   await AppLanguageService.instance.setSelection(picked);
+}
+
+// Строка выбора языка. Активный вариант — тёмная плашка бренда с белым
+// текстом, как чип текущего языка в шапке сайта: выбор читается сразу,
+// без поиска галочки в хвосте строки. Неактивные — нейтральные.
+class _LanguageRow extends StatelessWidget {
+  const _LanguageRow({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppLanguage option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = selected ? Colors.white : AppBrandColors.neutral100;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppBrandSpacing.md,
+        vertical: AppBrandSpacing.xs,
+      ),
+      child: Material(
+        color: selected ? AppBrandColors.dark : Colors.transparent,
+        borderRadius: AppBrandRadius.controlAll,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppBrandRadius.controlAll,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppBrandSpacing.md,
+              vertical: 12,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  option == AppLanguage.system
+                      ? Icons.smartphone
+                      : Icons.translate,
+                  size: 22,
+                  color: selected ? Colors.white : AppBrandColors.neutral60,
+                ),
+                const SizedBox(width: AppBrandSpacing.md),
+                Expanded(
+                  child: Text(
+                    option.label,
+                    style: AppBrandText.body.copyWith(
+                      color: content,
+                      fontWeight: selected
+                          ? AppBrandFont.semibold
+                          : AppBrandFont.regular,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  const Icon(Icons.check, size: 20, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

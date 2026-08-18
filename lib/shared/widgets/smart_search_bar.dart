@@ -17,8 +17,10 @@
 // Крестик очистки и фильтры показываются ОДНОВРЕМЕННО: искать текстом и
 // уточнять фильтрами — частый сценарий («BMW» + цена до 5000).
 //
-// Стиль под бренд: тёмная плашка с градиентом, золотая иконка-лупа,
-// скругление 16, высота 49 — как у кнопок «Фильтри» и языка в шапке.
+// Стиль — как поле поиска на сайте: светлая подложка surfaceSubtle,
+// капсула, иконка и текст нейтральных ступеней. Тёмная плашка с
+// градиентом и золотой лупой была легаси приложения; на сайте поиск
+// живёт на белом, и приложение приведено к нему.
 // ============================================================
 
 import 'dart:async';
@@ -26,8 +28,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-// Золотой акцент иконки на тёмных плашках бренда.
-const Color _kGold = Color(0xFFE8A73C);
+import '../../core/theme/app_brand.dart';
 
 // Подсказки ПО УМОЛЧАНИЮ — примеры запросов авто-рынка Сербии (каталог).
 // Экран может передать свой список через параметр hints (поиск по избранному,
@@ -234,26 +235,22 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
     // Показываем «живые» подсказки, только когда поле пустое и не в фокусе.
     final showHint = !_focus.hasFocus && !_hasText && widget.hints.isNotEmpty;
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        borderRadius: radius,
-        // Фирменный тёмный градиент — как у DarkPillButton.
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF3A3A3E), Color(0xFF242427)],
+      decoration: BoxDecoration(
+        // Светлая подложка + граница, как у поля поиска на сайте.
+        // Радиус pill: строка поиска — капсула, в отличие от обычных
+        // полей ввода со ступенью control.
+        color: AppBrandColors.surfaceSubtle,
+        borderRadius: AppBrandRadius.pillAll,
+        border: Border.all(
+          color: _focus.hasFocus
+              ? AppBrandColors.primary
+              : AppBrandColors.neutral15,
+          width: _focus.hasFocus ? 2 : 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x40000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
       ),
       child: SizedBox(
         height: 49,
@@ -263,7 +260,8 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
           padding: const EdgeInsets.only(left: 12, right: 10),
           child: Row(
             children: [
-              const Icon(Icons.search, color: _kGold, size: 22),
+              const Icon(Icons.search,
+                  color: AppBrandColors.neutral60, size: 22),
               const SizedBox(width: 8),
               Expanded(
                 child: Stack(
@@ -276,11 +274,11 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                       focusNode: _focus,
                       textInputAction: TextInputAction.search,
                       onSubmitted: widget.onSubmitted,
-                      cursorColor: _kGold,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                      cursorColor: AppBrandColors.primary,
+                      // Введённый запрос — основной текст на светлом фоне.
+                      style: AppBrandText.caption.copyWith(
+                        color: AppBrandColors.neutral100,
+                        fontWeight: AppBrandFont.medium,
                       ),
                       decoration: const InputDecoration(
                         isCollapsed: true,
@@ -308,9 +306,9 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                               key: ValueKey<int>(_hintIndex),
                               text: widget.hints[
                                   _hintIndex.clamp(0, widget.hints.length - 1)],
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: Color(0xFF9A9AA0),
+                              // Плейсхолдер — caption neutral50, как на сайте.
+                              style: AppBrandText.caption.copyWith(
+                                color: AppBrandColors.neutral50,
                               ),
                               onCycleDone: _onHintCycleDone,
                             ),
@@ -327,7 +325,8 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                   behavior: HitTestBehavior.opaque,
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(Icons.close, size: 20, color: Color(0xFF9A9AA0)),
+                    child: Icon(Icons.close,
+                        size: 20, color: AppBrandColors.neutral50),
                   ),
                 ),
               // Фильтры в хвосте строки. Вертикальная черта отделяет их от
@@ -337,7 +336,7 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
                   width: 1,
                   height: 22,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  color: const Color(0x33FFFFFF),
+                  color: AppBrandColors.neutral15,
                 ),
                 _FilterIcon(
                   count: widget.filterCount,
@@ -355,7 +354,7 @@ class _SmartSearchBarState extends State<SmartSearchBar> {
 // -------------------------------------------------------------
 // ИКОНКА ФИЛЬТРОВ В ХВОСТЕ СТРОКИ ПОИСКА
 //
-// Золотая, как лупа слева. При активных фильтрах — красный бейдж с их
+// Нейтральная, как лупа слева. При активных фильтрах — красный бейдж с их
 // числом: иначе непонятно, почему лента показывает не всё.
 // -------------------------------------------------------------
 
@@ -381,7 +380,8 @@ class _FilterIcon extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            const Icon(Icons.tune, size: 22, color: _kGold),
+            const Icon(Icons.tune,
+                size: 22, color: AppBrandColors.neutral60),
             if (count > 0)
               Positioned(
                 right: -6,
@@ -389,7 +389,7 @@ class _FilterIcon extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFE01E23), // бренд-красный
+                    color: AppBrandColors.red,
                     shape: BoxShape.circle,
                   ),
                   constraints:
@@ -397,11 +397,13 @@ class _FilterIcon extends StatelessWidget {
                   child: Text(
                     '$count',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    // Мельче ступени small: цифра должна уместиться в
+                    // кружок 15px поверх иконки.
+                    style: AppBrandText.small.copyWith(
                       color: Colors.white,
                       fontSize: 9,
-                      fontWeight: FontWeight.bold,
                       height: 1.1,
+                      fontWeight: AppBrandFont.bold,
                     ),
                   ),
                 ),

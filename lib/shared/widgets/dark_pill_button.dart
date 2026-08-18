@@ -1,13 +1,16 @@
 // ============================================================
-// AUTO.RS — DarkPillButton: плашка-пилюля бренда.
+// RS AUTO — DarkPillButton: плашка-пилюля бренда.
 // variant задаёт роль/цвет: dark (нейтральная, по умолчанию), green
-// (главное действие), blue (связь), red (сброс). Тёмный вариант — с
-// градиентом и золотой иконкой; цветные — сплошная заливка, белая иконка.
+// (главное действие), blue (связь), red (сброс). Заливка всегда сплошная,
+// радиус — pill. Градиент и тень тёмного варианта были легаси: на сайте
+// плашки плоские, и приложение приведено к этому.
+// Иконка золотая на тёмной плашке, белая на цветных.
 // По умолчанию ширина ПО КОНТЕНТУ; expand:true — на всю ширину родителя.
 // ============================================================
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_brand.dart';
 import 'app_button_colors.dart';
 
 class DarkPillButton extends StatelessWidget {
@@ -28,30 +31,14 @@ class DarkPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(16));
+    const radius = AppBrandRadius.pillAll;
     final isDark = variant == PillVariant.dark;
     // Иконка: золотая на тёмной плашке, белая на цветных.
     final iconColor = isDark ? AppButtonColors.gold : Colors.white;
-    final fill = AppButtonColors.fill(variant);
 
-    // Тёмный вариант — фирменный градиент; цветные — сплошная заливка.
     final decoration = BoxDecoration(
       borderRadius: radius,
-      color: isDark ? null : fill,
-      gradient: isDark
-          ? const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF3A3A3E), Color(0xFF242427)],
-            )
-          : null,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.25),
-          blurRadius: 8,
-          offset: const Offset(0, 3),
-        ),
-      ],
+      color: AppButtonColors.fill(variant),
     );
 
     final button = DecoratedBox(
@@ -79,10 +66,9 @@ class DarkPillButton extends StatelessWidget {
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: AppBrandText.small.copyWith(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontWeight: AppBrandFont.semibold,
                         ),
                       ),
                     ),

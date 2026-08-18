@@ -11,15 +11,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/app_strings.dart';
+import '../../core/theme/app_brand.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/notifications_repository.dart';
-
-// Бренд-красный (бейдж непрочитанных на «Сообщениях»)
-const Color _kRed = Color(0xFFE01E23);
-// Тёмный фирменный (активный пункт меню)
-const Color _kDark = Color(0xFF27272A);
 
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.child});
@@ -64,47 +60,60 @@ class HomeShell extends StatelessWidget {
     final t = context.t;
 
     return Scaffold(
+      backgroundColor: AppBrandColors.bg,
       body: child,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // Каталог — сетка карточек. Активная — залитые квадраты (window),
-              // неактивная — контурная сетка.
-              _navItem(context, 0, index, Icons.grid_view_outlined,
-                  Icons.window, t.navCatalog, theme),
-              _navItem(context, 1, index, Icons.favorite_border,
-                  Icons.favorite, t.navFavorites, theme),
-              // «+» по центру — ГЛАВНОЕ действие площадки. Приподнят над
-              // рядом и залит зелёным: размещение объявления должно быть
-              // заметно сразу, а не читаться как пятый равный пункт меню.
-              _navItem(context, 2, index, Icons.add, Icons.add, t.navCreate,
-                  theme, iconSize: 34, iconColor: Colors.black,
-                  customIconBuilder: (color, size, filled) =>
-                      const _CreateCta()),
-              // Сообщения — спич-баббл + бейдж непрочитанных (Realtime).
-              _navItem(context, 3, index, Icons.chat_bubble_outline,
-                  Icons.chat_bubble, t.navMessages, theme,
-                  customIconBuilder: (color, size, filled) => _MessagesIcon(
-                        icon: filled
-                            ? Icons.chat_bubble
-                            : Icons.chat_bubble_outline,
-                        color: color,
-                        size: size,
-                      )),
-              // Профиль — иконка + бейдж непрочитанных (не-чат) уведомлений,
-              // виден на любой странице (нижнее меню всегда на экране).
-              _navItem(context, 4, index, Icons.person_outline, Icons.person,
-                  t.navProfile, theme,
-                  customIconBuilder: (color, size, filled) => _ProfileIcon(
-                        icon: filled ? Icons.person : Icons.person_outline,
-                        color: color,
-                        size: size,
-                      )),
-            ],
+      // Панель навигации: белая с верхней границей neutral10 — тот же
+      // приём, что у шапки сайта (border-b border-neutral-10). Тени нет:
+      // границы достаточно, чтобы отделить панель от контента.
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: AppBrandColors.bg,
+          border: Border(
+            top: BorderSide(color: AppBrandColors.neutral10),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // Каталог — сетка карточек. Активная — залитые квадраты
+                // (window), неактивная — контурная сетка.
+                _navItem(context, 0, index, Icons.grid_view_outlined,
+                    Icons.window, t.navCatalog, theme),
+                _navItem(context, 1, index, Icons.favorite_border,
+                    Icons.favorite, t.navFavorites, theme),
+                // «+» по центру — ГЛАВНОЕ действие площадки. Приподнят над
+                // рядом и залит зелёным: размещение объявления должно быть
+                // заметно сразу, а не читаться как пятый равный пункт меню.
+                _navItem(context, 2, index, Icons.add, Icons.add, t.navCreate,
+                    theme,
+                    iconSize: 34,
+                    customIconBuilder: (color, size, filled) =>
+                        const _CreateCta()),
+                // Сообщения — спич-баббл + бейдж непрочитанных (Realtime).
+                _navItem(context, 3, index, Icons.chat_bubble_outline,
+                    Icons.chat_bubble, t.navMessages, theme,
+                    customIconBuilder: (color, size, filled) => _MessagesIcon(
+                          icon: filled
+                              ? Icons.chat_bubble
+                              : Icons.chat_bubble_outline,
+                          color: color,
+                          size: size,
+                        )),
+                // Профиль — иконка + бейдж непрочитанных (не-чат) уведомлений,
+                // виден на любой странице (нижнее меню всегда на экране).
+                _navItem(context, 4, index, Icons.person_outline, Icons.person,
+                    t.navProfile, theme,
+                    customIconBuilder: (color, size, filled) => _ProfileIcon(
+                          icon: filled ? Icons.person : Icons.person_outline,
+                          color: color,
+                          size: size,
+                        )),
+              ],
+            ),
           ),
         ),
       ),
@@ -131,8 +140,10 @@ class HomeShell extends StatelessWidget {
     Widget Function(Color color, double size, bool filled)? customIconBuilder,
   }) {
     final selected = slot == current;
-    // Активный пункт — фирменный тёмный (не синий theme.primary).
-    final color = selected ? _kDark : theme.colorScheme.onSurfaceVariant;
+    // Активный пункт — брендовый primary, неактивные — neutral60. Так же
+    // на сайте различаются активная и обычная ссылка навигации.
+    final color =
+        selected ? AppBrandColors.primary : AppBrandColors.neutral60;
     return Expanded(
       child: InkWell(
         onTap: () => _onTap(context, slot),
@@ -149,16 +160,17 @@ class HomeShell extends StatelessWidget {
                         weight: iconWeight),
               ),
             ),
-            // Подпись активного пункта — полужирная: подсветка держится не
+            // Подпись активного пункта — semibold: подсветка держится не
             // только на цвете. Заодно это работает там, где цвета плохо
             // различимы (яркий свет, ч/б режим доступности).
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
+              style: AppBrandText.caption.copyWith(
                 color: color,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                fontWeight:
+                    selected ? AppBrandFont.semibold : AppBrandFont.regular,
               ),
             ),
             // Индикатор активного пункта: короткая полоска под подписью.
@@ -170,8 +182,8 @@ class HomeShell extends StatelessWidget {
                 width: 16,
                 height: 2,
                 decoration: BoxDecoration(
-                  color: selected ? _kDark : Colors.transparent,
-                  borderRadius: BorderRadius.circular(1),
+                  color: selected ? AppBrandColors.primary : Colors.transparent,
+                  borderRadius: AppBrandRadius.pillAll,
                 ),
               ),
             ),
@@ -193,10 +205,6 @@ class HomeShell extends StatelessWidget {
 class _CreateCta extends StatelessWidget {
   const _CreateCta();
 
-  // Зелёный главного действия — тот же, что у кнопок «Опубликовать»
-  // и «Позвонить»: у пользователя одна ассоциация на весь продукт.
-  static const Color _kGreen = Color(0xFF22C063);
-
   @override
   Widget build(BuildContext context) {
     return Transform.translate(
@@ -204,18 +212,14 @@ class _CreateCta extends StatelessWidget {
       child: Container(
         width: 46,
         height: 46,
-        decoration: BoxDecoration(
-          color: _kGreen,
+        decoration: const BoxDecoration(
+          // Зелёный главного действия — тот же, что у «Опубликовать»
+          // и «Позвонить»: у пользователя одна ассоциация на весь продукт.
+          color: AppBrandColors.green,
           shape: BoxShape.circle,
-          boxShadow: [
-            // Мягкая тень отделяет кнопку от панели и усиливает ощущение
-            // подъёма — без неё зелёный круг читается как плоское пятно.
-            BoxShadow(
-              color: _kGreen.withValues(alpha: 0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          // Тень dropdown из бренда: отделяет кнопку от панели и усиливает
+          // ощущение подъёма — без неё зелёный круг читается плоским пятном.
+          boxShadow: AppBrandElevation.dropdown,
         ),
         child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
@@ -289,27 +293,7 @@ class _MessagesIconState extends State<_MessagesIcon> {
       clipBehavior: Clip.none,
       children: [
         iconWidget,
-        Positioned(
-          right: -6,
-          top: -4,
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              color: _kRed,
-              shape: BoxShape.circle,
-            ),
-            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-            child: Text(
-              _unread > 99 ? '99+' : '$_unread',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
+        Positioned(right: -6, top: -4, child: _CountBadge(count: _unread)),
       ],
     );
   }
@@ -363,31 +347,43 @@ class _ProfileIconState extends State<_ProfileIcon> {
           clipBehavior: Clip.none,
           children: [
             iconWidget,
-            Positioned(
-              right: -6,
-              top: -4,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: _kRed,
-                  shape: BoxShape.circle,
-                ),
-                constraints:
-                    const BoxConstraints(minWidth: 16, minHeight: 16),
-                child: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+            Positioned(right: -6, top: -4, child: _CountBadge(count: unread)),
           ],
         );
       },
+    );
+  }
+}
+
+// Красный бейдж-счётчик непрочитанных на иконке меню (99+ при переполнении).
+// Один виджет на «Сообщения» и «Профиль»: бейджи выглядят одинаково, и
+// разъехаться при правке они не должны.
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: const BoxDecoration(
+        color: AppBrandColors.red,
+        shape: BoxShape.circle,
+      ),
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        textAlign: TextAlign.center,
+        // Мельче ступени small: бейдж должен уместиться в кружок 16px,
+        // не перекрывая иконку. Единственное место, где шкала не подходит.
+        style: AppBrandText.small.copyWith(
+          color: Colors.white,
+          fontSize: 10,
+          height: 1.1,
+          fontWeight: AppBrandFont.bold,
+        ),
+      ),
     );
   }
 }

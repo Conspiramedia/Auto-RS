@@ -8,14 +8,13 @@
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_brand.dart';
+
 class PillBackButton extends StatelessWidget {
   const PillBackButton({super.key, this.onPressed});
 
   // Необязательный обработчик. По умолчанию — Navigator.maybePop.
   final VoidCallback? onPressed;
-
-  // Тёмный фон кнопок бренда (как у DarkPillButton / плашек шапки).
-  static const Color _kDark = Color(0xFF2B2B2E);
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +25,7 @@ class PillBackButton extends StatelessWidget {
     }
     return Center(
       child: Material(
-        color: _kDark,
+        color: AppBrandColors.dark,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(

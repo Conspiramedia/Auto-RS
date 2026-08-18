@@ -1,13 +1,13 @@
 // ============================================================
-// AUTO.RS — Единый SnackBar приложения + очистка текста ошибок.
-// Все подсказки: внизу экрана, фирменный красный фон, белый текст, 5с.
+// RS AUTO — Единый SnackBar приложения + очистка текста ошибок.
+// Плашка внизу экрана: тёмный фон бренда, белый caption, радиус control.
 // humanizeError() убирает технический «мусор» (PostgrestException, коды,
 // hint/details), оставляя человеку только суть.
 // ============================================================
 
 import 'package:flutter/material.dart';
 
-import '../widgets/app_button_colors.dart';
+import '../../core/theme/app_brand.dart';
 
 /// Приводит любую ошибку к короткому понятному тексту без тех-деталей.
 ///
@@ -41,26 +41,42 @@ String humanizeError(Object? error) {
   return s;
 }
 
-/// Показать фирменную подсказку ВНИЗУ экрана: белый текст, на всю ширину
-/// (fixed — прижата к нижнему краю, не наезжает на контент).
+/// Показать фирменную подсказку ВНИЗУ экрана: белый caption, радиус control.
 ///
-/// По умолчанию фон КРАСНЫЙ (ошибки/предупреждения). Для сообщений об успехе
-/// (например, «Номер подтверждён») передайте success: true — фон ЗЕЛЁНЫЙ.
-void showAppSnack(BuildContext context, String message, {bool success = false}) {
+/// Плашка ТЁМНАЯ (dark) — как снэкбар на сайте. Цвет включается только там,
+/// где он несёт смысл: success: true — зелёная, isError: true — красная.
+///
+/// Почему не красим всё в красный, как было раньше: тогда «Город скрыт» и
+/// «Чат закреплён» выглядели как сбой. Тёмная плашка — нейтральный фон для
+/// сообщения, красный остаётся сигналом ошибки.
+void showAppSnack(
+  BuildContext context,
+  String message, {
+  bool success = false,
+  bool isError = false,
+}) {
   final messenger = ScaffoldMessenger.of(context);
   // Не копим очередь одинаковых подсказок — показываем только последнюю.
   messenger.clearSnackBars();
+
+  final background = success
+      ? AppBrandColors.success
+      : isError
+          ? AppBrandColors.error
+          : AppBrandColors.dark;
+
   messenger.showSnackBar(
     SnackBar(
       content: Text(
         message,
-        style: const TextStyle(color: Colors.white, fontSize: 15),
+        style: AppBrandText.caption.copyWith(color: Colors.white),
       ),
-      // Зелёный — успех, красный — ошибка/предупреждение.
-      backgroundColor:
-          success ? AppButtonColors.green : AppButtonColors.red,
-      // fixed — плашка прижата к самому низу во всю ширину экрана.
-      behavior: SnackBarBehavior.fixed,
+      backgroundColor: background,
+      behavior: SnackBarBehavior.floating,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppBrandRadius.controlAll,
+      ),
+      margin: const EdgeInsets.all(AppBrandSpacing.md),
       duration: const Duration(seconds: 5), // увеличено (было ~4с по умолчанию)
     ),
   );
@@ -68,4 +84,4 @@ void showAppSnack(BuildContext context, String message, {bool success = false}) 
 
 /// Удобный вариант для показа ошибки: сразу очищает текст.
 void showErrorSnack(BuildContext context, Object? error) =>
-    showAppSnack(context, humanizeError(error));
+    showAppSnack(context, humanizeError(error), isError: true);

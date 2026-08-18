@@ -17,12 +17,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_brand.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/notifications_repository.dart';
-
-// Бренд-красный.
-const Color _kRed = Color(0xFFE01E23);
 
 // Считает непрочитанные не-чат уведомления из списка.
 int unreadNonChat(List<NotificationModel> items) => items
@@ -98,11 +96,13 @@ class _NotifBellState extends State<NotifBell>
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = widget.color ?? Theme.of(context).colorScheme.onSurface;
+    // Колокольчик в покое — тёмная плашка бренда; при непрочитанных
+    // становится красным (сигнал важнее нейтральности).
+    final baseColor = widget.color ?? AppBrandColors.dark;
 
     Widget bell(int unread) {
       final hasUnread = unread > 0;
-      final iconColor = hasUnread ? _kRed : baseColor;
+      final iconColor = hasUnread ? AppBrandColors.red : baseColor;
       final icon = Icon(
         hasUnread ? widget.activeIcon : widget.icon,
         size: widget.size,
@@ -172,15 +172,20 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(2),
-      decoration: const BoxDecoration(color: _kRed, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: AppBrandColors.red,
+        shape: BoxShape.circle,
+      ),
       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
       child: Text(
         count > 99 ? '99+' : '$count',
         textAlign: TextAlign.center,
-        style: const TextStyle(
+        // Мельче ступени small: цифра должна уместиться в кружок 16px.
+        style: AppBrandText.small.copyWith(
           color: Colors.white,
           fontSize: 10,
-          fontWeight: FontWeight.bold,
+          height: 1.1,
+          fontWeight: AppBrandFont.bold,
         ),
       ),
     );
