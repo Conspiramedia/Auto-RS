@@ -20,7 +20,8 @@ import '../../../core/i18n/app_strings.dart';
 import '../../../data/models/dealer_profile_model.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/app_button_colors.dart';
+import '../../../core/theme/app_brand.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class DealerScreen extends StatefulWidget {
@@ -111,15 +112,29 @@ class _DealerScreenState extends State<DealerScreen> {
                       onTap: () => context.push('/car/${item.id}'),
                     ),
                 ] else
+                  // Пустая витрина: иконка + причина по паттерну EmptyState.
+                  // Действий не даём — это чужая витрина, сбрасывать
+                  // пользователю тут нечего.
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 32),
-                    child: Text(
-                      t.dealerNoListings,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                      horizontal: AppBrandSpacing.lg,
+                      vertical: AppBrandSpacing.xl,
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.directions_car_outlined,
+                          size: 48,
+                          color: AppBrandColors.neutral30,
+                        ),
+                        const SizedBox(height: AppBrandSpacing.md),
+                        Text(
+                          t.dealerNoListings,
+                          textAlign: TextAlign.center,
+                          style: AppBrandText.body
+                              .copyWith(color: AppBrandColors.neutral60),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -164,7 +179,6 @@ class _DealerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
     final image = profile.imageUrl;
 
     return Padding(
@@ -175,7 +189,7 @@ class _DealerHeader extends StatelessWidget {
           // для дилера читается как логотип, круг — как человек.
           ClipRRect(
             borderRadius:
-                BorderRadius.circular(profile.isDealer ? 16 : 40),
+                profile.isDealer ? AppBrandRadius.cardAll : AppBrandRadius.pillAll,
             child: SizedBox(
               width: 80,
               height: 80,
@@ -183,42 +197,29 @@ class _DealerHeader extends StatelessWidget {
                   ? Image.network(
                       image,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholder(theme),
+                      errorBuilder: (_, __, ___) => _placeholder(),
                     )
-                  : _placeholder(theme),
+                  : _placeholder(),
             ),
           ),
           const SizedBox(height: 12),
           Text(
             profile.displayName,
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
           ),
           if (profile.isDealer) ...[
             const SizedBox(height: 6),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppButtonColors.gold,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                t.carDealerBadge,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            StatusBadge(
+              label: t.carDealerBadge,
+              background: AppBrandColors.gold,
             ),
           ],
           const SizedBox(height: 8),
           Text(
             t.memberSince(_formatMonthYear(context, profile.memberSince)),
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: AppBrandText.caption
+                .copyWith(color: AppBrandColors.neutral60),
           ),
           const SizedBox(height: 16),
           Row(
@@ -235,12 +236,12 @@ class _DealerHeader extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(ThemeData theme) => Container(
-        color: theme.colorScheme.surfaceContainerHighest,
+  Widget _placeholder() => Container(
+        color: AppBrandColors.surfaceMuted,
         child: Icon(
           profile.isDealer ? Icons.storefront : Icons.person,
           size: 36,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: AppBrandColors.neutral40,
         ),
       );
 
@@ -262,19 +263,16 @@ class _Counter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Column(
       children: [
         Text(
           '$value',
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: AppBrandText.h2.copyWith(color: AppBrandColors.neutral100),
         ),
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: AppBrandText.caption
+              .copyWith(color: AppBrandColors.neutral60),
         ),
       ],
     );
@@ -291,10 +289,7 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Text(
         title,
-        style: Theme.of(context)
-            .textTheme
-            .titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
+        style: AppBrandText.h4.copyWith(color: AppBrandColors.neutral100),
       ),
     );
   }
@@ -312,7 +307,6 @@ class _ListingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
     final price = item.price;
 
     return InkWell(
@@ -322,7 +316,7 @@ class _ListingTile extends StatelessWidget {
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: AppBrandRadius.controlAll,
               child: SizedBox(
                 width: 96,
                 height: 72,
@@ -333,22 +327,21 @@ class _ListingTile extends StatelessWidget {
                       Image.network(
                         item.photoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(theme),
+                        errorBuilder: (_, __, ___) => _placeholder(),
                       )
                     else
-                      _placeholder(theme),
+                      _placeholder(),
                     // Проданное притеняем — блок «недавно проданные» не
                     // должен выглядеть как актуальное предложение.
                     if (item.isSold)
                       Container(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: AppBrandColors.surfaceOverlay,
                         alignment: Alignment.center,
                         child: Text(
                           t.carSold.toUpperCase(),
-                          style: const TextStyle(
+                          style: AppBrandText.small.copyWith(
                             color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: AppBrandFont.bold,
                           ),
                         ),
                       ),
@@ -368,13 +361,15 @@ class _ListingTile extends StatelessWidget {
                           '${item.brand} ${item.model}, ${item.year}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: AppBrandText.body.copyWith(
+                            color: AppBrandColors.neutral100,
+                            fontWeight: AppBrandFont.semibold,
+                          ),
                         ),
                       ),
                       if (item.isPromoted)
                         const Icon(Icons.rocket_launch,
-                            size: 14, color: AppButtonColors.gold),
+                            size: 14, color: AppBrandColors.gold),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -382,17 +377,18 @@ class _ListingTile extends StatelessWidget {
                     item.mileage != null
                         ? '${item.city} · ${item.mileage} km'
                         : item.city,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    style: AppBrandText.caption
+                        .copyWith(color: AppBrandColors.neutral60),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     price != null
                         ? '${price.toStringAsFixed(0)} ${item.currency}'
                         : t.commonNotSpecified,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: AppBrandText.body.copyWith(
+                      color: AppBrandColors.primary,
+                      fontWeight: AppBrandFont.semibold,
+                    ),
                   ),
                 ],
               ),
@@ -403,11 +399,11 @@ class _ListingTile extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(ThemeData theme) => Container(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: Icon(
+  Widget _placeholder() => Container(
+        color: AppBrandColors.surfaceMuted,
+        child: const Icon(
           Icons.directions_car_outlined,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: AppBrandColors.neutral40,
         ),
       );
 }

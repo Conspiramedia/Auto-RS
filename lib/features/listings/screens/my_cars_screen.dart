@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
+import '../../../shared/widgets/status_badge.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/models/listing_stats_model.dart';
 import '../../../data/repositories/cars_repository.dart';
@@ -255,14 +257,13 @@ class _TotalsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
+      decoration: const BoxDecoration(
+        color: AppBrandColors.surfaceMuted,
+        borderRadius: AppBrandRadius.cardAll,
       ),
       child: Row(
         children: [
@@ -300,22 +301,21 @@ class _TotalItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icon, size: 20, color: AppBrandColors.neutral60),
           const SizedBox(height: 4),
           Text(
             '$value',
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.h3
+                .copyWith(color: AppBrandColors.neutral100),
           ),
           Text(
             label,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: AppBrandText.small
+                .copyWith(color: AppBrandColors.neutral60),
           ),
         ],
       ),
@@ -346,7 +346,6 @@ class _ListingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     final price = item.rentPriceDaily != null
         ? '${item.rentPriceDaily!.toStringAsFixed(0)} ${item.currency}'
@@ -387,14 +386,16 @@ class _ListingCard extends StatelessWidget {
                           '${item.brand} ${item.model}, ${item.year}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: AppBrandText.body.copyWith(
+                            color: AppBrandColors.neutral100,
+                            fontWeight: AppBrandFont.semibold,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${item.city} · $price',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          style: AppBrandText.caption.copyWith(
+                            color: AppBrandColors.neutral60,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -447,12 +448,12 @@ class _ListingCard extends StatelessWidget {
               child: Row(
                 children: [
                   const Icon(Icons.rocket_launch,
-                      size: 14, color: AppButtonColors.green),
+                      size: 14, color: AppBrandColors.green),
                   const SizedBox(width: 6),
                   Text(
                     t.promotedUntil(_formatDate(item.boostedUntil!)),
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: AppButtonColors.green),
+                    style: AppBrandText.small
+                        .copyWith(color: AppBrandColors.green),
                   ),
                 ],
               ),
@@ -525,10 +526,8 @@ class _Thumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: AppBrandRadius.controlAll,
       child: SizedBox(
         width: 96,
         height: 72,
@@ -539,20 +538,19 @@ class _Thumb extends StatelessWidget {
               Image.network(
                 url!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(theme),
+                errorBuilder: (_, __, ___) => _placeholder(),
               )
             else
-              _placeholder(theme),
+              _placeholder(),
             if (sold)
               Container(
-                color: Colors.black.withValues(alpha: 0.5),
+                color: AppBrandColors.surfaceOverlay,
                 alignment: Alignment.center,
                 child: Text(
                   context.t.carSold.toUpperCase(),
-                  style: const TextStyle(
+                  style: AppBrandText.small.copyWith(
                     color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: AppBrandFont.bold,
                   ),
                 ),
               ),
@@ -562,11 +560,11 @@ class _Thumb extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(ThemeData theme) => Container(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: Icon(
+  Widget _placeholder() => Container(
+        color: AppBrandColors.surfaceMuted,
+        child: const Icon(
           Icons.directions_car_outlined,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: AppBrandColors.neutral40,
         ),
       );
 }
@@ -585,17 +583,18 @@ class _Metric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return Expanded(
       child: Row(
         children: [
-          Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icon, size: 16, color: AppBrandColors.neutral60),
           const SizedBox(width: 4),
           Text(
             '$value',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.caption.copyWith(
+              color: AppBrandColors.neutral100,
+              fontWeight: AppBrandFont.semibold,
+            ),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -603,8 +602,8 @@ class _Metric extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: AppBrandText.caption
+                  .copyWith(color: AppBrandColors.neutral60),
             ),
           ),
         ],
@@ -620,29 +619,26 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Семантика вместо палитры Material: цвет статуса означает роль, а не
+    // произвольный оттенок. Раньше здесь стояли orange/teal/blueGrey —
+    // ни один из них не встречается больше нигде в продукте.
     final color = switch (status) {
-      'moderation' => Colors.orange,
-      'active' => Colors.green,
-      'rejected' => Colors.red,
-      'archived' => Colors.blueGrey,
-      'sold' => Colors.teal,
-      _ => Colors.grey,
+      // Ждёт модерации — предупреждение: действие ещё не завершено.
+      'moderation' => AppBrandColors.warning,
+      // Опубликовано — успех, тот же зелёный, что у главного действия.
+      'active' => AppBrandColors.success,
+      // Отклонено — ошибка.
+      'rejected' => AppBrandColors.error,
+      // Продано и снятое с публикации — нейтральные: это законченные
+      // состояния, а не сигнал. Тёмная плашка вместо цветной.
+      'sold' => AppBrandColors.dark,
+      'archived' => AppBrandColors.neutral60,
+      _ => AppBrandColors.neutral60,
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        context.t.carStatus(status),
-        style: const TextStyle(
-          fontSize: 11,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+    return StatusBadge(
+      label: context.t.carStatus(status),
+      background: color,
     );
   }
 }
@@ -653,27 +649,10 @@ class _PromotedChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppButtonColors.gold,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.rocket_launch, size: 11, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            context.t.catalogPromoted,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
+    return StatusBadge(
+      label: context.t.catalogPromoted,
+      background: AppBrandColors.gold,
+      icon: Icons.rocket_launch,
     );
   }
 }
@@ -686,22 +665,22 @@ class _EmptyCabinet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(32, 100, 32, 32),
       children: [
-        Icon(
+        const Icon(
           Icons.directions_car_outlined,
           size: 64,
-          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          color: AppBrandColors.neutral30,
         ),
         const SizedBox(height: 16),
         Text(
           t.myCarsEmpty,
           textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: AppBrandText.h4.copyWith(
+            color: AppBrandColors.neutral100,
+          ),
         ),
         const SizedBox(height: 20),
         SizedBox(
@@ -711,7 +690,8 @@ class _EmptyCabinet extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: Text(
               t.myCarsCreate,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              style: AppBrandText.caption
+                  .copyWith(fontWeight: AppBrandFont.semibold),
             ),
           ),
         ),
@@ -750,7 +730,7 @@ class _AddButton extends StatelessWidget {
   const _AddButton({required this.onTap});
   final VoidCallback onTap;
 
-  static const Color _kDark = Color(0xFF2B2B2E);
+  static const Color _kDark = AppBrandColors.dark;
 
   @override
   Widget build(BuildContext context) {

@@ -17,6 +17,7 @@ import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/wallet_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/serbian_phone.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/notif_bell.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
@@ -184,9 +185,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
+            child: Text(
               'Выйти',
-              style: TextStyle(color: Color(0xFFE01E23)), // фирменный красный
+              style: AppBrandText.body.copyWith(
+                color: AppBrandColors.error,
+                fontWeight: AppBrandFont.semibold,
+              ),
             ),
           ),
         ],
@@ -307,6 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           _Avatar(
                                             url: data.profile?.avatarUrl,
                                             busy: _savingAvatar,
+                                            name: data.profile?.fullName,
                                           ),
                                           if (!hasAvatar && !_savingAvatar)
                                             Positioned(
@@ -315,13 +320,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               child: Container(
                                                 padding:
                                                     const EdgeInsets.all(6),
-                                                decoration: BoxDecoration(
-                                                  color: AppButtonColors.green,
+                                                decoration: const BoxDecoration(
+                                                  color: AppBrandColors.green,
                                                   shape: BoxShape.circle,
-                                                  border: Border.all(
-                                                      color: Theme.of(context)
-                                                          .scaffoldBackgroundColor,
-                                                      width: 2),
+                                                  // Обводка цветом фона
+                                                  // отделяет значок от аватара.
+                                                  border: Border.fromBorderSide(
+                                                    BorderSide(
+                                                      color:
+                                                          AppBrandColors.bg,
+                                                      width: 2,
+                                                    ),
+                                                  ),
                                                 ),
                                                 child: const Icon(
                                                     Icons.photo_camera,
@@ -338,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     InkWell(
                                       onTap: () =>
                                           _editName(data.profile?.fullName),
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: AppBrandRadius.smAll,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 4),
@@ -350,9 +360,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   ? data.profile!.fullName!
                                                       .trim()
                                                   : 'Добавьте имя',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium,
+                                              style: AppBrandText.h3
+                                                  .copyWith(
+                                                color:
+                                                    AppBrandColors.neutral100,
+                                              ),
                                             ),
                                             if (!hasName) ...[
                                               const SizedBox(width: 6),
@@ -379,7 +391,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 success: true);
                                           },
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                              AppBrandRadius.smAll,
                                           child: Padding(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 8, vertical: 2),
@@ -388,16 +400,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               children: [
                                                 Text(
                                                   display,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium,
+                                                  style: AppBrandText.body
+                                                      .copyWith(
+                                                    color: AppBrandColors
+                                                        .neutral100,
+                                                  ),
                                                 ),
                                                 const SizedBox(width: 6),
-                                                Icon(Icons.copy,
+                                                const Icon(Icons.copy,
                                                     size: 14,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant),
+                                                    color: AppBrandColors
+                                                        .neutral60),
                                               ],
                                             ),
                                           ),
@@ -406,9 +419,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       if (user.email != null) {
                                         return Text(
                                           user.email!,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall,
+                                          style: AppBrandText.caption
+                                              .copyWith(
+                                            color: AppBrandColors.neutral60,
+                                          ),
                                         );
                                       }
                                       return const SizedBox.shrink();
@@ -441,9 +455,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   children: [
                                     Text(
                                       '${data.balance.toStringAsFixed(2)} EUR',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium,
+                                      style: AppBrandText.caption.copyWith(
+                                        color: AppBrandColors.neutral60,
+                                        fontWeight: AppBrandFont.semibold,
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     // Пополнить баланс (зелёный «+»).
@@ -458,7 +473,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       visualDensity: VisualDensity.compact,
                                     ),
                                     const Icon(Icons.chevron_right,
-                                        size: 20, color: Color(0xFF9CA3AF)),
+                                        size: 20,
+                                        color: AppBrandColors.neutral40),
                                   ],
                                 ),
                               ),
@@ -535,9 +551,14 @@ class _ProfileData {
 // Кружок аватара: текущее фото или иконка-заглушка. При busy — затемнение
 // и спиннер (идёт загрузка).
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.url, required this.busy});
+  const _Avatar({required this.url, required this.busy, this.name});
   final String? url;
   final bool busy;
+
+  /// Имя для инициала, когда фотографии нет. Инициал в круге — тот же
+  /// приём, что на странице дилера сайта: он читается как человек, а не
+  /// как отсутствующая картинка.
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
@@ -550,18 +571,16 @@ class _Avatar extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 44,
-            backgroundColor: Colors.black12,
+            backgroundColor: AppBrandColors.surfaceMuted,
             backgroundImage: hasUrl ? NetworkImage(url!) : null,
-            child: hasUrl
-                ? null
-                : const Icon(Icons.person, size: 44, color: Colors.white),
+            child: hasUrl ? null : _initial(),
           ),
           if (busy)
             Container(
               width: 88,
               height: 88,
               decoration: const BoxDecoration(
-                color: Colors.black38,
+                color: AppBrandColors.surfaceOverlay,
                 shape: BoxShape.circle,
               ),
               child: const Center(
@@ -573,6 +592,23 @@ class _Avatar extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  // Первая буква имени; без имени — нейтральная иконка. Цвет neutral60:
+  // прежняя белая иконка на подложке surfaceMuted была бы не видна.
+  Widget _initial() {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return const Icon(
+        Icons.person,
+        size: 44,
+        color: AppBrandColors.neutral40,
+      );
+    }
+    return Text(
+      trimmed.characters.first.toUpperCase(),
+      style: AppBrandText.h1.copyWith(color: AppBrandColors.neutral60),
     );
   }
 }
