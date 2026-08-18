@@ -1,5 +1,6 @@
 // ============================================================
-// AUTO.RS — Роли цветов кнопок (единый источник).
+// RS AUTO — Роли цветов кнопок.
+// Источник значений — core/theme/app_brand.dart (зеркало brand.ts).
 // Зелёный — главное действие (Позвонить, Опубликовать…);
 // синий — связь/второстепенное (Написать, Войти…);
 // красный — сброс/деструктив; тёмный — нейтральные плашки (Filteri, назад).
@@ -7,6 +8,8 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
+
+import '../../core/theme/app_brand.dart';
 
 /// Роль кнопки определяет её цвет. Не хардкодим оттенки в экранах —
 /// используем этот enum, чтобы палитра менялась в одном месте.
@@ -17,19 +20,24 @@ enum PillVariant {
   red,    // сброс / деструктив
 }
 
+/// Тонкий слой ролей поверх палитры бренда. Собственных значений здесь
+/// НЕТ — только алиасы на AppBrandColors: цвет, продублированный в двух
+/// файлах, рано или поздно разъезжается. Класс сохранён, потому что на
+/// него ссылаются экраны, и потому что «зелёный = главное действие» —
+/// это роль, а не оттенок.
 class AppButtonColors {
   AppButtonColors._();
 
   // Зелёный «Позвонить»/главное действие.
-  static const Color green = Color(0xFF22C063);
+  static const Color green = AppBrandColors.green;
   // Синий «Написать»/связь.
-  static const Color blue = Color(0xFF1E9AF0);
+  static const Color blue = AppBrandColors.blue;
   // Бренд-красный (сброс, акценты).
-  static const Color red = Color(0xFFE01E23);
+  static const Color red = AppBrandColors.red;
   // Тёмный фон нейтральных плашек.
-  static const Color dark = Color(0xFF2B2B2E);
+  static const Color dark = AppBrandColors.dark;
   // Золотой акцент иконки на тёмной плашке.
-  static const Color gold = Color(0xFFE8A73C);
+  static const Color gold = AppBrandColors.gold;
 
   /// Основной цвет заливки по роли.
   static Color fill(PillVariant v) => switch (v) {
