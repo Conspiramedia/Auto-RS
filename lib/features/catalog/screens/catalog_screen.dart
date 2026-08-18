@@ -52,6 +52,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // показывает продажу и аренду вперемешку, а тип выбирается в фильтрах.
   CarFilters _filters = CarFilters.empty;
 
+  // Общее количество объявлений под фильтрами (RPC get_search_total_count).
+  // null — ещё не получено или запрос не удался: строку «Найдено» не рисуем.
+  int? _totalCount;
+
+  // Поколение запроса счётчика: защищает от гонки, когда ответ на старые
+  // фильтры приходит позже нового запроса.
+  int _countGeneration = 0;
+
   // Текстовый запрос из строки поиска (двуалфавитный поиск на бэке).
   // Пустая строка = поиск не задан. Применяется с дебаунсом.
   String _query = '';
@@ -345,6 +353,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
       _lapOffset = 0;
       _looping = false;
       _hasMore = true;
+      // Прежнее число прячем сразу: показывать счёт от старых фильтров
+      // рядом с новой выдачей — хуже, чем не показывать ничего.
+      _totalCount = null;
     });
     try {
       final page = await _fetchLoopedPage();
@@ -358,12 +369,50 @@ class _CatalogScreenState extends State<CatalogScreen> {
         _hasMore = page.length >= _pageSize;
         _loading = false;
       });
+      // Счётчик — только здесь, при смене фильтров. В _loadMore его нет:
+      // подгрузка страницы общее количество не меняет, а count(*) по всей
+      // выборке на каждую прокрутку был бы лишней нагрузкой.
+      _loadTotalCount();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;
       });
+    }
+  }
+
+  // Общее количество под текущими фильтрами. Отдельным запросом и без await
+  // в _reload: список не должен ждать счётчик, чтобы появиться на экране.
+  Future<void> _loadTotalCount() async {
+    // Номер поколения. Пока RPC отвечает, пользователь может успеть сменить
+    // фильтр и запустить новый _reload — тогда пришедшее число относится к
+    // прошлым фильтрам, и показывать его нельзя.
+    final generation = ++_countGeneration;
+    final filters = _filters;
+    final query = _query.trim();
+
+    try {
+      final total = await _repo.searchTotalCount(
+        listingType: filters.listingType,
+        query: query.isEmpty ? null : query,
+        brand: filters.brand,
+        model: filters.model,
+        city: filters.city,
+        yearFrom: filters.yearFrom,
+        yearTo: filters.yearTo,
+        mileageMax: filters.mileageMax,
+        priceFrom: filters.priceFrom,
+        priceTo: filters.priceTo,
+        bodyType: filters.bodyType,
+        transmission: filters.transmission,
+        fuel: filters.fuel,
+      );
+      if (!mounted || generation != _countGeneration) return;
+      setState(() => _totalCount = total);
+    } catch (_) {
+      // Счётчик не критичен: при сбое строка просто не показывается,
+      // выдача от этого не страдает.
     }
   }
 
@@ -556,6 +605,39 @@ class _CatalogScreenState extends State<CatalogScreen> {
             onRemove: _removeFilter,
             onClearAll: _resetFilters,
           ),
+
+          // «Найдено: N» — сколько объявлений подходит под фильтры целиком,
+          // а не сколько уже подгружено лентой. Показывается только когда
+          // число получено (RPC могла не ответить — тогда строки просто нет).
+          //
+          // Формат без слова-существительного: склонение «объявление /
+          // объявления / объявлений» и сербские формы требуют нового ключа
+          // в словарях, а они выносятся отдельным пакетом. Иконка списка
+          // передаёт смысл на обоих языках.
+          if (_totalCount != null && !_loading)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppBrandSpacing.md,
+                AppBrandSpacing.xs,
+                AppBrandSpacing.md,
+                AppBrandSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.format_list_bulleted,
+                    size: 16,
+                    color: AppBrandColors.neutral60,
+                  ),
+                  const SizedBox(width: AppBrandSpacing.xs),
+                  Text(
+                    '${_totalCount!}',
+                    style: AppBrandText.caption
+                        .copyWith(color: AppBrandColors.neutral60),
+                  ),
+                ],
+              ),
+            ),
 
           // Список результатов (продажа и аренда вперемешку; тип — в фильтрах)
           Expanded(child: _buildList()),

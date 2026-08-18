@@ -30,6 +30,57 @@ class CarsRepository {
   }
 
   // ----------------------------------------------------------
+  // Общее количество результатов под текущими фильтрами
+  // (RPC get_search_total_count, миграция 0060).
+  //
+  // Отдельный вызов от searchAdvanced: количество нужно один раз при смене
+  // фильтров, а страницы ленты догружаются при прокрутке — считать count(*)
+  // по всей выборке на каждую страницу незачем.
+  //
+  // Параметры seed/offset/limit/shuffleAll сюда не передаются: они влияют
+  // только на порядок и размер страницы, но не на число подходящих строк.
+  // ----------------------------------------------------------
+  Future<int> searchTotalCount({
+    String? listingType,
+    String? query,
+    double? userLat,
+    double? userLng,
+    double? radiusKm,
+    String? brand,
+    String? model,
+    String? city,
+    int? yearFrom,
+    int? yearTo,
+    int? mileageMax,
+    double? priceFrom,
+    double? priceTo,
+    String? bodyType,
+    String? transmission,
+    String? fuel,
+  }) async {
+    final value = await _client.rpc('get_search_total_count', params: {
+      'p_listing_type': listingType,
+      'p_search_query': query,
+      'p_user_lat': userLat,
+      'p_user_lng': userLng,
+      'p_radius_km': radiusKm,
+      'p_brand': brand,
+      'p_model': model,
+      'p_city': city,
+      'p_year_from': yearFrom,
+      'p_year_to': yearTo,
+      'p_mileage_max': mileageMax,
+      'p_price_from': priceFrom,
+      'p_price_to': priceTo,
+      'p_body_type': bodyType,
+      'p_transmission': transmission,
+      'p_fuel': fuel,
+    });
+    // RPC возвращает скаляр integer.
+    return (value as int?) ?? 0;
+  }
+
+  // ----------------------------------------------------------
   // Каталог аренды.
   // ----------------------------------------------------------
   Future<List<CarModel>> fetchForRent({int limit = 30}) async {
