@@ -28,6 +28,7 @@ import '../../../data/models/car_model.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/enums/car_status.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/app_close_button.dart';
 
 class CarCard extends StatelessWidget {
   const CarCard({
@@ -76,6 +77,13 @@ class CarCard extends StatelessWidget {
 
     showModalBottomSheet<void>(
       context: context,
+      // Оформление — по токенам, как у остальных листов приложения.
+      backgroundColor: AppBrandColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppBrandRadius.card),
+        ),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -88,10 +96,23 @@ class CarCard extends StatelessWidget {
                 AppBrandSpacing.md,
                 AppBrandSpacing.sm,
               ),
-              child: Text(
-                t.catalogHideRecommendation,
-                style: AppBrandText.h4
-                    .copyWith(color: AppBrandColors.neutral100),
+              // Заголовок и крестик: список состоит из необратимых
+              // действий («скрыть»), и выход без выбора обязан быть
+              // виден, а не угадываться свайпом.
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      t.catalogHideRecommendation,
+                      style: AppBrandText.h4
+                          .copyWith(color: AppBrandColors.neutral100),
+                    ),
+                  ),
+                  AppCloseButton(
+                    tooltip: t.commonClose,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
             ),
             if (onHide != null)

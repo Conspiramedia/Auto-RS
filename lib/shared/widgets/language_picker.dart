@@ -14,7 +14,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/i18n/app_language.dart';
+import '../../core/i18n/app_strings.dart';
 import '../../core/theme/app_brand.dart';
+import 'app_close_button.dart';
 
 // Кнопка-глобус для AppBar. Цвет по умолчанию — тёмная плашка бренда,
 // но оставлен параметром: на тёмных шапках понадобится светлый.
@@ -58,13 +60,23 @@ Future<void> showLanguagePicker(BuildContext context) async {
             // интерфейс сейчас на непонятном языке.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Язык / Jezik',
-                  style: AppBrandText.h4
-                      .copyWith(color: AppBrandColors.neutral100),
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Язык / Jezik',
+                      style: AppBrandText.h4
+                          .copyWith(color: AppBrandColors.neutral100),
+                    ),
+                  ),
+                  // Подпись берётся из СЛОВАРЯ, а не из заголовка на двух
+                  // языках: она озвучивается TalkBack и должна быть на
+                  // языке текущего интерфейса.
+                  AppCloseButton(
+                    tooltip: ctx.t.commonClose,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
             ),
             for (final option in AppLanguage.values)

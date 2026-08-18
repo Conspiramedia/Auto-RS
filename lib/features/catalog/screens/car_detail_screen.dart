@@ -21,6 +21,7 @@ import '../../../data/repositories/cars_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../shared/utils/app_snack.dart';
+import '../../../shared/widgets/app_close_button.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/pill_back_button.dart';
@@ -155,13 +156,41 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
     );
   }
 
+  // Закрытие карточки. Зеркало сайта (GalleryCloseButton): если экран
+  // открыт стеком — обычный pop; если пришли по диплинку или из пуша,
+  // возвращаться некуда, и вместо выхода из приложения уводим в каталог.
+  void _closeDetail(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
+    }
+    context.go('/catalog');
+  }
+
   Widget _buildContent(_DetailData data) {
     final car = data.car;
 
     return ListView(
       children: [
         // ---------- Галерея фото ----------
-        _Gallery(images: data.images),
+        // Крестик лежит ПОВЕРХ кадра, как на сайте: на телефоне
+        // фотография занимает первый экран целиком, и выход обязан быть
+        // виден без прокрутки. Стрелка в AppBar остаётся — это разные
+        // привычки, и обе рабочие.
+        Stack(
+          children: [
+            _Gallery(images: data.images),
+            Positioned(
+              top: AppBrandSpacing.sm,
+              right: AppBrandSpacing.sm,
+              child: AppCloseButton(
+                tooltip: context.t.commonBack,
+                variant: AppCloseButtonVariant.overlay,
+                onPressed: () => _closeDetail(context),
+              ),
+            ),
+          ],
+        ),
 
         Padding(
           padding: const EdgeInsets.all(16),

@@ -16,6 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/i18n/app_strings.dart';
 import '../../../core/theme/app_brand.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/config/app_constants.dart';
 import '../../../core/config/reference_data.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../data/models/car_model.dart';
@@ -24,6 +25,8 @@ import '../../../data/repositories/cars_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/utils/number_formatters.dart';
 import '../../../shared/utils/serbian_phone.dart';
+import '../../../shared/widgets/app_search_header.dart';
+import '../../../shared/widgets/app_close_button.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../utils/generate_temp_uuid.dart';
@@ -78,8 +81,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   // Фокус телефона: при входе в пустое поле сразу показываем префикс «+381 ».
   final _phoneFocus = FocusNode();
 
-  // Максимум фото на одно объявление
-  static const int _maxPhotos = 10;
+  // Максимум фото на одно объявление — из общей константы, а не
+  // своим числом. Раньше здесь стояло локальное 10 при
+  // AppConstants.maxCarImages = 15: два разных лимита в одном
+  // приложении, и какой сработает, зависело от экрана.
+  static const int _maxPhotos = AppConstants.maxCarImages;
 
   // Марки из справочника (грузятся из БД при открытии)
   List<String> _brands = [];
@@ -87,10 +93,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   List<String> _models = [];
   bool _loadingModels = false;
 
-  // Тип объявления: null (ещё не выбран) | 'sale' | 'rent'. Обязателен —
-  // проверяется при «Опубликовать». В режиме редактирования выставляется из
-  // самого объявления (см. _prefillFromCar).
-  String? _listingType;
+  // Тип объявления: 'sale' | 'rent'. По умолчанию 'sale' — «Продаю»
+  // подсвечено сразу, как на сайте (useState('sale') в SellForm).
+  // Продажа — подавляющее большинство объявлений, и требовать явного
+  // выбора там, где он почти всегда один и тот же, значит добавлять
+  // лишний шаг на первом же экране.
+  //
+  // Тип остаётся ОБЯЗАТЕЛЬНЫМ полем: проверка при публикации сохранена
+  // как страховка — поле nullable, и снять значение может режим
+  // редактирования (_prefillFromCar) или будущая правка формы.
+  String? _listingType = 'sale';
 
   // Текст последней ошибки валидации: показывается над кнопкой публикации
   // и сбрасывается при новой попытке.
@@ -98,9 +110,13 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   // Подписи типа для сегмента (ключ БД → текст пользователю). Метод, а
   // не константа: подписи зависят от языка и берутся из словаря.
+  // Подписи от ПЕРВОГО ЛИЦА («Продаю» / «Сдаю»), как на сайте, а не
+  // «Продажа»/«Аренда» из фильтров. Разница не косметическая: в фильтрах
+  // это категория выдачи, а здесь — действие самого продавца, и вопрос
+  // формы звучит «что вы делаете с машиной».
   Map<String, String> _listingTypeLabels(BuildContext context) => {
-        'sale': context.t.filterSale,
-        'rent': context.t.filterRent,
+        'sale': context.t.sellTypeSale,
+        'rent': context.t.sellTypeRent,
       };
 
   // Загруженные публичные URL фото (по порядку)
@@ -235,9 +251,17 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
   /// Ошибка валидации: и всплывающей подсказкой, и текстом над кнопкой.
   /// Снэкбар замечают сразу, надпись остаётся, пока причину не устранят.
-  void _failValidation(String msg) {
+  // [onStep] — шаг, на котором находится поле с ошибкой. Публикация идёт
+  // с последнего шага, а валидация проверяет ВСЕ поля разом: при
+  // редактировании объявления ошибка может относиться к марке (шаг 1)
+  // или цене (шаг 2). Без возврата человек читал бы «укажите марку»,
+  // стоя на экране с одним телефоном, и не понимал, куда идти.
+  void _failValidation(String msg, {int? onStep}) {
     if (!mounted) return;
-    setState(() => _validationError = msg);
+    setState(() {
+      _validationError = msg;
+      if (onStep != null) _step = onStep;
+    });
     showAppSnack(context, msg, isError: true);
   }
 
@@ -403,6 +427,104 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     );
   }
 
+  // ------------------------------------------------------------
+  // ПОШАГОВАЯ ПОДАЧА — зеркало SellForm сайта.
+  // ------------------------------------------------------------
+  // Раньше форма была одной простынёй из двенадцати полей: человек
+  // видел сразу и марку, и топливо, и телефон, и бросал её, не начав.
+  // Шаги те же, что на сайте: Автомобиль → Детали → Фото → Контакты.
+  //
+  // Порядок неслучаен: сначала то, что продавец знает наизусть, и лишь
+  // в конце — телефон. На сайте по той же причине вход по SMS стоит
+  // последним шагом.
+  //
+  // ВАЖНО: разбивка чисто визуальная. Валидация и публикация (_publish,
+  // validateCarForm, create_car_v2) не тронуты — они по-прежнему видят
+  // все поля разом, и порядок вызовов RPC прежний.
+  int _step = 1;
+
+  static const int _stepsTotal = 4;
+
+  // Шаг 1 пройден: тип, марка, модель, год и город заполнены. Те же
+  // условия, что у canNext1 на сайте.
+  bool get _canLeaveStep1 =>
+      _listingType != null &&
+      (_brand?.trim().isNotEmpty ?? false) &&
+      (_model?.trim().isNotEmpty ?? false) &&
+      (_year?.trim().isNotEmpty ?? false) &&
+      (_city?.trim().isNotEmpty ?? false);
+
+  void _goToStep(int next) {
+    // Смена шага снимает прежнюю ошибку: её причина осталась на другом
+    // экране, и висеть над чужой кнопкой она не должна.
+    setState(() {
+      _validationError = null;
+      _step = next;
+    });
+  }
+
+  // Переход с шага «Фото». Как на сайте (goToContacts): без единого
+  // снимка дальше не пускаем — объявление без фото почти не получает
+  // откликов. Проверка именно здесь, а не при публикации, иначе
+  // продавец узнал бы о ней после заполнения телефона.
+  void _goToContacts() {
+    if (_photoUrls.isEmpty) {
+      _failValidation(context.t.sellErrPhotosRequired);
+      return;
+    }
+    _goToStep(4);
+  }
+
+  // Шаг, на котором лежит первое незаполненное обязательное поле.
+  // Порядок совпадает с порядком проверок в validateCarForm, поэтому
+  // возвращённый шаг всегда соответствует показанному тексту ошибки.
+  int _stepOfFirstEmptyField() {
+    final noCity = !(_city?.trim().isNotEmpty ?? false);
+    final noBrand = !(_brand?.trim().isNotEmpty ?? false);
+    final noModel = !(_model?.trim().isNotEmpty ?? false);
+    final noYear = int.tryParse(_year ?? '') == null;
+    if (noCity || noBrand || noModel || noYear) return 1;
+
+    // Телефон проверяется раньше фото (см. validateCarForm), но живёт
+    // на последнем шаге — возвращать туда не нужно, мы уже там.
+    if (_photoUrls.isEmpty) return 3;
+    return 4;
+  }
+
+  // Перестановка фотографии на одну позицию. Порядок в _photoUrls —
+  // это и есть порядок в объявлении: первый элемент попадает в каталог
+  // обложкой, и RPC получает список как есть, без отдельного поля
+  // «главная». Логика публикации при этом не меняется.
+  void _movePhoto(int index, int direction) {
+    final target = index + direction;
+    if (target < 0 || target >= _photoUrls.length) return;
+
+    setState(() {
+      final moved = _photoUrls.removeAt(index);
+      _photoUrls.insert(target, moved);
+    });
+  }
+
+  // Ряд кнопок под шагом: «Назад» слева, главное действие справа.
+  // На первом шаге «Назад» нет — уходить некуда, там работает крестик.
+  Widget _stepNav({required Widget next, bool showBack = true}) {
+    if (!showBack) return next;
+    return Row(
+      children: [
+        Expanded(
+          child: DarkPillButton(
+            label: context.t.sellBack,
+            variant: PillVariant.outline,
+            expand: true,
+            onTap: () => _goToStep(_step - 1),
+          ),
+        ),
+        const SizedBox(width: AppBrandSpacing.sm),
+        Expanded(flex: 2, child: next),
+      ],
+    );
+  }
+
   // Публикация объявления
   Future<void> _publish() async {
     // Новая попытка — снимаем прежнюю ошибку: иначе старый текст висел бы
@@ -416,7 +538,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     final publishFailed = context.t.createPublishFailed;
     // Тип объявления обязателен (первое поле формы) — сервер требует 'sale'/'rent'.
     if (_listingType == null) {
-      _failValidation(context.t.createTypeRequired);
+      _failValidation(context.t.createTypeRequired, onStep: 1);
       return;
     }
     final year = int.tryParse(_year ?? '');
@@ -437,16 +559,20 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       t: context.t,
     );
     if (err != null) {
-      _failValidation(err);
+      // validateCarForm возвращает только текст, поэтому шаг определяем
+      // по самим полям — в том же порядке, в каком их проверяет функция.
+      // Трогать её сигнатуру ради этого нельзя: она общая с формой
+      // редактирования и вызывается из другого места.
+      _failValidation(err, onStep: _stepOfFirstEmptyField());
       return;
     }
     // Если цена введена, но некорректна (например, 0) — предупреждаем.
     if (priceDigits.isNotEmpty && (price == null || price <= 0)) {
-      _failValidation(context.t.createPricePositive);
+      _failValidation(context.t.createPricePositive, onStep: 2);
       return;
     }
     if (_uploading) {
-      _failValidation(context.t.createWaitPhotos);
+      _failValidation(context.t.createWaitPhotos, onStep: 3);
       return;
     }
 
@@ -538,32 +664,252 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-          leading: const PillBackButton(),
-          title: Text(_isEdit
-              ? context.t.createTitleEdit
-              : _isDuplicate
-                  // Копия — это новое объявление, но пользователю важно
-                  // понимать, что поля заполнены не случайно.
-                  ? context.t.createTitleCopy
-                  : context.t.createTitleNew)),
-      body: AbsorbPointer(
-        absorbing: _publishing,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      backgroundColor: AppBrandColors.bg,
+      // AppBar убран: вместо него — та же шапка, что в каталоге,
+      // избранном и сообщениях (зеркало SiteHeader сайта). На сайте
+      // шапка видна и во время заполнения формы, а не подменяется
+      // заголовком экрана.
+      body: SafeArea(
+        child: Column(
           children: [
-            // ---------- Тип объявления (обязательный, сегмент) ----------
-            // Сегмент вместо пикера-списка: вариантов всего два, и открывать
-            // ради них модальный лист — лишний шаг. Так же выбирается тип
-            // на форме подачи сайта.
-            _ListingTypeSegment(
-              value: _listingType,
-              labels: _listingTypeLabels(context),
-              onChanged: (v) => setState(() => _listingType = v),
+            // ФИКСИРОВАННАЯ шапка — не уезжает при скролле формы.
+            const AppSearchHeader(),
+
+            Expanded(
+              child: AbsorbPointer(
+                absorbing: _publishing,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // ---------- Заголовок страницы ----------
+                    // СНАРУЖИ карточки, как на сайте (SellPageView):
+                    // h1 и подпись стоят над формой, а не внутри неё.
+                    // Показываем только при СОЗДАНИИ: при редактировании
+                    // «Продайте автомобиль» противоречило бы происходящему.
+                    if (!_isEdit) ...[
+                      Text(
+                        context.t.sellTitle,
+                        style: AppBrandText.h2
+                            .copyWith(color: AppBrandColors.neutral100),
+                      ),
+                      const SizedBox(height: AppBrandSpacing.sm),
+                      Text(
+                        context.t.sellSubtitle,
+                        style: AppBrandText.body
+                            .copyWith(color: AppBrandColors.neutral60),
+                      ),
+                      const SizedBox(height: AppBrandSpacing.lg),
+                    ],
+
+                    // ---------- Карточка формы ----------
+                    // Все шаги живут ВНУТРИ одной рамки, как на сайте
+                    // (components/ui/Card): белая подложка, граница
+                    // neutral10, радиус card. Без неё поля лежали прямо
+                    // на фоне экрана и форма не читалась как одно целое.
+                    _FormCard(child: _buildCardContent()),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            // ---------- Город (справочник + ручной ввод) ----------
-            _pickerField(
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Содержимое карточки: строка «Шаг N / 4» с крестиком, затем поля
+  // текущего шага и ошибка валидации под ними.
+  Widget _buildCardContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ---------- Счётчик шагов и выход ----------
+        // Крестик стоит ЗДЕСЬ, в правом верхнем углу карточки, — ровно
+        // как на сайте. В шапке экрана его быть не должно: там слева
+        // у всех остальных экранов «назад», и два разных по смыслу
+        // действия на одном месте путают.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppBrandSpacing.sm),
+                child: Text(
+                  '${context.t.sellStep} $_step / $_stepsTotal',
+                  style: AppBrandText.caption
+                      .copyWith(color: AppBrandColors.neutral50),
+                ),
+              ),
+            ),
+            // Отрицательные отступы возвращают знак к самому углу
+            // карточки — зеркало «-mr-2 -mt-2» сайта. У кнопки область
+            // 40px ради попадания пальцем, и без сдвига она отступала
+            // бы от края заметно сильнее, чем текст рядом.
+            Transform.translate(
+              offset: const Offset(AppBrandSpacing.sm, -AppBrandSpacing.sm),
+              child: AppCloseButton(
+                tooltip: context.t.commonClose,
+                onPressed: () => Navigator.maybePop(context),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppBrandSpacing.sm),
+
+        if (_step == 1) ..._buildStepCar(),
+        if (_step == 2) ..._buildStepDetails(),
+        if (_step == 3) ..._buildStepPhotos(),
+        if (_step == 4) ..._buildStepContact(),
+
+        // Текст последней ошибки валидации — красным над кнопкой.
+        // Снэкбар исчезает через несколько секунд, а причина отказа
+        // нужна ровно в момент, когда человек снова тянется к CTA.
+        if (_validationError != null) ...[
+          // md (16) = «mt-4» сайта. На sm (8) плашка липла к кнопкам
+          // и читалась как их продолжение, а не как отдельный блок.
+          const SizedBox(height: AppBrandSpacing.md),
+          // Ошибка лежит на РОЗОВОЙ ПЛАШКЕ, как на сайте
+          // («rounded-control bg-brand-red/10 px-3 py-2»): красный текст
+          // прямо на белом фоне терялся среди подписей полей, тогда как
+          // заливка выделяет причину отказа как отдельный блок.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppBrandSpacing.sm + 4, // px-3
+              vertical: AppBrandSpacing.sm,       // py-2
+            ),
+            decoration: BoxDecoration(
+              // Тот же красный, что у текста, но с прозрачностью 10% —
+              // ровно «bg-brand-red/10» сайта.
+              color: AppBrandColors.error.withValues(alpha: 0.1),
+              borderRadius: AppBrandRadius.controlAll,
+            ),
+            child: Text(
+              _validationError!,
+              textAlign: TextAlign.center,
+              style:
+                  AppBrandText.caption.copyWith(color: AppBrandColors.error),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ---------- Заголовок шага ----------
+  Widget _stepTitle(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: AppBrandSpacing.md),
+        child: Text(
+          text,
+          style: AppBrandText.h4.copyWith(color: AppBrandColors.neutral100),
+        ),
+      );
+
+  // Подпись НАД полем — как на сайте. У сегмента типа нет собственного
+  // InputDecorator с floating label, и без подписи он читался бы как
+  // две безымянные кнопки.
+  Widget _fieldLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style:
+              AppBrandText.caption.copyWith(color: AppBrandColors.neutral60),
+        ),
+      );
+
+  // ============================================================
+  // ШАГ 1 — АВТОМОБИЛЬ: тип, марка, модель, год, город.
+  // ============================================================
+  List<Widget> _buildStepCar() {
+    return [
+      _stepTitle(context.t.sellStepCar),
+
+      // ---------- Тип объявления (обязательный, сегмент) ----------
+      // Сегмент вместо пикера-списка: вариантов всего два, и открывать
+      // ради них модальный лист — лишний шаг. Так же выбирается тип
+      // на форме подачи сайта.
+      _fieldLabel(context.t.formListingType),
+      _ListingTypeSegment(
+        value: _listingType,
+        labels: _listingTypeLabels(context),
+        onChanged: (v) => setState(() => _listingType = v),
+      ),
+      const SizedBox(height: 12),
+
+      // ---------- Марка (справочник + ручной ввод) ----------
+      // Порядок полей — как на сайте: марка и модель идут ПЕРЕД годом
+      // и городом. Машину продавец описывает сверху вниз, от главного.
+      _pickerField(
+        label: context.t.formBrand,
+        value: _brand,
+        onTap: () => _pick(
+          title: context.t.formBrand,
+          options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
+          current: _brand,
+          allowCustom: true,
+          onPicked: (v) {
+            setState(() {
+              _brand = v;
+              _model = null; // сбрасываем модель при смене марки
+              _models = [];
+            });
+            if (v != null) _loadModels(v);
+          },
+        ),
+      ),
+      const SizedBox(height: 12),
+
+      // ---------- Модель ----------
+      // Поле показывается ВСЕГДА, как на сайте: скрытое до выбора марки,
+      // оно заставляло гадать, куда делась строка. Пока марки нет —
+      // поле неактивно с подсказкой «Сначала выберите марку».
+      //
+      // Загрузка списка моделей меняет только ТЕКСТ в поле («Поиск…»),
+      // как на сайте. Раньше на это время поле подменялось синей
+      // полосой LinearProgressIndicator: строка прыгала, а сам индикатор
+      // выбивался из формы — единственный яркий элемент на шаге.
+      _pickerField(
+        label: context.t.formModel,
+        value: _model,
+        // Во время загрузки поле неактивно: списка ещё нет, и открывать
+        // пустой лист выбора незачем.
+        enabled: _brand != null && !_loadingModels,
+        hint: _brand == null
+            ? context.t.pickerModelNoBrand
+            : _loadingModels
+                ? context.t.formSearchHint
+                : context.t.formAny,
+        onTap: () => _pick(
+          title: context.t.formModel,
+          options: _models,
+          current: _model,
+          allowCustom: true,
+          onPicked: (v) => setState(() => _model = v),
+        ),
+      ),
+      const SizedBox(height: 12),
+
+      // ---------- Год и город в одной строке ----------
+      // На сайте это grid-cols-2: два коротких поля рядом вместо двух
+      // почти пустых строк.
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _pickerField(
+              label: context.t.carYear,
+              value: _year,
+              onTap: () => _pick(
+                title: context.t.carYear,
+                options: _years,
+                current: _year,
+                onPicked: (v) => setState(() => _year = v),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppBrandSpacing.sm),
+          Expanded(
+            child: _pickerField(
               label: context.t.formCity,
               value: _city,
               onTap: () => _pick(
@@ -574,82 +920,69 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
                 onPicked: (v) => setState(() => _city = v),
               ),
             ),
-            const SizedBox(height: 12),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppBrandSpacing.lg),
 
-            // ---------- Марка (справочник + ручной ввод) ----------
-            _pickerField(
-              label: context.t.formBrand,
-              value: _brand,
-              onTap: () => _pick(
-                title: context.t.formBrand,
-                options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
-                current: _brand,
-                allowCustom: true,
-                onPicked: (v) {
-                  setState(() {
-                    _brand = v;
-                    _model = null; // сбрасываем модель при смене марки
-                    _models = [];
-                  });
-                  if (v != null) _loadModels(v);
-                },
-              ),
-            ),
+      // Кнопка неактивна, пока шаг не заполнен — как на сайте
+      // (disabled={!canNext1}): отказ виден до нажатия, а не после.
+      _stepNav(
+        showBack: false,
+        next: DarkPillButton(
+          label: context.t.sellNext,
+          variant: PillVariant.green,
+          expand: true,
+          onTap: _canLeaveStep1 ? () => _goToStep(2) : null,
+        ),
+      ),
+    ];
+  }
 
-            // ---------- Модель — появляется ТОЛЬКО когда выбрана марка ----------
-            if (_brand != null) ...[
-              const SizedBox(height: 12),
-              if (_loadingModels)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(),
-                )
-              else
-                _pickerField(
-                  label: context.t.formModel,
-                  value: _model,
-                  hint: context.t.formSelect,
-                  onTap: () => _pick(
-                    title: context.t.formModel,
-                    options: _models,
-                    current: _model,
-                    allowCustom: true,
-                    onPicked: (v) => setState(() => _model = v),
-                  ),
-                ),
-            ],
-            const SizedBox(height: 12),
+  // ============================================================
+  // ШАГ 2 — ДЕТАЛИ: цена, пробег, кузов, КПП, топливо, описание.
+  // ============================================================
+  List<Widget> _buildStepDetails() {
+    return [
+      _stepTitle(context.t.sellStepDetails),
 
-            // ---------- Год выпуска ----------
-            _pickerField(
-              label: context.t.carYear,
-              value: _year,
-              onTap: () => _pick(
-                title: context.t.carYear,
-                options: _years,
-                current: _year,
-                onPicked: (v) => setState(() => _year = v),
-              ),
-            ),
-            const SizedBox(height: 12),
+      // ---------- Цена (свободный ввод) ----------
+      // Первой: на сайте шаг «Детали» тоже открывается ценой — это
+      // главный вопрос к объявлению после самой машины.
+      _numField(
+        _priceCtrl,
+        _listingType == 'rent'
+            ? context.t.formRentPrice
+            : context.t.createPriceLabel,
+        // Отдельный ключ, а не общий priceNegotiable: тот стоит
+        // ВМЕСТО суммы на карточке и в каталоге, и «Цена договорная»
+        // читалось бы там как «Цена: Цена договорная».
+        hint: context.t.sellPriceNegotiableHint,
+      ),
+      const SizedBox(height: 12),
 
-            // ---------- Пробег (свободный ввод) ----------
-            _numField(_mileageCtrl, context.t.formMileage, hint: context.t.formOptional),
-            const SizedBox(height: 12),
+      // ---------- Пробег (свободный ввод) ----------
+      // Без заглушки «Необязательно»: на сайте поле пустое, а
+      // необязательность видна по отсутствию звёздочки у подписи.
+      _numField(_mileageCtrl, context.t.formMileage),
+      const SizedBox(height: 12),
 
-            // ---------- Цена (свободный ввод) ----------
-            _numField(
-              _priceCtrl,
-              _listingType == 'rent' ? context.t.formRentPrice : context.t.createPriceLabel,
-              hint: context.t.priceNegotiable,
-            ),
-            const SizedBox(height: 12),
-
-            // ---------- Кузов / КПП / Топливо (необязательные) ----------
-            _pickerField(
+      // ---------- Кузов / КПП / Топливо (необязательные) ----------
+      // ТРИ В РЯД, как grid-cols-3 сайта. Раньше каждый пикер занимал
+      // свою строку: шаг вытягивался на полтора экрана, хотя значения
+      // короткие («Седан», «Автомат», «Дизель») и умещаются втроём.
+      //
+      // Подписи «Кузов» и «Коробка» — короткие варианты: «Тип кузова»
+      // и «Коробка передач» в колонке шириной в треть экрана
+      // обрезались бы многоточием.
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _pickerField(
               label: context.t.formBodyType,
-              value: _bodyType == null ? null : context.t.bodyTypeLabel(_bodyType!),
-              hint: context.t.formNotSet,
+              value:
+                  _bodyType == null ? null : context.t.bodyTypeLabel(_bodyType!),
               onTap: () => _pickMap(
                 title: context.t.formBodyType,
                 items: context.t.bodyTypes,
@@ -657,13 +990,14 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
                 onPicked: (v) => setState(() => _bodyType = v),
               ),
             ),
-            const SizedBox(height: 12),
-            _pickerField(
+          ),
+          const SizedBox(width: AppBrandSpacing.sm),
+          Expanded(
+            child: _pickerField(
               label: context.t.formTransmission,
               value: _transmission == null
                   ? null
                   : context.t.transmissionLabel(_transmission!),
-              hint: context.t.formNotSet,
               onTap: () => _pickMap(
                 title: context.t.formTransmission,
                 items: context.t.transmissions,
@@ -671,11 +1005,12 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
                 onPicked: (v) => setState(() => _transmission = v),
               ),
             ),
-            const SizedBox(height: 12),
-            _pickerField(
+          ),
+          const SizedBox(width: AppBrandSpacing.sm),
+          Expanded(
+            child: _pickerField(
               label: context.t.carFuel,
               value: _fuel == null ? null : context.t.fuelLabel(_fuel!),
-              hint: context.t.formNotSet,
               onTap: () => _pickMap(
                 title: context.t.carFuel,
                 items: context.t.fuels,
@@ -683,97 +1018,178 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
                 onPicked: (v) => setState(() => _fuel = v),
               ),
             ),
-            const SizedBox(height: 12),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
 
-            // ---------- Описание (необязательно, до 6000 символов) ----------
-            TextField(
-              controller: _descCtrl,
-              maxLines: 5,
-              minLines: 3,
-              maxLength: 6000,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              // Заглавная в начале и после . ! ? — подсказка клавиатуре плюс
-              // форматтер, гарантирующий результат независимо от неё.
-              textCapitalization: TextCapitalization.sentences,
-              inputFormatters: [_SentenceCaseFormatter()],
-              decoration: InputDecoration(
-                labelText: context.t.carDescription,
-                hintText: context.t.carDescriptionHint,
-                alignLabelWithHint: true,
-                floatingLabelBehavior: FloatingLabelBehavior.always,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // ---------- Контактный телефон (обязательное, сербский моб./гор.) ----------
-            TextField(
-              controller: _phoneCtrl,
-              focusNode: _phoneFocus,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [SerbianPhoneFormatter()],
-              decoration: InputDecoration(
-                labelText: context.t.loginPhoneLabel,
-                hintText: '+381 6X XXX XXX',
-                floatingLabelBehavior: FloatingLabelBehavior.always,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ---------- Фото (до 10) ----------
-            Text(context.t.photosTitle(_photoUrls.length, _maxPhotos),
-                style: AppBrandText.h4
-                    .copyWith(color: AppBrandColors.neutral100)),
-            const SizedBox(height: 8),
-            _PhotoStrip(
-              urls: _photoUrls,
-              uploading: _uploading,
-              canAdd: _photoUrls.length < _maxPhotos,
-              onAdd: _pickAndUpload,
-              onRemove: (i) => setState(() => _photoUrls.removeAt(i)),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Текст последней ошибки валидации — красным над кнопкой.
-            // Снэкбар исчезает через несколько секунд, а причина отказа
-            // нужна ровно в момент, когда человек снова тянется к CTA.
-            if (_validationError != null) ...[
-              Text(
-                _validationError!,
-                textAlign: TextAlign.center,
-                style: AppBrandText.caption
-                    .copyWith(color: AppBrandColors.error),
-              ),
-              const SizedBox(height: AppBrandSpacing.sm),
-            ],
-
-            // ---------- Публикация / сохранение ----------
-            // Главное действие формы: зелёный CTA на всю ширину.
-            DarkPillButton(
-              label: _publishing
-                  ? context.t.createSaving
-                  : (_isEdit ? context.t.createSaveAndSend : context.t.createPublish),
-              variant: PillVariant.green,
-              expand: true,
-              onTap: _publishing ? null : _publish,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.t.createAfterPublishNote,
-              style: AppBrandText.caption
-                  .copyWith(color: AppBrandColors.neutral60),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      // ---------- Описание (необязательно, до 6000 символов) ----------
+      // Подпись строкой над полем — как у остальных полей формы.
+      _fieldLabel(context.t.carDescription),
+      TextField(
+        controller: _descCtrl,
+        maxLines: 5,
+        minLines: 5,
+        maxLength: 6000,
+        // counterText пустой: счётчик «0/6000» под пустым полем — шум.
+        // На сайте его нет, ограничение там задано атрибутом maxLength
+        // и всплывает только когда предел действительно близок.
+        buildCounter: (_,
+                {required currentLength, required isFocused, maxLength}) =>
+            null,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        // Заглавная в начале и после . ! ? — подсказка клавиатуре плюс
+        // форматтер, гарантирующий результат независимо от неё.
+        textCapitalization: TextCapitalization.sentences,
+        inputFormatters: [_SentenceCaseFormatter()],
+        style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
+        decoration: InputDecoration(
+          hintText: context.t.carDescriptionHint,
+          alignLabelWithHint: true,
+          // Как и у числовых полей: в теме isDense: true, и без явного
+          // отключения многострочное поле поджимается по вертикали.
+          isDense: false,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppBrandSpacing.sm + 4,
+            vertical: AppBrandSpacing.sm + 4,
+          ),
         ),
       ),
-    );
+      const SizedBox(height: AppBrandSpacing.md),
+
+      _stepNav(
+        next: DarkPillButton(
+          label: context.t.sellNext,
+          variant: PillVariant.green,
+          expand: true,
+          onTap: () => _goToStep(3),
+        ),
+      ),
+    ];
   }
 
-  // Поле-пикер — идентично фильтрам (тот же вид и размер шрифта значения).
+  // ============================================================
+  // ШАГ 3 — ФОТОГРАФИИ. Минимум один снимок обязателен.
+  // ============================================================
+  List<Widget> _buildStepPhotos() {
+    return [
+      _stepTitle(context.t.sellStepPhotos),
+
+      // Кнопка добавления — ШИРОКАЯ ПОЛОСА во всю ширину карточки
+      // с пунктирной рамкой, как на сайте. Прежний маленький квадрат
+      // с иконкой слева читался как одна из миниатюр, а не как
+      // единственное действие шага.
+      //
+      // Подписи «Фотографии (0/10)» здесь больше нет: заголовок шага
+      // уже называется «Фотографии», и счётчик переехал в хвост строки
+      // требований — ровно как на сайте.
+      _AddPhotosButton(
+        uploading: _uploading,
+        enabled: _photoUrls.length < _maxPhotos,
+        onTap: _pickAndUpload,
+      ),
+      const SizedBox(height: AppBrandSpacing.sm),
+
+      // Требования к файлам и счётчик одной строкой.
+      Text(
+        '${context.t.sellPhotosHint} · ${_photoUrls.length} / $_maxPhotos',
+        style: AppBrandText.small.copyWith(color: AppBrandColors.neutral50),
+      ),
+
+      // Миниатюры показываем только когда есть что показывать.
+      if (_photoUrls.isNotEmpty) ...[
+        const SizedBox(height: AppBrandSpacing.md),
+        _PhotoStrip(
+          urls: _photoUrls,
+          onRemove: (i) => setState(() => _photoUrls.removeAt(i)),
+          onMove: _movePhoto,
+        ),
+      ],
+      const SizedBox(height: AppBrandSpacing.lg),
+
+      _stepNav(
+        next: DarkPillButton(
+          label: context.t.sellNext,
+          variant: PillVariant.green,
+          expand: true,
+          onTap: _goToContacts,
+        ),
+      ),
+    ];
+  }
+
+  // ============================================================
+  // ШАГ 4 — КОНТАКТЫ И ПУБЛИКАЦИЯ.
+  // ============================================================
+  List<Widget> _buildStepContact() {
+    return [
+      _stepTitle(context.t.sellStepContact),
+
+      // ---------- Контактный телефон (обязательное) ----------
+      // Подпись строкой над полем, как у остальных полей формы
+      // и как «Номер телефона» на сайте.
+      _fieldLabel(context.t.sellPhone),
+      TextField(
+        controller: _phoneCtrl,
+        focusNode: _phoneFocus,
+        keyboardType: TextInputType.phone,
+        inputFormatters: [SerbianPhoneFormatter()],
+        style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
+        decoration: const InputDecoration(
+          hintText: '+381 6X XXX XXX',
+          isDense: false,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: AppBrandSpacing.sm + 4,
+            vertical: 12,
+          ),
+        ),
+      ),
+      const SizedBox(height: AppBrandSpacing.lg),
+
+      // ---------- Публикация / сохранение ----------
+      // Кнопки СТОЛБИКОМ, а не в строку: подпись «Опубликовать
+      // объявление» длинная и в половине ширины обрезалась
+      // многоточием. На сайте последний шаг устроен так же —
+      // главное действие во всю ширину, «Назад» отдельной строкой
+      // под ним.
+      DarkPillButton(
+        label: _publishing
+            ? context.t.createSaving
+            : (_isEdit
+                ? context.t.createSaveAndSend
+                : context.t.createPublish),
+        variant: PillVariant.green,
+        expand: true,
+        onTap: _publishing ? null : _publish,
+      ),
+      const SizedBox(height: AppBrandSpacing.sm),
+      DarkPillButton(
+        label: context.t.sellBack,
+        variant: PillVariant.outline,
+        expand: true,
+        onTap: () => _goToStep(3),
+      ),
+      const SizedBox(height: AppBrandSpacing.sm),
+      Text(
+        context.t.createAfterPublishNote,
+        style: AppBrandText.caption.copyWith(color: AppBrandColors.neutral60),
+        textAlign: TextAlign.center,
+      ),
+    ];
+  }
+
+  // Поле-пикер формы подачи — зеркало ListPicker сайта.
+  //
+  // Подпись стоит ОТДЕЛЬНОЙ СТРОКОЙ НАД рамкой, а не врезана в неё.
+  // Раньше здесь был InputDecorator с labelText, то есть Material
+  // floating label: подпись разрывала линию рамки сверху. На сайте
+  // такого нет ни на одном поле — там <label> над контролом, а рамка
+  // всегда замкнутая.
+  //
+  // Тема приложения (InputDecorationTheme) при этом НЕ трогается: она
+  // общая для входа, фильтров и профиля, и менять её ради одной формы
+  // значило бы переделать половину экранов заодно.
   Widget _pickerField({
     required String label,
     required String? value,
@@ -781,57 +1197,90 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     bool enabled = true,
     String? hint,
   }) {
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: AppBrandRadius.controlAll,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          enabled: enabled,
-        ),
-        child: SizedBox(
-          height: AppTheme.controlHeight - 24,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  value ?? (hint ?? context.t.formSelect),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppBrandText.body.copyWith(
-                    color: value == null
-                        ? AppBrandColors.neutral30
-                        : AppBrandColors.neutral100,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel(label),
+        InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: AppBrandRadius.controlAll,
+          child: Container(
+            height: AppTheme.controlHeight,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppBrandSpacing.sm + 4, // px-3 сайта
+            ),
+            decoration: BoxDecoration(
+              // Неактивное поле — заливка surfaceHover, как
+              // «bg-surface-hover» у disabled-пикера сайта.
+              color: enabled ? AppBrandColors.bg : AppBrandColors.surfaceHover,
+              borderRadius: AppBrandRadius.controlAll,
+              border: Border.all(color: AppBrandColors.neutral15),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value ?? (hint ?? context.t.formAny),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppBrandText.body.copyWith(
+                      // Незаполненное значение — подсказка neutral40,
+                      // как «text-neutral-40» у пикера сайта.
+                      color: value == null
+                          ? AppBrandColors.neutral40
+                          : AppBrandColors.neutral100,
+                    ),
                   ),
                 ),
-              ),
-              if (enabled)
-                const Icon(
-                  Icons.arrow_drop_down,
-                  color: AppBrandColors.neutral60,
+                // Треугольник «▾» — тот же знак, что на сайте. Крупная
+                // Material-шевронка (Icons.arrow_drop_down) выбивалась
+                // из эталона по весу и размеру.
+                Text(
+                  '▾',
+                  style: AppBrandText.body
+                      .copyWith(color: AppBrandColors.neutral40),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
   // Числовое поле: только цифры, сумма форматируется как «1 000».
-  // Рамка/радиус/фокус — из inputDecorationTheme (пакет А1).
+  // Подпись — той же строкой над рамкой, что у пикера: на шаге «Детали»
+  // числовые поля стоят вперемешку с пикерами, и разнобой был бы виден.
   Widget _numField(TextEditingController ctrl, String label, {String? hint}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: TextInputType.number,
-      inputFormatters: const [ThousandsFormatter()],
-      style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        // Лейбл всегда «поднят» в рамку, чтобы hint не сливался с ним.
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel(label),
+        TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: const [ThousandsFormatter()],
+          style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
+          decoration: InputDecoration(
+            // labelText НЕ задаём: подпись уже стоит над полем, и
+            // Material нарисовал бы её вторично внутри рамки.
+            hintText: hint,
+            // isDense: false обязателен. В теме стоит true (плотные поля
+            // фильтров), и вместе с обнулённым вертикальным паддингом
+            // рамка схлопывалась вдвое ниже эталона: текст прижимался
+            // к границам, а поле выглядело капсулой.
+            isDense: false,
+            // Высота набирается ПАДДИНГОМ, а не внешним SizedBox:
+            // 12 + 12 + интерлиньяж 24 у текста 16px = 48, ровно
+            // controlHeight. SizedBox растягивал только рамку, тогда
+            // как содержимое внутри оставалось сжатым.
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppBrandSpacing.sm + 4,
+              vertical: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -967,84 +1416,208 @@ class _SelectScreenState extends State<_SelectScreen> {
 class _PhotoStrip extends StatelessWidget {
   const _PhotoStrip({
     required this.urls,
-    required this.uploading,
-    required this.canAdd,
-    required this.onAdd,
     required this.onRemove,
+    required this.onMove,
   });
 
   final List<String> urls;
-  final bool uploading;
-  final bool canAdd; // false → достигнут лимит, кнопку добавления прячем
-  final VoidCallback onAdd;
   final void Function(int) onRemove;
+
+  /// Перестановка: (индекс, направление -1|1). Порядок определяет,
+  /// какой кадр станет обложкой в каталоге, поэтому это не украшение,
+  /// а единственный способ выбрать главное фото.
+  final void Function(int index, int direction) onMove;
 
   @override
   Widget build(BuildContext context) {
     // Превью 4:3 — та же пропорция, что у карточки каталога и галереи:
-    // человек сразу видит, каким кадр будет в выдаче. Раньше миниатюры
-    // были квадратными 100×100, и кадр в объявлении оказывался обрезан
-    // не так, как в превью.
+    // человек сразу видит, каким кадр будет в выдаче.
     const previewH = 90.0;
     const previewW = previewH * 4 / 3;
+    // Полоса со стрелками под кадром — как на сайте: «py-1.5» (6+6)
+    // плюс интерлиньяж 20 у текста caption = 32. На 28 полоса была
+    // ниже эталона, и стрелки в ней стояли теснее.
+    const navH = 32.0;
+    // Рамка карточки добавляет по пикселю сверху и снизу. Без этих
+    // двух пикселей содержимое не помещалось в SizedBox, и Flutter
+    // рисовал «BOTTOM OVERFLOWED BY 2.0 PIXELS» поверх стрелок.
+    const borderH = 2.0;
 
     return SizedBox(
-      height: previewH,
-      child: ListView(
+      height: previewH + navH + borderH,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        children: [
-          // Кнопка добавления — только пока не достигнут лимит
-          if (canAdd || uploading)
-            GestureDetector(
-              onTap: uploading ? null : onAdd,
-              child: Container(
-                width: previewW,
-                margin: const EdgeInsets.only(right: AppBrandSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppBrandColors.surfaceMuted,
-                  border: Border.all(color: AppBrandColors.neutral15),
-                  borderRadius: AppBrandRadius.controlAll,
-                ),
-                child: uploading
-                    ? const Center(child: CircularProgressIndicator())
-                    : const Icon(
-                        Icons.add_a_photo,
-                        size: 28,
-                        color: AppBrandColors.neutral60,
-                      ),
-              ),
+        itemCount: urls.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(width: AppBrandSpacing.sm),
+        itemBuilder: (context, i) {
+          return Container(
+            width: previewW,
+            decoration: BoxDecoration(
+              borderRadius: AppBrandRadius.controlAll,
+              border: Border.all(color: AppBrandColors.neutral10),
             ),
-          // Миниатюры загруженных фото
-          for (int i = 0; i < urls.length; i++)
-            Stack(
+            // clipBehavior обязателен: фотография и полоса стрелок
+            // обязаны обрезаться по скруглению рамки.
+            clipBehavior: Clip.antiAlias,
+            child: Column(
               children: [
-                Container(
-                  width: previewW,
+                SizedBox(
                   height: previewH,
-                  margin: const EdgeInsets.only(right: AppBrandSpacing.sm),
-                  decoration: BoxDecoration(
-                    borderRadius: AppBrandRadius.controlAll,
-                    image: DecorationImage(
-                      image: NetworkImage(urls[i]),
-                      fit: BoxFit.cover,
-                    ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(urls[i], fit: BoxFit.cover),
+
+                      // Метка обложки на ПЕРВОМ кадре: подсказка под
+                      // кнопкой обещает «первая фотография — главная»,
+                      // и метка показывает, какая именно сейчас первая.
+                      if (i == 0)
+                        Positioned(
+                          left: AppBrandSpacing.xs,
+                          top: AppBrandSpacing.xs,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppBrandColors.dark,
+                              borderRadius: BorderRadius.circular(
+                                AppBrandRadius.sm,
+                              ),
+                            ),
+                            child: Text(
+                              context.t.sellPhotosCover,
+                              style: AppBrandText.small.copyWith(
+                                color: Colors.white,
+                                fontWeight: AppBrandFont.semibold,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Удаление — КРАСНЫЙ круг, как на сайте: действие
+                      // необратимое, и тёмный кружок не отличался от
+                      // остальных элементов поверх кадра.
+                      Positioned(
+                        right: AppBrandSpacing.xs,
+                        top: AppBrandSpacing.xs,
+                        child: Semantics(
+                          button: true,
+                          label: context.t.sellPhotosRemove,
+                          child: GestureDetector(
+                            onTap: () => onRemove(i),
+                            // Знак — текстовый «×» размера caption (14),
+                            // как на сайте. Icons.close 16 рисуется
+                            // толще и крупнее: на кружке 24px он
+                            // занимал почти всю площадь.
+                            child: CircleAvatar(
+                              radius: 12,
+                              backgroundColor: AppBrandColors.red,
+                              child: Text(
+                                '×',
+                                style: AppBrandText.caption.copyWith(
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Positioned(
-                  right: 12,
-                  top: AppBrandSpacing.xs,
-                  child: GestureDetector(
-                    onTap: () => onRemove(i),
-                    child: const CircleAvatar(
-                      radius: 12,
-                      backgroundColor: AppBrandColors.dark,
-                      child: Icon(Icons.close, size: 16, color: Colors.white),
+
+                // Полоса перестановки. Крайние стрелки гасятся на
+                // границах списка — как disabled-кнопки сайта.
+                SizedBox(
+                  height: navH,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: AppBrandColors.neutral10),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _MoveButton(
+                            glyph: '←',
+                            tooltip: context.t.sellPhotosMoveLeft,
+                            enabled: i > 0,
+                            onTap: () => onMove(i, -1),
+                          ),
+                        ),
+                        const VerticalDivider(
+                          width: 1,
+                          thickness: 1,
+                          color: AppBrandColors.neutral10,
+                        ),
+                        Expanded(
+                          child: _MoveButton(
+                            glyph: '→',
+                            tooltip: context.t.sellPhotosMoveRight,
+                            enabled: i < urls.length - 1,
+                            onTap: () => onMove(i, 1),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-        ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Кнопка перестановки кадра. Неактивная не исчезает, а гаснет до
+// neutral30: пропадающая кнопка сдвигала бы соседнюю под палец.
+class _MoveButton extends StatelessWidget {
+  const _MoveButton({
+    required this.glyph,
+    required this.tooltip,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  /// Символ стрелки («←» или «→»), а не IconData: на сайте это тоже
+  /// текстовые знаки. Material-иконки arrow_back/arrow_forward рисуются
+  /// заметно жирнее и с длинным хвостом — рядом с эталоном они читались
+  /// как другой элемент.
+  final String glyph;
+
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: tooltip,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: Center(
+            child: Text(
+              glyph,
+              style: AppBrandText.caption.copyWith(
+                color: enabled
+                    ? AppBrandColors.neutral60
+                    : AppBrandColors.neutral30,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1057,9 +1630,9 @@ class _PhotoStrip extends StatelessWidget {
 // нейтральная рамка на белом. Ровно так на сайте выглядит выбранный
 // вариант в паре кнопок: выбор читается по заливке, а не по оттенку.
 //
-// Пока тип не выбран, оба сегмента неактивны: подача требует явного
-// решения, и подсвечивать «Продаю» по умолчанию нельзя — человек
-// опубликовал бы аренду как продажу, не заметив.
+// При открытии формы подсвечено «Продаю» — так же, как на сайте.
+// Виджет при этом умеет показывать и состояние «ничего не выбрано»
+// (value == null): оно остаётся рабочим, потому что поле nullable.
 class _ListingTypeSegment extends StatelessWidget {
   const _ListingTypeSegment({
     required this.value,
@@ -1121,7 +1694,9 @@ class _ListingTypeSegment extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppBrandText.body.copyWith(
+            // caption (14) = text-sm сайта. body (16) делал подписи
+            // сегмента крупнее, чем на эталоне.
+            style: AppBrandText.caption.copyWith(
               color: selected ? Colors.white : AppBrandColors.neutral100,
               fontWeight:
                   selected ? AppBrandFont.semibold : AppBrandFont.regular,
@@ -1131,4 +1706,140 @@ class _ListingTypeSegment extends StatelessWidget {
       ),
     );
   }
+}
+
+// ============================================================
+// РАМКА ФОРМЫ — зеркало components/ui/Card сайта.
+// ============================================================
+// Белая подложка, граница neutral10, радиус card и внутренний отступ.
+// Тени НЕТ: на сайте карточки разделяются границей, а тень появляется
+// только у кликабельной карточки объявления при наведении.
+class _FormCard extends StatelessWidget {
+  const _FormCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppBrandSpacing.md),
+      decoration: BoxDecoration(
+        color: AppBrandColors.bg,
+        borderRadius: AppBrandRadius.cardAll,
+        border: Border.all(color: AppBrandColors.neutral10),
+      ),
+      child: child,
+    );
+  }
+}
+
+// ============================================================
+// КНОПКА «ДОБАВИТЬ ФОТОГРАФИИ» — зеркало <label> пикера сайта.
+// ============================================================
+// Широкая полоса во всю ширину карточки с ПУНКТИРНОЙ рамкой и текстом
+// по центру. Пунктир здесь несёт смысл: он отличает «место, куда нужно
+// положить файлы» от обычной кнопки действия — тот же приём, что
+// на сайте.
+//
+// Во Flutter пунктирной рамки в BoxDecoration нет, поэтому она
+// рисуется CustomPainter: заводить ради одной рамки пакет
+// (dotted_border) было бы дороже, чем двадцать строк отрисовки.
+class _AddPhotosButton extends StatelessWidget {
+  const _AddPhotosButton({
+    required this.uploading,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final bool uploading;
+
+  /// false — достигнут лимит: кнопка гасится, но остаётся на месте,
+  /// иначе исчезновение единственного действия выглядит как поломка.
+  final bool enabled;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = enabled && !uploading;
+
+    return Opacity(
+      opacity: active ? 1 : 0.4,
+      child: InkWell(
+        onTap: active ? onTap : null,
+        borderRadius: AppBrandRadius.controlAll,
+        child: CustomPaint(
+          painter: const _DashedBorderPainter(
+            color: AppBrandColors.neutral15,
+            radius: AppBrandRadius.control,
+          ),
+          child: SizedBox(
+            // Та же высота, что у полей формы: кнопка стоит в одном
+            // столбце с ними и обязана держать общий ритм.
+            height: AppTheme.controlHeight,
+            width: double.infinity,
+            child: Center(
+              child: uploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      context.t.sellPhotosAdd,
+                      style: AppBrandText.body.copyWith(
+                        color: AppBrandColors.neutral100,
+                        fontWeight: AppBrandFont.medium,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Пунктирная рамка со скруглением. Штрих и разрыв по 4 логических
+// пикселя — тот же ритм, что даёт CSS «border-dashed» в браузере.
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+
+    // Путь режем на отрезки: PathMetric даёт длину контура, и по нему
+    // выбираются куски «штрих — пропуск» до самого конца.
+    const dash = 4.0;
+    const gap = 4.0;
+    final path = Path()..addRRect(rrect);
+
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final next = distance + dash;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }

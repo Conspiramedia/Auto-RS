@@ -18,6 +18,11 @@ enum PillVariant {
   green,  // главное/подтверждающее действие
   blue,   // связь / второстепенное
   red,    // сброс / деструктив
+  /// Контурная: равнозначное действие рядом с главным — «Назад» в
+  /// пошаговой подаче. Зеркало variant="secondary" кнопки сайта.
+  /// Заливки нет: второй сплошной плашки рядом с зелёным CTA быть
+  /// не должно, иначе на экране два одинаково громких действия.
+  outline,
 }
 
 /// Тонкий слой ролей поверх палитры бренда. Собственных значений здесь
@@ -45,5 +50,17 @@ class AppButtonColors {
         PillVariant.green => green,
         PillVariant.blue => blue,
         PillVariant.red => red,
+        // Прозрачная заливка: вид кнопке задают рамка и цвет текста.
+        PillVariant.outline => Colors.transparent,
       };
+
+  /// Цвет РАМКИ по роли. Рамка есть только у контурного варианта —
+  /// у остальных её роль выполняет сплошная заливка.
+  static Color? border(PillVariant v) =>
+      v == PillVariant.outline ? AppBrandColors.neutral15 : null;
+
+  /// Цвет ТЕКСТА и иконки по роли. На сплошных плашках он белый,
+  /// на контурной — основной текст: белым по белому не читается.
+  static Color content(PillVariant v) =>
+      v == PillVariant.outline ? AppBrandColors.neutral100 : Colors.white;
 }

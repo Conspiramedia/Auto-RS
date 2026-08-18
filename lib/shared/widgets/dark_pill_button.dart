@@ -31,14 +31,29 @@ class DarkPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const radius = AppBrandRadius.pillAll;
+    // Радиус — control (12), как rounded-control у кнопки сайта.
+    // Раньше здесь стоял pillAll (999): плашка выходила капсулой, тогда
+    // как на сайте у неё скруглённые углы. Расхождение было видно на
+    // любом экране, где кнопки лежат рядом с полями того же радиуса.
+    const radius = AppBrandRadius.controlAll;
     final isDark = variant == PillVariant.dark;
-    // Иконка: золотая на тёмной плашке, белая на цветных.
-    final iconColor = isDark ? AppButtonColors.gold : Colors.white;
+    // Цвет текста и иконки берём из роли: на сплошных плашках он белый,
+    // на контурной («Назад» в подаче) — основной, иначе белым по белому.
+    final contentColor = AppButtonColors.content(variant);
+    // Иконка: золотая на тёмной плашке, цвет содержимого — на остальных.
+    final iconColor = isDark ? AppButtonColors.gold : contentColor;
+    final borderColor = AppButtonColors.border(variant);
+
+    // Неактивная кнопка (onTap == null) гасится прозрачностью, как
+    // disabled:opacity-40 на сайте. Без этого «Далее» на первом шаге
+    // подачи выглядела обычной зелёной кнопкой, которая молча не
+    // нажимается, — человек решал, что приложение сломалось.
+    final enabled = onTap != null;
 
     final decoration = BoxDecoration(
       borderRadius: radius,
       color: AppButtonColors.fill(variant),
+      border: borderColor == null ? null : Border.all(color: borderColor),
     );
 
     final button = DecoratedBox(
@@ -52,7 +67,10 @@ class DarkPillButton extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: SizedBox(
-                height: 52,
+                // 48 = py-3 (12+12) + интерлиньяж 24 у текста 16px.
+                // Ровно высота кнопки сайта; прежние 52 не совпадали
+                // ни с ней, ни с высотой полей формы.
+                height: 48,
                 child: Row(
                   mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -66,8 +84,12 @@ class DarkPillButton extends StatelessWidget {
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppBrandText.small.copyWith(
-                          color: Colors.white,
+                        // body (16), как у кнопки сайта: там размер
+                        // не задан классом и наследуется от базового
+                        // 16px. Стоявший здесь small (12) делал подпись
+                        // заметно мельче эталона.
+                        style: AppBrandText.body.copyWith(
+                          color: contentColor,
                           fontWeight: AppBrandFont.semibold,
                         ),
                       ),
@@ -81,7 +103,10 @@ class DarkPillButton extends StatelessWidget {
       ),
     );
 
+    // 0.4 — то же значение, что у disabled:opacity-40 сайта.
+    final opaque = enabled ? button : Opacity(opacity: 0.4, child: button);
+
     // По контенту — оборачиваем в Align, чтобы не растягивалась на всю ширину.
-    return expand ? button : Align(alignment: Alignment.center, child: button);
+    return expand ? opaque : Align(alignment: Alignment.center, child: opaque);
   }
 }

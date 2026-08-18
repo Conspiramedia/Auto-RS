@@ -26,6 +26,7 @@ import '../widgets/car_card.dart';
 import '../widgets/catalog_empty_state.dart';
 import '../widgets/filter_chips_bar.dart';
 import 'filters_screen.dart';
+import '../../../shared/widgets/app_close_button.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -870,13 +871,22 @@ class _SortSelect extends StatelessWidget {
                 AppBrandSpacing.lg,
                 AppBrandSpacing.sm,
               ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  ctx.t.catalogSort,
-                  style: AppBrandText.h4
-                      .copyWith(color: AppBrandColors.neutral100),
-                ),
+              // Заголовок и крестик в одной строке: у листа обязано
+              // быть видимое действие закрытия, а не только свайп.
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      ctx.t.catalogSort,
+                      style: AppBrandText.h4
+                          .copyWith(color: AppBrandColors.neutral100),
+                    ),
+                  ),
+                  AppCloseButton(
+                    tooltip: ctx.t.commonClose,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
             ),
             for (final (key, label) in options)

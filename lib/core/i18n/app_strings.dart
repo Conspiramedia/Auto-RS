@@ -84,6 +84,27 @@ class AppStrings {
     required this.formRangeTo,
     required this.filtersShowResults,
     required this.carDescriptionHint,
+    required this.sellPhone,
+    required this.sellPhotosCover,
+    required this.sellPhotosMoveLeft,
+    required this.sellPhotosMoveRight,
+    required this.sellPhotosRemove,
+    required this.sellPhotosAdd,
+    required this.sellPhotosHint,
+    required this.sellPriceNegotiableHint,
+    required this.sellTitle,
+    required this.sellSubtitle,
+    required this.pickerModelNoBrand,
+    required this.sellStep,
+    required this.sellNext,
+    required this.sellBack,
+    required this.sellStepCar,
+    required this.sellStepDetails,
+    required this.sellStepPhotos,
+    required this.sellStepContact,
+    required this.sellTypeSale,
+    required this.sellTypeRent,
+    required this.sellErrPhotosRequired,
     required this.createTitleNew,
     required this.createTitleEdit,
     required this.createTitleCopy,
@@ -460,6 +481,77 @@ class AppStrings {
   final String formRangeTo;
   final String filtersShowResults;
   final String carDescriptionHint;
+  /// Подпись поля телефона в ФОРМЕ ПОДАЧИ — зеркало sell_phone сайта.
+  ///
+  /// Отдельно от loginPhoneLabel: тот стоит на экране входа, где рядом
+  /// нет других полей и короткого «Телефон» достаточно. В форме поле
+  /// соседствует с ценой и пробегом, и подпись обязана называть его
+  /// полностью, как на сайте.
+  final String sellPhone;
+
+  /// Метка на первом кадре: он попадает в каталог обложкой. Подсказка
+  /// под кнопкой обещает «первая фотография — главная», и метка
+  /// показывает, какая именно фотография сейчас первая.
+  final String sellPhotosCover;
+
+  /// Перестановка кадров стрелками. Порядок здесь — не украшение:
+  /// им продавец выбирает, какой снимок станет обложкой.
+  final String sellPhotosMoveLeft;
+  final String sellPhotosMoveRight;
+
+  /// Подпись кнопки удаления для средств доступности.
+  final String sellPhotosRemove;
+
+  /// Шаг «Фотографии» — зеркало ключей sell_photos_* сайта.
+  ///
+  /// Подпись на кнопке добавления и строка требований под ней:
+  /// форматы, предел размера и объяснение, что первый кадр попадает
+  /// в каталог. Без неё продавец узнавал об отказе только после
+  /// выбора неподходящего файла.
+  final String sellPhotosAdd;
+  final String sellPhotosHint;
+
+  /// Заглушка пустого поля цены в ФОРМЕ ПОДАЧИ — зеркало
+  /// car_price_negotiable сайта.
+  ///
+  /// Отдельно от priceNegotiable: тот показывается ВМЕСТО суммы на
+  /// карточке объявления и в каталоге, где «Цена договорная» дало бы
+  /// «Цена: Цена договорная». Здесь же поле уже подписано «Цена
+  /// продажи», и заглушка — законченная фраза.
+  final String sellPriceNegotiableHint;
+
+  /// Заголовок и подзаголовок формы подачи — зеркало sell_title и
+  /// sell_subtitle сайта.
+  ///
+  /// Тексты ДОСЛОВНЫЕ, как на сайте, включая «без установки приложения»:
+  /// подача открывается и из веб-версии, и требование пользователя —
+  /// одинаковый текст в обоих клиентах.
+  final String sellTitle;
+  final String sellSubtitle;
+
+  /// Подсказка в неактивном поле «Модель», пока не выбрана марка.
+  /// Зеркало picker_model_no_brand сайта: поле показывается всегда,
+  /// и должно объяснять, почему по нему нельзя нажать.
+  final String pickerModelNoBrand;
+
+  /// Пошаговая подача — зеркало ключей sell_* сайта (lib/i18n.ts).
+  /// Форма разбита на те же 4 шага: Автомобиль → Детали → Фото → Контакты.
+  final String sellStep;
+  final String sellNext;
+  final String sellBack;
+  final String sellStepCar;
+  final String sellStepDetails;
+  final String sellStepPhotos;
+  final String sellStepContact;
+
+  /// Подписи сегмента типа. Намеренно от первого лица («Продаю»), как на
+  /// сайте: это выбор действия продавца, а не категория объявления —
+  /// в фильтрах те же значения подписаны иначе (filterSale/filterRent).
+  final String sellTypeSale;
+  final String sellTypeRent;
+
+  final String sellErrPhotosRequired;
+
   final String createTitleNew;
   final String createTitleEdit;
   final String createTitleCopy;
@@ -1107,14 +1199,14 @@ const AppStrings _ru = AppStrings(
   formBrand: 'Марка',
   formModel: 'Модель',
   formCity: 'Город',
-  formBodyType: 'Тип кузова',
-  formTransmission: 'Коробка передач',
+  formBodyType: 'Кузов',
+  formTransmission: 'Коробка',
   formMileage: 'Пробег, км',
   formPrice: 'Цена, €',
-  formRentPrice: 'Цена аренды в сутки, EUR',
+  formRentPrice: 'Цена за сутки, €',
   formListingType: 'Тип объявления',
   formSelect: 'Выберите',
-  formAny: 'Не важно',
+  formAny: 'Все',
   formAll: 'Все',
   formOptional: 'Необязательно',
   formNotSet: 'Не указано',
@@ -1126,10 +1218,33 @@ const AppStrings _ru = AppStrings(
   formRangeTo: '{label} до',
   filtersShowResults: 'Показать объявления',
   carDescriptionHint: 'Состояние, комплектация, история…',
+  sellPhone: 'Номер телефона',
+  sellPhotosCover: 'Главная',
+  sellPhotosMoveLeft: 'Сдвинуть влево',
+  sellPhotosMoveRight: 'Сдвинуть вправо',
+  sellPhotosRemove: 'Удалить фотографию',
+  sellPhotosAdd: 'Добавить фотографии',
+  sellPhotosHint:
+      'JPG, PNG или WebP, до 10 МБ. Первая фотография — главная.',
+  sellPriceNegotiableHint: 'Цена договорная',
+  sellTitle: 'Продайте автомобиль',
+  sellSubtitle:
+      'Разместите объявление бесплатно — без установки приложения.',
+  pickerModelNoBrand: 'Сначала выберите марку',
+  sellStep: 'Шаг',
+  sellNext: 'Далее',
+  sellBack: 'Назад',
+  sellStepCar: 'Автомобиль',
+  sellStepDetails: 'Детали',
+  sellStepPhotos: 'Фотографии',
+  sellStepContact: 'Контакты',
+  sellTypeSale: 'Продаю',
+  sellTypeRent: 'Сдаю',
+  sellErrPhotosRequired: 'Добавьте хотя бы одну фотографию автомобиля.',
   createTitleNew: 'Новое объявление',
   createTitleEdit: 'Редактирование',
   createTitleCopy: 'Копия объявления',
-  createPublish: 'Опубликовать',
+  createPublish: 'Опубликовать объявление',
   createSaveAndSend: 'Сохранить и отправить',
   createSaving: 'Сохраняем…',
   createSentToModeration: 'Объявление отправлено на модерацию',
@@ -1174,7 +1289,7 @@ const AppStrings _ru = AppStrings(
   validatePhoneRequired: 'Укажите контактный телефон',
   validatePhoneFormat: 'Введите корректный номер: моб. +381 6X XXX XXX или гор. +381 11 XXX XXX',
   createAfterPublishNote: 'После публикации объявление уходит на модерацию и появится в каталоге после одобрения.',
-  createPriceLabel: 'Цена, EUR',
+  createPriceLabel: 'Цена продажи, €',
   createPricePositive: 'Цена должна быть больше нуля или оставьте поле пустым',
   createDuplicateExists: 'Уже есть такое объявление',
   createPhoneNoteSuffix: 'мы отправим код в SMS.',
@@ -1478,14 +1593,14 @@ const AppStrings _sr = AppStrings(
   formBrand: 'Marka',
   formModel: 'Model',
   formCity: 'Grad',
-  formBodyType: 'Tip karoserije',
+  formBodyType: 'Karoserija',
   formTransmission: 'Menjač',
   formMileage: 'Kilometraža, km',
   formPrice: 'Cena, €',
-  formRentPrice: 'Cena najma po danu, EUR',
+  formRentPrice: 'Cena po danu, €',
   formListingType: 'Tip oglasa',
   formSelect: 'Izaberite',
-  formAny: 'Nije važno',
+  formAny: 'Sve',
   formAll: 'Sve',
   formOptional: 'Opciono',
   formNotSet: 'Nije navedeno',
@@ -1497,10 +1612,33 @@ const AppStrings _sr = AppStrings(
   formRangeTo: '{label} do',
   filtersShowResults: 'Prikaži oglase',
   carDescriptionHint: 'Stanje, oprema, istorija…',
+  sellPhone: 'Broj telefona',
+  sellPhotosCover: 'Naslovna',
+  sellPhotosMoveLeft: 'Pomeri levo',
+  sellPhotosMoveRight: 'Pomeri desno',
+  sellPhotosRemove: 'Ukloni fotografiju',
+  sellPhotosAdd: 'Dodaj fotografije',
+  sellPhotosHint:
+      'JPG, PNG ili WebP, do 10 MB. Prva fotografija je naslovna.',
+  sellPriceNegotiableHint: 'Cena na upit',
+  sellTitle: 'Prodajte automobil',
+  sellSubtitle:
+      'Objavite oglas besplatno — bez instaliranja aplikacije.',
+  pickerModelNoBrand: 'Prvo izaberite marku',
+  sellStep: 'Korak',
+  sellNext: 'Dalje',
+  sellBack: 'Nazad',
+  sellStepCar: 'Automobil',
+  sellStepDetails: 'Detalji',
+  sellStepPhotos: 'Fotografije',
+  sellStepContact: 'Kontakt',
+  sellTypeSale: 'Prodajem',
+  sellTypeRent: 'Izdajem',
+  sellErrPhotosRequired: 'Dodajte bar jednu fotografiju automobila.',
   createTitleNew: 'Novi oglas',
   createTitleEdit: 'Izmena',
   createTitleCopy: 'Kopija oglasa',
-  createPublish: 'Objavi',
+  createPublish: 'Objavi oglas',
   createSaveAndSend: 'Sačuvaj i pošalji',
   createSaving: 'Čuvamo…',
   createSentToModeration: 'Oglas je poslat na moderaciju',
@@ -1545,7 +1683,7 @@ const AppStrings _sr = AppStrings(
   validatePhoneRequired: 'Unesite kontakt telefon',
   validatePhoneFormat: 'Unesite ispravan broj: mob. +381 6X XXX XXX ili fiksni +381 11 XXX XXX',
   createAfterPublishNote: 'Nakon objave oglas ide na moderaciju i pojaviće se u katalogu posle odobrenja.',
-  createPriceLabel: 'Cena, EUR',
+  createPriceLabel: 'Cena prodaje, €',
   createPricePositive: 'Cena mora biti veća od nule ili ostavite polje prazno',
   createDuplicateExists: 'Takav oglas već postoji',
   createPhoneNoteSuffix: 'poslaćemo kod SMS-om.',

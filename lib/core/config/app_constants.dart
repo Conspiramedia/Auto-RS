@@ -20,6 +20,9 @@ class AppConstants {
   static const double eurToRsdRate = 117.0;
 
   // Лимиты
-  static const int maxCarImages = 15;    // максимум фото в объявлении
+  // Максимум фото в объявлении. Столько же принимает форма подачи
+  // сайта (MAX_PHOTOS в SellForm): ограничения в БД нет, лимит
+  // целиком клиентский и обязан совпадать в обоих клиентах.
+  static const int maxCarImages = 10;
   static const int minRentDays = 1;      // минимальный срок аренды, суток
 }

@@ -17,6 +17,7 @@ import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../models/car_filters.dart';
 import '../../../shared/widgets/pill_back_button.dart';
+import '../../../shared/widgets/app_close_button.dart';
 
 /// Что экран фильтров отдаёт обратно каталогу: сами фильтры и строка
 /// свободного поиска. Раньше поиск жил в шапке каталога отдельно от
@@ -212,20 +213,63 @@ class _FiltersScreenState extends State<FiltersScreen> {
     ];
     final current = _listingType ?? '';
 
+    // Оформление листа — по токенам бренда, как у листа сортировки
+    // в каталоге: раньше здесь стоял голый Material-лист с системным
+    // фоном и прямыми углами, и он выпадал из остального интерфейса.
     final picked = await showModalBottomSheet<String>(
       context: context,
+      backgroundColor: AppBrandColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppBrandRadius.card),
+        ),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Шапка листа: заголовок и явный выход. Свайп вниз работает,
+            // но полагаться только на него нельзя — жест невидим.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppBrandSpacing.lg,
+                AppBrandSpacing.sm,
+                AppBrandSpacing.sm,
+                AppBrandSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      ctx.t.formListingType,
+                      style: AppBrandText.h4
+                          .copyWith(color: AppBrandColors.neutral100),
+                    ),
+                  ),
+                  AppCloseButton(
+                    tooltip: ctx.t.commonClose,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+            ),
             for (final (value, label) in options)
               ListTile(
-                title: Text(label),
+                title: Text(
+                  label,
+                  style: AppBrandText.body.copyWith(
+                    color: AppBrandColors.neutral100,
+                    fontWeight: current == value
+                        ? AppBrandFont.semibold
+                        : AppBrandFont.regular,
+                  ),
+                ),
                 trailing: current == value
                     ? const Icon(Icons.check, color: AppBrandColors.green)
                     : null,
                 onTap: () => Navigator.pop(ctx, value),
               ),
+            const SizedBox(height: AppBrandSpacing.sm),
           ],
         ),
       ),
