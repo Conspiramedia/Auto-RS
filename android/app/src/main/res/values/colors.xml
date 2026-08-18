@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Фон adaptive-иконки: брендовый primary. Белый оставлял вокруг
+         знака светлую подложку, из-за чего на светлых обоях иконка
+         теряла границы. -->
+    <color name="ic_launcher_background">#1565C0</color>
 </resources>
