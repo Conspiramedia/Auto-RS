@@ -237,79 +237,173 @@ class _MenuButtonState extends State<AppMenuButton> {
   }
 
   void _open(BuildContext context) {
-    final t = context.t;
-
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: AppBrandColors.bg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppBrandRadius.card),
-        ),
-      ),
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Основные разделы — те же, что раньше были вкладками внизу.
-              // go, а не push: это переключение раздела, а не переход
-              // вглубь, и стек экранов копиться не должен.
-              _MenuItem(
-                icon: Icons.grid_view_outlined,
-                label: t.navCatalog,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go('/catalog');
-                },
-              ),
-              _MenuItem(
-                icon: Icons.favorite_border,
-                label: t.navFavorites,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go('/favorites');
-                },
-              ),
-              _MenuItem(
-                icon: Icons.chat_bubble_outline,
-                label: t.navMessages,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go('/chats');
-                },
-              ),
-              _MenuItem(
-                icon: Icons.person_outline,
-                label: t.navProfile,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.go('/profile');
-                },
-              ),
+      // Затемнение и время выезда — из токенов бренда.
+      barrierColor: AppBrandColors.surfaceOverlay,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      transitionDuration: AppBrandMotion.normal,
+      pageBuilder: (ctx, _, __) => const _MenuDrawer(),
+      // Шторка выезжает СПРАВА — как на сайте (absolute right-0).
+      // Нижний лист, который стоял здесь раньше, — привычка мобильного
+      // Material, но приложение повторяет сайт.
+      transitionBuilder: (ctx, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: AppBrandMotion.easing,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        );
+      },
+    );
+  }
+}
 
-              const Divider(height: 1, color: AppBrandColors.neutral10),
+// ============================================================
+// БОКОВАЯ ШТОРКА МЕНЮ
+// ============================================================
+// Зеркало MobileMenu сайта: панель прижата к правому краю, занимает
+// 80% ширины (но не больше 320), под ней видна затемнённая страница —
+// край подсказывает, что её можно вернуть касанием.
+class _MenuDrawer extends StatelessWidget {
+  const _MenuDrawer();
 
-              // Разделы второго уровня: раньше открывались только из
-              // профиля.
-              _MenuItem(
-                icon: Icons.list_alt_outlined,
-                label: t.myCarsTitle,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push('/my-cars');
-                },
-              ),
-              _MenuItem(
-                icon: Icons.account_balance_wallet_outlined,
-                label: t.profileBalance,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  context.push('/wallet');
-                },
-              ),
-              const SizedBox(height: AppBrandSpacing.sm),
-            ],
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    final width = MediaQuery.sizeOf(context).width;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Material(
+        color: AppBrandColors.bg,
+        elevation: 0,
+        child: SizedBox(
+          // w-4/5 max-w-xs сайта.
+          width: (width * 0.8).clamp(0.0, 320.0),
+          height: double.infinity,
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Шапка панели: заголовок и крестик, высота и граница —
+                // те же, что у шапки приложения.
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: AppBrandColors.neutral10),
+                    ),
+                  ),
+                  child: SizedBox(
+                    height: 56,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        left: AppBrandSpacing.md,
+                        right: AppBrandSpacing.sm,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              t.navMenu,
+                              style: AppBrandText.body.copyWith(
+                                color: AppBrandColors.neutral100,
+                                fontWeight: AppBrandFont.semibold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(
+                              Icons.close,
+                              size: 22,
+                              color: AppBrandColors.neutral40,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Список прокручивается сам: на низком экране в альбомной
+                // ориентации пункты не помещаются целиком.
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppBrandSpacing.sm,
+                    ),
+                    children: [
+                      // Основные разделы — те же, что раньше были вкладками
+                      // внизу. go, а не push: это переключение раздела, а не
+                      // переход вглубь, и стек экранов копиться не должен.
+                      _MenuItem(
+                        icon: Icons.grid_view_outlined,
+                        label: t.navCatalog,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/catalog');
+                        },
+                      ),
+                      _MenuItem(
+                        icon: Icons.favorite_border,
+                        label: t.navFavorites,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/favorites');
+                        },
+                      ),
+                      _MenuItem(
+                        icon: Icons.chat_bubble_outline,
+                        label: t.navMessages,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/chats');
+                        },
+                      ),
+                      _MenuItem(
+                        icon: Icons.person_outline,
+                        label: t.navProfile,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.go('/profile');
+                        },
+                      ),
+
+                      const Divider(
+                        height: 1,
+                        color: AppBrandColors.neutral10,
+                      ),
+
+                      // Разделы второго уровня: раньше открывались только
+                      // из профиля.
+                      _MenuItem(
+                        icon: Icons.list_alt_outlined,
+                        label: t.myCarsTitle,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/my-cars');
+                        },
+                      ),
+                      _MenuItem(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: t.profileBalance,
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/wallet');
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

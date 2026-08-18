@@ -65,6 +65,7 @@ class AppStrings {
     required this.navFavorites,
     required this.navCreate,
     required this.navSell,
+    required this.navMenu,
     required this.navMessages,
     required this.navProfile,
     // Онбординг
@@ -261,6 +262,9 @@ class AppStrings {
   /// Отдельно от navCreate («Разместить» в нижнем меню): в шапке нужен
   /// призыв, а не название раздела.
   final String navSell;
+
+  /// Заголовок боковой шторки меню (nav_menu сайта).
+  final String navMenu;
   final String navMessages;
   final String navProfile;
 
@@ -524,6 +528,7 @@ const AppStrings _ru = AppStrings(
   navFavorites: 'Избранное',
   navCreate: 'Разместить',
   navSell: 'Продать авто',
+  navMenu: 'Меню',
   navMessages: 'Сообщения',
   navProfile: 'Профиль',
 
@@ -722,6 +727,7 @@ const AppStrings _sr = AppStrings(
   navFavorites: 'Omiljeno',
   navCreate: 'Postavi',
   navSell: 'Prodaj auto',
+  navMenu: 'Meni',
   navMessages: 'Poruke',
   navProfile: 'Profil',
 
