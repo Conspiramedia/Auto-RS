@@ -22,6 +22,7 @@ import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/notif_bell.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
 import '../../../shared/widgets/language_picker.dart';
+import '../../../shared/widgets/app_search_header.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -254,7 +255,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const LangButton(),
           // Колокольчик: красный и покачивается при непрочитанных (не-чат).
           NotifBell(onTap: () => context.push('/notifications')),
-          const SizedBox(width: 8), // отступ от правого края
+          // Меню разделов: у профиля нет общей шапки, а нижней панели
+          // вкладок больше не существует — без этой кнопки с экрана
+          // некуда было бы уйти.
+          const AppMenuButton(),
+          const SizedBox(width: 4), // отступ от правого края
         ],
       ),
       body: FutureBuilder<_ProfileData>(

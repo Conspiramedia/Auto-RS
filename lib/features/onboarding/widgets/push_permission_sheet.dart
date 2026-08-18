@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/i18n/app_strings.dart';
 import '../../../core/push/push_service.dart';
-import '../../../shared/widgets/app_button_colors.dart';
+import '../../../core/theme/app_brand.dart';
 import '../onboarding_service.dart';
 
 // Показывает лист один раз за установку. Возвращает true, если пользователь
@@ -86,7 +86,6 @@ class _PushPermissionSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     return SafeArea(
       child: Padding(
@@ -97,29 +96,29 @@ class _PushPermissionSheet extends StatelessWidget {
             Container(
               width: 64,
               height: 64,
-              decoration: BoxDecoration(
-                color: AppButtonColors.green.withValues(alpha: 0.12),
+              decoration: const BoxDecoration(
+                color: AppBrandColors.surfaceMuted,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.notifications_active_outlined,
                 size: 32,
-                color: AppButtonColors.green,
+                color: AppBrandColors.green,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               t.onboardingPushTitle,
               textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: AppBrandText.h3
+                  .copyWith(color: AppBrandColors.neutral100),
             ),
             const SizedBox(height: 8),
             Text(
               t.onboardingPushBody,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: AppBrandText.body
+                  .copyWith(color: AppBrandColors.neutral60),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -127,18 +126,31 @@ class _PushPermissionSheet extends StatelessWidget {
               height: 50,
               child: FilledButton(
                 onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppBrandColors.green,
+                  foregroundColor: Colors.white,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppBrandRadius.controlAll,
+                  ),
+                ),
                 child: Text(
                   t.onboardingPushAllow,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppBrandText.body
+                      .copyWith(fontWeight: AppBrandFont.semibold),
                 ),
               ),
             ),
+            // «Позже» — ghost: отказ не должен выглядеть равным согласию.
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(t.onboardingPushLater),
+              style: TextButton.styleFrom(
+                foregroundColor: AppBrandColors.neutral60,
+              ),
+              child: Text(
+                t.onboardingPushLater,
+                style: AppBrandText.caption
+                    .copyWith(fontWeight: AppBrandFont.medium),
+              ),
             ),
           ],
         ),

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/cars_repository.dart';
+import '../../../core/i18n/app_strings.dart';
 import '../../../core/theme/app_brand.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/utils/number_formatters.dart';
@@ -17,10 +18,28 @@ import '../../../shared/widgets/dark_pill_button.dart';
 import '../models/car_filters.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
+/// Что экран фильтров отдаёт обратно каталогу: сами фильтры и строка
+/// свободного поиска. Раньше поиск жил в шапке каталога отдельно от
+/// фильтров; теперь он — поле этой формы, как на сайте, и возвращается
+/// вместе с остальными условиями отбора.
+class FiltersResult {
+  const FiltersResult({required this.filters, required this.query});
+
+  final CarFilters filters;
+  final String query;
+}
+
 class FiltersScreen extends StatefulWidget {
-  const FiltersScreen({super.key, required this.initial});
+  const FiltersScreen({
+    super.key,
+    required this.initial,
+    this.initialQuery = '',
+  });
 
   final CarFilters initial;
+
+  /// Текущий поисковый запрос каталога — подставляется в поле поиска.
+  final String initialQuery;
 
   @override
   State<FiltersScreen> createState() => _FiltersScreenState();
@@ -51,6 +70,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
   List<String> _models = [];
   bool _loadingModels = false;
 
+  // Свободный поиск — первое поле формы (как на сайте).
+  final _queryCtrl = TextEditingController();
+
   final _yearFromCtrl = TextEditingController();
   final _yearToCtrl = TextEditingController();
   final _mileageCtrl = TextEditingController();
@@ -60,6 +82,8 @@ class _FiltersScreenState extends State<FiltersScreen> {
   @override
   void initState() {
     super.initState();
+    _queryCtrl.text = widget.initialQuery;
+
     final f = widget.initial;
     _listingType = f.listingType;
     _city = f.city;
@@ -91,6 +115,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
   @override
   void dispose() {
+    _queryCtrl.dispose();
     _yearFromCtrl.dispose();
     _yearToCtrl.dispose();
     _mileageCtrl.dispose();
@@ -144,6 +169,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
       _bodyType = null;
       _transmission = null;
       _fuel = null;
+      // Поиск сбрасывается вместе с фильтрами: он такое же условие
+      // отбора, и «Сбросить» должно очищать выдачу целиком.
+      _queryCtrl.clear();
       _yearFromCtrl.clear();
       _yearToCtrl.clear();
       _mileageCtrl.clear();
@@ -230,6 +258,26 @@ class _FiltersScreenState extends State<FiltersScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Свободный поиск — первое поле формы, как на сайте: это самый
+          // частый способ отбора («Golf 7», «Beograd»), и прятать его за
+          // остальными условиями незачем.
+          TextField(
+            controller: _queryCtrl,
+            textInputAction: TextInputAction.search,
+            style: AppBrandText.body
+                .copyWith(color: AppBrandColors.neutral100),
+            decoration: InputDecoration(
+              labelText: context.t.filterSearch,
+              hintText: context.t.filterSearchHint,
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppBrandColors.neutral60,
+              ),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+          ),
+          const SizedBox(height: 12),
+
           // 0) Тип объявления — поле-пикер (как «Город»). Выбор из трёх:
           // Все / Продажа / Аренда. null (Все) → сервер отдаёт оба типа.
           _pickerField(
@@ -345,7 +393,13 @@ class _FiltersScreenState extends State<FiltersScreen> {
             label: 'Показать объявления',
             expand: true,
             variant: PillVariant.green,
-            onTap: () => Navigator.pop(context, _build()),
+            onTap: () => Navigator.pop(
+              context,
+              FiltersResult(
+                filters: _build(),
+                query: _queryCtrl.text.trim(),
+              ),
+            ),
           ),
         ],
       ),

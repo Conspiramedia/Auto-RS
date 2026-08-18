@@ -25,7 +25,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/saved_searches_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/app_button_colors.dart';
+import '../../../core/theme/app_brand.dart';
 import '../onboarding_service.dart';
 import '../widgets/push_permission_sheet.dart';
 
@@ -149,7 +149,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -163,12 +162,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         automaticallyImplyLeading: false,
         title: Text(
           t.stepOf(_step + 1, _totalSteps),
-          style: theme.textTheme.bodyMedium,
+          style: AppBrandText.caption
+              .copyWith(color: AppBrandColors.neutral60),
         ),
         actions: [
+          // «Пропустить» — ghost: онбординг необязателен, но кнопка не
+          // должна конкурировать с зелёным CTA внизу экрана.
           TextButton(
             onPressed: _saving ? null : _skip,
-            child: Text(t.commonSkip),
+            style: TextButton.styleFrom(
+              foregroundColor: AppBrandColors.neutral60,
+            ),
+            child: Text(
+              t.commonSkip,
+              style: AppBrandText.caption
+                  .copyWith(fontWeight: AppBrandFont.medium),
+            ),
           ),
         ],
       ),
@@ -179,8 +188,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             LinearProgressIndicator(
               value: (_step + 1) / _totalSteps,
               minHeight: 3,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              color: AppButtonColors.green,
+              backgroundColor: AppBrandColors.surfaceMuted,
+              color: AppBrandColors.green,
             ),
             Expanded(
               child: switch (_step) {
@@ -207,6 +216,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 52,
                 child: FilledButton(
                   onPressed: _saving ? null : _next,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppBrandColors.green,
+                    foregroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppBrandRadius.controlAll,
+                    ),
+                  ),
                   child: _saving
                       ? const SizedBox(
                           width: 22,
@@ -220,9 +236,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           _step == _totalSteps - 1
                               ? t.onboardingFinish
                               : t.commonContinue,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                          style: AppBrandText.body.copyWith(
+                            fontWeight: AppBrandFont.semibold,
                           ),
                         ),
                 ),
@@ -310,9 +325,6 @@ class _CityStepState extends State<_CityStep> {
             decoration: InputDecoration(
               hintText: t.onboardingCitySearch,
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
             onChanged: (v) => setState(() => _query = v),
           ),
@@ -372,8 +384,9 @@ class _CityTile extends StatelessWidget {
     return ListTile(
       title: Text(label),
       trailing: selected
-          ? const Icon(Icons.check_circle, color: AppButtonColors.green)
-          : const Icon(Icons.circle_outlined, color: Color(0xFFD4D4D8)),
+          ? const Icon(Icons.check_circle, color: AppBrandColors.green)
+          : const Icon(Icons.circle_outlined,
+              color: AppBrandColors.neutral30),
       onTap: onTap,
     );
   }
@@ -414,9 +427,6 @@ class _BrandsStepState extends State<_BrandsStep> {
             decoration: InputDecoration(
               hintText: t.onboardingBrandsHint,
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
             onChanged: (v) => setState(() => _query = v),
           ),
@@ -432,8 +442,8 @@ class _BrandsStepState extends State<_BrandsStep> {
                       label: Text(brand),
                       selected: widget.selected.contains(brand),
                       onSelected: (_) => widget.onToggle(brand),
-                      selectedColor: AppButtonColors.green.withValues(alpha: 0.15),
-                      checkmarkColor: AppButtonColors.green,
+                      selectedColor: AppBrandColors.green,
+                      checkmarkColor: Colors.white,
                     ),
                 ],
               ),
@@ -461,7 +471,6 @@ class _StepBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -470,14 +479,14 @@ class _StepBody extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.h3
+                .copyWith(color: AppBrandColors.neutral100),
           ),
           const SizedBox(height: 6),
           Text(
             subtitle,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: AppBrandText.body
+                .copyWith(color: AppBrandColors.neutral60),
           ),
           const SizedBox(height: 20),
           Expanded(child: child),
@@ -505,21 +514,21 @@ class _ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: AppBrandRadius.cardAll,
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppBrandRadius.cardAll,
           border: Border.all(
-            color: selected ? AppButtonColors.green : const Color(0xFFE4E4E7),
+            color:
+                selected ? AppBrandColors.green : AppBrandColors.neutral15,
             width: selected ? 2 : 1,
           ),
           color: selected
-              ? AppButtonColors.green.withValues(alpha: 0.06)
+              ? AppBrandColors.surfaceSubtle
               : Colors.transparent,
         ),
         child: Row(
@@ -527,8 +536,8 @@ class _ChoiceCard extends StatelessWidget {
             Icon(icon,
                 size: 32,
                 color: selected
-                    ? AppButtonColors.green
-                    : theme.colorScheme.onSurfaceVariant),
+                    ? AppBrandColors.green
+                    : AppBrandColors.neutral60),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -536,20 +545,20 @@ class _ChoiceCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: AppBrandText.h4
+                        .copyWith(color: AppBrandColors.neutral100),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    style: AppBrandText.caption
+                        .copyWith(color: AppBrandColors.neutral60),
                   ),
                 ],
               ),
             ),
             if (selected)
-              const Icon(Icons.check_circle, color: AppButtonColors.green),
+              const Icon(Icons.check_circle, color: AppBrandColors.green),
           ],
         ),
       ),

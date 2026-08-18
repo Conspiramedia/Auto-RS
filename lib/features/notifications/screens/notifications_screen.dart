@@ -8,6 +8,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/repositories/notifications_repository.dart';
 import '../../../shared/widgets/pill_back_button.dart';
@@ -63,14 +65,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // «17 августа, 14:30» — названия месяцев берём из словаря: пакет intl
+  // не содержит русской локали, DateFormat с 'ru' падает в рантайме.
+  // [[intl-no-russian-locale]]
+  String _formatDate(BuildContext context, DateTime date) {
+    final months = context.t.monthNames;
+    final month = months[(date.month - 1).clamp(0, 11)];
+    final hh = date.hour.toString().padLeft(2, '0');
+    final mm = date.minute.toString().padLeft(2, '0');
+    return '${date.day} $month, $hh:$mm';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), 
-        title: const Text('Уведомления'),
+      backgroundColor: AppBrandColors.bg,
+      appBar: AppBar(
+        leading: const PillBackButton(),
+        title: Text(
+          'Уведомления',
+          style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all),
+            icon: const Icon(Icons.done_all,
+                color: AppBrandColors.neutral60),
             tooltip: 'Прочитать все',
             onPressed: () => _repo.markAllRead(),
           ),
@@ -84,37 +103,82 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
           final items = snapshot.data!;
           if (items.isEmpty) {
-            return const Center(child: Text('Уведомлений пока нет'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none,
+                      size: 64,
+                      color: AppBrandColors.neutral30,
+                    ),
+                    const SizedBox(height: AppBrandSpacing.md),
+                    Text(
+                      'Уведомлений пока нет',
+                      textAlign: TextAlign.center,
+                      style: AppBrandText.body
+                          .copyWith(color: AppBrandColors.neutral60),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           return ListView.builder(
             itemCount: items.length,
             itemBuilder: (context, i) {
               final n = items[i];
               return Container(
-                // Непрочитанные — лёгкий фон
-                color: n.isRead
-                    ? null
-                    : Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.06),
+                // Непрочитанное — подложка surfaceSubtle: она отделяет новое
+                // от прочитанного, но не спорит с текстом, как заливка
+                // цветом. Прочитанное лежит на белом.
+                color: n.isRead ? null : AppBrandColors.surfaceSubtle,
                 child: ListTile(
                   onTap: () => _onTap(n),
-                  leading: Icon(_iconFor(n.type)),
+                  leading: Icon(
+                    _iconFor(n.type),
+                    color: AppBrandColors.neutral60,
+                  ),
                   title: Text(
                     n.title,
-                    style: TextStyle(
-                      fontWeight:
-                          n.isRead ? FontWeight.normal : FontWeight.bold,
+                    style: AppBrandText.body.copyWith(
+                      color: AppBrandColors.neutral100,
+                      // Непрочитанное выделено ещё и начертанием: подложка
+                      // одна не работает при ч/б режиме доступности.
+                      fontWeight: n.isRead
+                          ? AppBrandFont.regular
+                          : AppBrandFont.semibold,
                     ),
                   ),
-                  subtitle: n.body != null
-                      ? Text(n.body!,
-                          maxLines: 2, overflow: TextOverflow.ellipsis)
-                      : null,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (n.body != null)
+                        Text(
+                          n.body!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppBrandText.caption
+                              .copyWith(color: AppBrandColors.neutral60),
+                        ),
+                      const SizedBox(height: AppBrandSpacing.xs),
+                      Text(
+                        _formatDate(context, n.createdAt),
+                        style: AppBrandText.caption
+                            .copyWith(color: AppBrandColors.neutral60),
+                      ),
+                    ],
+                  ),
                   trailing: n.isRead
                       ? null
-                      : const Icon(Icons.circle, size: 10, color: Colors.blue),
+                      : const Icon(
+                          Icons.circle,
+                          size: 10,
+                          color: AppBrandColors.primary,
+                        ),
                 ),
               );
             },

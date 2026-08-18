@@ -157,6 +157,9 @@ class CarsRepository {
     int offset = 0,
     int limit = 20,
     bool shuffleAll = false,
+    // Порядок выдачи (миграция 0061): fresh | price_asc | price_desc |
+    // year_desc | year_asc | mileage_asc. Значения совпадают с сайтом.
+    String sort = 'fresh',
   }) async {
     final rows = await _client.rpc('search_cars_advanced', params: {
       'p_listing_type': listingType,
@@ -179,6 +182,7 @@ class CarsRepository {
       'p_offset': offset,
       'p_limit': limit,
       'p_shuffle_all': shuffleAll,
+      'p_sort': sort,
     });
     return _mapRows(rows);
   }

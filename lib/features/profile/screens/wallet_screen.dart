@@ -17,7 +17,7 @@ import '../../../core/i18n/app_strings.dart';
 import '../../../data/models/wallet_transaction_model.dart';
 import '../../../data/repositories/wallet_repository.dart';
 import '../../../shared/utils/app_snack.dart';
-import '../../../shared/widgets/app_button_colors.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../shared/widgets/pill_back_button.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -120,10 +120,8 @@ class _WalletScreenState extends State<WalletScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                   child: Text(
                     t.profileTransactions,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: AppBrandText.h4
+                        .copyWith(color: AppBrandColors.neutral100),
                   ),
                 ),
                 if (data.transactions.isEmpty)
@@ -133,9 +131,8 @@ class _WalletScreenState extends State<WalletScreen> {
                     child: Text(
                       t.profileTransactionsEmpty,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                      style: AppBrandText.body
+                          .copyWith(color: AppBrandColors.neutral60),
                     ),
                   )
                 else
@@ -167,27 +164,25 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      decoration: const BoxDecoration(
+        borderRadius: AppBrandRadius.cardAll,
+        color: AppBrandColors.surfaceMuted,
       ),
       child: Column(
         children: [
           Text(
             t.profileBalance,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: AppBrandText.caption
+                .copyWith(color: AppBrandColors.neutral60),
           ),
           const SizedBox(height: 6),
           Text(
             '${balance.toStringAsFixed(2)} EUR',
-            style: theme.textTheme.headlineMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppBrandText.h2.copyWith(color: AppBrandColors.neutral100),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -195,10 +190,21 @@ class _BalanceCard extends StatelessWidget {
             height: 46,
             child: FilledButton.icon(
               onPressed: onTopUp,
-              icon: const Icon(Icons.add),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppBrandColors.green,
+                foregroundColor: Colors.white,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppBrandRadius.controlAll,
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 20),
               // Пополнение появится с подключением провайдера — кнопку
               // оставляем видимой, но она честно говорит «скоро».
-              label: Text('${t.profileTopUp} · ${t.commonSoon}'),
+              label: Text(
+                '${t.profileTopUp} · ${t.commonSoon}',
+                style: AppBrandText.caption
+                    .copyWith(fontWeight: AppBrandFont.semibold),
+              ),
             ),
           ),
         ],
@@ -218,7 +224,6 @@ class _TransactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final theme = Theme.of(context);
 
     // Знак и цвет: начисления зелёные с плюсом, списания обычные с минусом.
     // Нулевые операции (подаренная услуга) — нейтральные, без знака: денег
@@ -226,13 +231,15 @@ class _TransactionRow extends StatelessWidget {
     final isZero = tx.amount == 0;
     final sign = isZero ? '' : (tx.isCredit ? '+' : '−');
     final amountColor = isZero
-        ? theme.colorScheme.onSurfaceVariant
-        : (tx.isCredit ? AppButtonColors.green : theme.colorScheme.onSurface);
+        ? AppBrandColors.neutral60
+        // Зачисление — success, списание — error: знак операции читается
+        // цветом, а не только минусом перед суммой.
+        : (tx.isCredit ? AppBrandColors.success : AppBrandColors.error);
 
     return ListTile(
       leading: CircleAvatar(
         radius: 18,
-        backgroundColor: _iconBg(tx.type, theme),
+        backgroundColor: _iconBg(tx.type),
         child: Icon(_icon(tx.type), size: 18, color: Colors.white),
       ),
       title: Text(
@@ -243,16 +250,16 @@ class _TransactionRow extends StatelessWidget {
             : t.transactionType(tx.type),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyMedium,
+        style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
       ),
       subtitle: Text(
         '${t.transactionType(tx.type)} · ${_formatDate(tx.createdAt)}',
-        style: theme.textTheme.labelSmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        style: AppBrandText.caption
+            .copyWith(color: AppBrandColors.neutral60),
       ),
       trailing: Text(
         '$sign${tx.amount.abs().toStringAsFixed(2)} EUR',
-        style: theme.textTheme.bodyMedium?.copyWith(
+        style: AppBrandText.body.copyWith(
           fontWeight: FontWeight.bold,
           color: amountColor,
         ),
@@ -269,11 +276,11 @@ class _TransactionRow extends StatelessWidget {
         _ => Icons.receipt_long,
       };
 
-  Color _iconBg(String type, ThemeData theme) => switch (type) {
-        WalletTransactionModel.typeSpend => theme.colorScheme.onSurfaceVariant,
-        WalletTransactionModel.typeGift => AppButtonColors.gold,
-        WalletTransactionModel.typeRefund => AppButtonColors.blue,
-        _ => AppButtonColors.green,
+  Color _iconBg(String type) => switch (type) {
+        WalletTransactionModel.typeSpend => AppBrandColors.neutral60,
+        WalletTransactionModel.typeGift => AppBrandColors.gold,
+        WalletTransactionModel.typeRefund => AppBrandColors.blue,
+        _ => AppBrandColors.green,
       };
 
   // Дата вида «16.08.2026». Формат собираем вручную: пакет intl не содержит

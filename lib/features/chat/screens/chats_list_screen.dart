@@ -29,20 +29,8 @@ import '../../../data/repositories/chat_repository.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/app_search_header.dart';
+import '../../../shared/widgets/local_search_field.dart';
 import '../../../shared/widgets/pill_back_button.dart';
-
-// Подсказки поиска по теме экрана «Сообщения» (по диалогам).
-const List<String> _kChatsHints = [
-  // Примеры-подсказки в строке поиска. Это ОБРАЗЦЫ ввода (имена, марки),
-  // а не элементы интерфейса: они одинаковы на обоих языках, поэтому
-  // остаются константами и в словари не выносятся.
-  'Имя собеседника',
-  'Марка или модель авто',
-  'Marko',
-  'BMW 320d',
-  'Kia Sportage',
-  'Ana',
-];
 
 // Ключ одноразового обучения свайпам (SharedPreferences).
 const String _kSwipeTeachKey = 'chat_swipe_teach_shown';
@@ -194,11 +182,14 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Общая шапка: логотип + поиск (по диалогам).
-            AppSearchHeader(
-              query: _query,
-              onSearchChanged: (v) => setState(() => _query = v),
-              hints: _kChatsHints,
+            const AppSearchHeader(),
+
+            // Поиск по уже загруженным диалогам — локальный, на сервер
+            // не ходит.
+            LocalSearchField(
+              value: _query,
+              onChanged: (v) => setState(() => _query = v),
+              hint: context.t.chatsSearchHint,
             ),
             const SizedBox(height: 8),
             Expanded(

@@ -49,11 +49,22 @@ class AppStrings {
     required this.commonFrom,
     required this.commonUpTo,
     required this.filterSale,
+    required this.catalogFound,
+    required this.catalogSort,
+    required this.sortFresh,
+    required this.sortPriceAsc,
+    required this.sortPriceDesc,
+    required this.sortYearDesc,
+    required this.sortYearAsc,
+    required this.sortMileageAsc,
+    required this.filterSearch,
+    required this.filterSearchHint,
     required this.filterRent,
     // Навигация
     required this.navCatalog,
     required this.navFavorites,
     required this.navCreate,
+    required this.navSell,
     required this.navMessages,
     required this.navProfile,
     // Онбординг
@@ -222,11 +233,34 @@ class AppStrings {
   final String commonFrom;   // «от» в диапазонах: «от 2015»
   final String commonUpTo;   // «до» в диапазонах: «до 10000 EUR»
   final String filterSale;
+
+  /// Подпись счётчика результатов: «Найдено» + число.
+  final String catalogFound;
+
+  /// Порядок выдачи каталога. Подписи 1:1 с SORT_OPTIONS сайта —
+  /// пользователь видит одни и те же формулировки в обоих клиентах.
+  final String catalogSort;
+  final String sortFresh;
+  final String sortPriceAsc;
+  final String sortPriceDesc;
+  final String sortYearDesc;
+  final String sortYearAsc;
+  final String sortMileageAsc;
+
+  /// Подпись и плейсхолдер поля свободного поиска на экране фильтров —
+  /// те же формулировки, что filter_search / filter_search_ph на сайте.
+  final String filterSearch;
+  final String filterSearchHint;
   final String filterRent;
 
   final String navCatalog;
   final String navFavorites;
   final String navCreate;
+
+  /// CTA продавцу в шапке — та же формулировка, что на сайте (nav_sell).
+  /// Отдельно от navCreate («Разместить» в нижнем меню): в шапке нужен
+  /// призыв, а не название раздела.
+  final String navSell;
   final String navMessages;
   final String navProfile;
 
@@ -474,11 +508,22 @@ const AppStrings _ru = AppStrings(
   commonFrom: 'от',
   commonUpTo: 'до',
   filterSale: 'Продажа',
+  catalogFound: 'Найдено',
+  catalogSort: 'Сортировка',
+  sortFresh: 'Сначала новые',
+  sortPriceAsc: 'Цена: по возрастанию',
+  sortPriceDesc: 'Цена: по убыванию',
+  sortYearDesc: 'Год: новее',
+  sortYearAsc: 'Год: старше',
+  sortMileageAsc: 'Пробег: меньше',
+  filterSearch: 'Поиск',
+  filterSearchHint: 'Марка, модель или город',
   filterRent: 'Аренда',
 
   navCatalog: 'Каталог',
   navFavorites: 'Избранное',
   navCreate: 'Разместить',
+  navSell: 'Продать авто',
   navMessages: 'Сообщения',
   navProfile: 'Профиль',
 
@@ -505,7 +550,8 @@ const AppStrings _ru = AppStrings(
   onboardingSaved: 'Сохранили ваши предпочтения',
   onboardingSearchesEnabled: 'Подписки на поиск включены',
 
-  catalogTitle: 'Каталог',
+  // Заголовок раздела — тот же текст, что h1 на сайте (catalog_mixed_title).
+  catalogTitle: 'Автомобили в Сербии',
   catalogSearchHint: 'Марка, модель или город',
   catalogFilters: 'Фильтры',
   catalogFiltersReset: 'Сбросить',
@@ -660,11 +706,22 @@ const AppStrings _sr = AppStrings(
   commonFrom: 'od',
   commonUpTo: 'do',
   filterSale: 'Prodaja',
+  catalogFound: 'Pronađeno',
+  catalogSort: 'Sortiranje',
+  sortFresh: 'Najnovije',
+  sortPriceAsc: 'Cena: rastuće',
+  sortPriceDesc: 'Cena: opadajuće',
+  sortYearDesc: 'Godište: novije',
+  sortYearAsc: 'Godište: starije',
+  sortMileageAsc: 'Kilometraža: manja',
+  filterSearch: 'Pretraga',
+  filterSearchHint: 'Marka, model ili grad',
   filterRent: 'Iznajmljivanje',
 
   navCatalog: 'Katalog',
   navFavorites: 'Omiljeno',
   navCreate: 'Postavi',
+  navSell: 'Prodaj auto',
   navMessages: 'Poruke',
   navProfile: 'Profil',
 
@@ -691,7 +748,7 @@ const AppStrings _sr = AppStrings(
   onboardingSaved: 'Sačuvali smo vaše želje',
   onboardingSearchesEnabled: 'Pretrage su uključene',
 
-  catalogTitle: 'Katalog',
+  catalogTitle: 'Automobili u Srbiji',
   catalogSearchHint: 'Marka, model ili grad',
   catalogFilters: 'Filteri',
   catalogFiltersReset: 'Poništi',

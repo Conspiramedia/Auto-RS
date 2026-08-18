@@ -7,24 +7,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../data/models/favorite_with_car_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/favorites_repository.dart';
+import '../../catalog/widgets/car_card.dart';
 import '../../../shared/utils/app_snack.dart';
 import '../../../shared/widgets/app_search_header.dart';
+import '../../../shared/widgets/local_search_field.dart';
 import '../../../shared/widgets/pill_back_button.dart';
-
-// Подсказки поиска по теме экрана «Избранное» (по сохранённым авто).
-const List<String> _kFavoritesHints = [
-  'Поиск в избранном',
-  'Марка или модель',
-  'Golf 7',
-  'BMW 320d',
-  'Kia Sportage',
-  'По городу: Beograd',
-  'Škoda Octavia',
-  'Mercedes C klasa',
-];
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -81,20 +73,38 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     if (_auth.currentUser == null) {
       return Scaffold(
-        appBar: AppBar(leading: const PillBackButton(), title: const Text('Избранное')),
-        body: const Center(child: Text('Войдите, чтобы видеть избранное')),
+        backgroundColor: AppBrandColors.bg,
+        appBar: AppBar(
+          leading: const PillBackButton(),
+          title: Text(
+            context.t.favoritesTitle,
+            style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
+          ),
+        ),
+        body: Center(
+          child: Text(
+            'Войдите, чтобы видеть избранное',
+            style: AppBrandText.body
+                .copyWith(color: AppBrandColors.neutral60),
+          ),
+        ),
       );
     }
 
     return Scaffold(
+      backgroundColor: AppBrandColors.bg,
       body: SafeArea(
         child: Column(
           children: [
-            // Общая шапка: логотип + поиск (по избранному).
-            AppSearchHeader(
-              query: _query,
-              onSearchChanged: (v) => setState(() => _query = v),
-              hints: _kFavoritesHints,
+            const AppSearchHeader(),
+
+            // Поиск по уже загруженным закладкам — локальный, на сервер
+            // не ходит. Экрана фильтров у избранного нет, поэтому поле
+            // остаётся здесь, в теле экрана.
+            LocalSearchField(
+              value: _query,
+              onChanged: (v) => setState(() => _query = v),
+              hint: context.t.filterSearchHint,
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -105,33 +115,30 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(child: Text('${snapshot.error}'));
+                    return Center(
+                      child: Text(
+                        '${snapshot.error}',
+                        style: AppBrandText.body
+                            .copyWith(color: AppBrandColors.neutral60),
+                      ),
+                    );
                   }
                   final all = snapshot.data ?? [];
                   final items = _filter(all);
                   if (items.isEmpty) {
-                    // Разные тексты: совсем пусто vs ничего не нашлось по поиску.
-                    final empty = all.isEmpty
-                        ? 'В избранном пока пусто'
-                        : 'Ничего не найдено';
-                    return RefreshIndicator(
+                    return _EmptyFavorites(
+                      // Совсем пусто и «ничего не нашлось по поиску» — разные
+                      // состояния: в первом нужен путь в каталог, во втором
+                      // достаточно сказать, что запрос ничего не дал.
+                      isSearchResult: all.isNotEmpty,
                       onRefresh: () async => _reload(),
-                      child: ListView(
-                        children: [
-                          const SizedBox(height: 120),
-                          Center(child: Text(empty)),
-                        ],
-                      ),
                     );
                   }
                   return RefreshIndicator(
                     onRefresh: () async => _reload(),
-                    child: ListView.builder(
-                      itemCount: items.length,
-                      itemBuilder: (context, i) => _FavCard(
-                        fav: items[i],
-                        onRemove: () => _remove(items[i].carId),
-                      ),
+                    child: _FavoritesGrid(
+                      items: items,
+                      onRemove: _remove,
                     ),
                   );
                 },
@@ -144,45 +151,135 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 }
 
-// Карточка избранного
-class _FavCard extends StatelessWidget {
-  const _FavCard({required this.fav, required this.onRemove});
-  final FavoriteWithCarModel fav;
-  final VoidCallback onRemove;
+// ============================================================
+// СЕТКА ИЗБРАННОГО
+// ============================================================
+// Та же карточка и та же геометрия, что в каталоге: закладка — это то же
+// объявление, и выглядеть оно должно одинаково. Раньше здесь был список
+// ListTile с миниатюрой 56x56, из-за чего избранное не походило на выдачу.
+class _FavoritesGrid extends StatelessWidget {
+  const _FavoritesGrid({required this.items, required this.onRemove});
+
+  final List<FavoriteWithCarModel> items;
+  final ValueChanged<String> onRemove;
 
   @override
   Widget build(BuildContext context) {
-    // Цена по назначению
-    final price = fav.isForRent && fav.rentPriceDaily != null
-        ? '${fav.rentPriceDaily!.toStringAsFixed(0)} ${fav.currency.value}/сутки'
-        : fav.salePrice != null
-            ? '${fav.salePrice!.toStringAsFixed(0)} ${fav.currency.value}'
-            : '—';
+    return LayoutBuilder(builder: (context, constraints) {
+      // Параметры сетки повторяют каталог: поля px-4 и зазор gap-4 сайта.
+      const outerPad = AppBrandSpacing.md;
+      const gap = AppBrandSpacing.md;
+      const cols = 2;
+      final cardW =
+          (constraints.maxWidth - outerPad * 2 - gap * (cols - 1)) / cols;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        onTap: () => context.push('/car/${fav.carId}'),
-        leading: fav.carPhoto != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.network(
-                  fav.carPhoto!,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.directions_car, size: 40),
-                ),
-              )
-            : const CircleAvatar(child: Icon(Icons.directions_car)),
-        title: Text('${fav.brand} ${fav.model}'
-            '${fav.year != null ? ', ${fav.year}' : ''}'),
-        subtitle: Text('${fav.city} · $price'),
-        trailing: IconButton(
-          icon: const Icon(Icons.favorite, color: Color(0xFFE01E23)),
-          onPressed: onRemove,
+      // Высота ячейки считается из шкалы и масштаба текста — тот же расчёт,
+      // что в каталоге. Константа здесь означала бы overflow при крупном
+      // системном шрифте.
+      final scaler = MediaQuery.textScalerOf(context);
+      final lineBody = scaler.scale(AppBrandText.body.fontSize!) *
+          AppBrandText.body.height!;
+      final lineCaption = scaler.scale(AppBrandText.caption.fontSize!) *
+          AppBrandText.caption.height!;
+      const blockPadding = 12.0 * 2;
+      final extent =
+          cardW * 3 / 4 + lineBody * 2 + lineCaption * 2 + blockPadding;
+
+      return GridView.builder(
+        padding: const EdgeInsets.all(outerPad),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: cols,
+          mainAxisSpacing: gap,
+          crossAxisSpacing: gap,
+          mainAxisExtent: extent,
         ),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          final fav = items[i];
+          return CarCard(
+            car: fav.toCarModel(),
+            // В избранном сердечко всегда активно — тап его снимает.
+            isFavorite: true,
+            isViewed: false,
+            onOpen: () => context.push('/car/${fav.carId}'),
+            onToggleFavorite: () => onRemove(fav.carId),
+            // Фото уже пришло вместе с закладкой: карточка не пойдёт в сеть.
+            photoUrl: fav.carPhoto,
+          );
+        },
+      );
+    });
+  }
+}
+
+// ============================================================
+// ПУСТОЕ ИЗБРАННОЕ
+// ============================================================
+// Паттерн EmptyState: причина + действие. Пустой экран без выхода —
+// тупик, поэтому из совсем пустого избранного ведём в каталог.
+class _EmptyFavorites extends StatelessWidget {
+  const _EmptyFavorites({
+    required this.isSearchResult,
+    required this.onRefresh,
+  });
+
+  final bool isSearchResult;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+
+    // ListView, а не Column: RefreshIndicator требует прокручиваемого
+    // потомка, иначе жест «потянуть вниз» на пустом экране не сработает.
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(32, 80, 32, 32),
+        children: [
+          Icon(
+            isSearchResult ? Icons.search_off : Icons.favorite_border,
+            size: 64,
+            color: AppBrandColors.neutral30,
+          ),
+          const SizedBox(height: AppBrandSpacing.md),
+          Text(
+            isSearchResult ? t.catalogEmptyTitle : t.favoritesEmpty,
+            textAlign: TextAlign.center,
+            style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
+          ),
+          const SizedBox(height: AppBrandSpacing.sm),
+          Text(
+            isSearchResult ? t.catalogEmptyBody : t.favoritesEmptyBody,
+            textAlign: TextAlign.center,
+            style: AppBrandText.body
+                .copyWith(color: AppBrandColors.neutral60),
+          ),
+          // Путь в каталог нужен только когда избранное пусто целиком:
+          // при пустом поиске объявления есть, достаточно изменить запрос.
+          if (!isSearchResult) ...[
+            const SizedBox(height: AppBrandSpacing.lg),
+            SizedBox(
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: () => context.go('/catalog'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppBrandColors.green,
+                  foregroundColor: Colors.white,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppBrandRadius.controlAll,
+                  ),
+                ),
+                icon: const Icon(Icons.grid_view_outlined, size: 20),
+                label: Text(
+                  t.navCatalog,
+                  style: AppBrandText.caption
+                      .copyWith(fontWeight: AppBrandFont.semibold),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

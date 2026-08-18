@@ -52,6 +52,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // показывает продажу и аренду вперемешку, а тип выбирается в фильтрах.
   CarFilters _filters = CarFilters.empty;
 
+  // Порядок выдачи (p_sort, миграция 0061). Значения и подписи совпадают
+  // с SORT_OPTIONS сайта.
+  String _sort = 'fresh';
+
   // Общее количество объявлений под фильтрами (RPC get_search_total_count).
   // null — ещё не получено или запрос не удался: строку «Найдено» не рисуем.
   int? _totalCount;
@@ -150,23 +154,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
     _authSub?.cancel();
     _scrollCtrl.dispose();
     super.dispose();
-  }
-
-  // Живой ввод из строки поиска: сохраняем текст и перезагружаем ленту
-  // с дебаунсом 350 мс (не дёргаем бэк на каждой букве).
-  void _onSearchChanged(String text) {
-    _query = text;
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) _reload();
-    });
-  }
-
-  // Отправка запроса с клавиатуры (Enter/«Поиск») — применяем сразу.
-  void _onSearchSubmitted(String text) {
-    _searchDebounce?.cancel();
-    _query = text;
-    _reload();
   }
 
   // Триггер подгрузки при приближении к концу списка.
@@ -302,6 +289,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       offset: offset,
       limit: limit,
       shuffleAll: shuffleAll,
+      sort: _sort,
     );
   }
 
@@ -437,14 +425,22 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   // Открыть экран фильтров и применить результат
   Future<void> _openFilters() async {
-    final result = await Navigator.push<CarFilters>(
+    // Экран фильтров возвращает и условия отбора, и строку поиска: с
+    // переносом поиска в форму фильтров это одно действие пользователя.
+    final result = await Navigator.push<FiltersResult>(
       context,
       MaterialPageRoute(
-        builder: (_) => FiltersScreen(initial: _filters),
+        builder: (_) => FiltersScreen(
+          initial: _filters,
+          initialQuery: _query,
+        ),
       ),
     );
     if (result != null) {
-      _filters = result;
+      // Дебаунс поиска больше не нужен — запрос пришёл готовым.
+      _searchDebounce?.cancel();
+      _filters = result.filters;
+      _query = result.query;
       _reload();
     }
   }
@@ -456,8 +452,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   // Сбросить все фильтры и поисковую строку разом — действие из пустого
-  // состояния. Поле поиска очистится само: SmartSearchBar синхронизирует
-  // текст с внешним value в didUpdateWidget.
+  // состояния. Поиск живёт в форме фильтров, поэтому чистим оба поля
+  // здесь: следующее открытие фильтров получит уже пустой запрос.
   void _resetFilters() {
     // Отменяем висящий дебаунс: иначе он через 400 мс вернул бы старый
     // запрос обратно в _query и сброс отменился бы сам собой.
@@ -588,19 +584,58 @@ class _CatalogScreenState extends State<CatalogScreen> {
       body: SafeArea(
         child: Column(
         children: [
-          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле): логотип + строка
-          // поиска с иконкой фильтров в хвосте. Тот же AppSearchHeader, что
-          // в Избранном и Сообщениях — раньше каталог собирал этот ряд
-          // вручную, и правки разъезжались по трём экранам.
-          AppSearchHeader(
-            query: _query,
-            onSearchChanged: _onSearchChanged,
-            onSubmitted: _onSearchSubmitted,
-            onFilterTap: _openFilters,
-            filterCount: _filters.activeCount,
+          // ФИКСИРОВАННАЯ шапка (не уезжает при скролле). Тот же
+          // AppSearchHeader, что в Избранном и Сообщениях.
+          const AppSearchHeader(),
+
+          // Заголовок раздела — h1 сайта («Автомобили в Сербии»).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppBrandSpacing.md,
+              AppBrandSpacing.md,
+              AppBrandSpacing.md,
+              0,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                context.t.catalogTitle,
+                style: AppBrandText.h2
+                    .copyWith(color: AppBrandColors.neutral100),
+              ),
+            ),
           ),
 
-          // Тот же отступ под шапкой, что в Избранном и Сообщениях.
+          // Ряд управления выдачей — как на сайте под заголовком раздела:
+          // тёмная кнопка «Фильтры» со значком регуляторов и счётчиком
+          // применённых условий. Свободный поиск живёт внутри этой формы.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppBrandSpacing.md,
+              AppBrandSpacing.md,
+              AppBrandSpacing.md,
+              0,
+            ),
+            child: Row(
+              children: [
+                _FiltersButton(
+                  count: _filters.activeCount,
+                  onTap: _openFilters,
+                ),
+                const Spacer(),
+                // Порядок выдачи — справа, как на сайте.
+                _SortSelect(
+                  value: _sort,
+                  onChanged: (v) {
+                    if (v == _sort) return;
+                    setState(() => _sort = v);
+                    _reload();
+                  },
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 8),
 
           // Применённые фильтры чипсами. Показывают СОСТАВ фильтра (бейдж с
@@ -613,35 +648,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
 
           // «Найдено: N» — сколько объявлений подходит под фильтры целиком,
-          // а не сколько уже подгружено лентой. Показывается только когда
-          // число получено (RPC могла не ответить — тогда строки просто нет).
-          //
-          // Формат без слова-существительного: склонение «объявление /
-          // объявления / объявлений» и сербские формы требуют нового ключа
-          // в словарях, а они выносятся отдельным пакетом. Иконка списка
-          // передаёт смысл на обоих языках.
+          // а не сколько уже подгружено лентой. Формулировка и место — как
+          // на сайте. Показывается только когда число получено (RPC могла
+          // не ответить — тогда строки просто нет).
           if (_totalCount != null && !_loading)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppBrandSpacing.md,
-                AppBrandSpacing.xs,
+                AppBrandSpacing.sm,
                 AppBrandSpacing.md,
                 AppBrandSpacing.xs,
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.format_list_bulleted,
-                    size: 16,
-                    color: AppBrandColors.neutral60,
-                  ),
-                  const SizedBox(width: AppBrandSpacing.xs),
-                  Text(
-                    '${_totalCount!}',
-                    style: AppBrandText.caption
-                        .copyWith(color: AppBrandColors.neutral60),
-                  ),
-                ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${context.t.catalogFound}: ${_totalCount!}',
+                  style: AppBrandText.caption
+                      .copyWith(color: AppBrandColors.neutral60),
+                ),
               ),
             ),
 
@@ -677,5 +701,206 @@ class _ErrorState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ============================================================
+// КНОПКА «ФИЛЬТРЫ»
+// ============================================================
+// Копия кнопки с сайта: тёмная плашка, подпись, значок регуляторов
+// справа от текста и счётчик применённых условий золотым.
+class _FiltersButton extends StatelessWidget {
+  const _FiltersButton({required this.count, required this.onTap});
+
+  /// Сколько фильтров применено. 0 — счётчик не показывается.
+  final int count;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppBrandColors.dark,
+      borderRadius: AppBrandRadius.controlAll,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppBrandRadius.controlAll,
+        child: Container(
+          // Высота 40 — та же, что у селекта сортировки рядом. На сайте
+          // кнопка и поле выровнены по общей высоте, иначе разница в
+          // пару пикселей бросается в глаза.
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: AppBrandSpacing.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.t.catalogFilters,
+                style: AppBrandText.caption.copyWith(
+                  color: Colors.white,
+                  fontWeight: AppBrandFont.semibold,
+                ),
+              ),
+              const SizedBox(width: AppBrandSpacing.sm),
+              // Значок регуляторов — справа от подписи, как на сайте.
+              const Icon(Icons.tune, size: 16, color: Colors.white),
+              if (count > 0) ...[
+                const SizedBox(width: AppBrandSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppBrandSpacing.sm,
+                    vertical: 1,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: AppBrandColors.gold,
+                    borderRadius: AppBrandRadius.pillAll,
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppBrandText.small.copyWith(
+                      color: Colors.white,
+                      fontWeight: AppBrandFont.semibold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ВЫБОР ПОРЯДКА ВЫДАЧИ
+// ============================================================
+// Копия SortSelect сайта: поле с рамкой neutral15 и стрелкой, по тапу —
+// список вариантов. Высота 40 — ровно как у кнопки «Фильтры» рядом:
+// на сайте они тоже выровнены по общей высоте.
+class _SortSelect extends StatelessWidget {
+  const _SortSelect({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  // Ключи 1:1 с SORT_OPTIONS сайта — и в URL сайта, и в p_sort уходит
+  // одна и та же строка.
+  static List<(String, String)> _options(BuildContext context) {
+    final t = context.t;
+    return [
+      ('fresh', t.sortFresh),
+      ('price_asc', t.sortPriceAsc),
+      ('price_desc', t.sortPriceDesc),
+      ('year_desc', t.sortYearDesc),
+      ('year_asc', t.sortYearAsc),
+      ('mileage_asc', t.sortMileageAsc),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = _options(context);
+    final current = options.firstWhere(
+      (o) => o.$1 == value,
+      orElse: () => options.first,
+    );
+
+    return Material(
+      color: AppBrandColors.bg,
+      borderRadius: AppBrandRadius.controlAll,
+      child: InkWell(
+        onTap: () => _pick(context, options),
+        borderRadius: AppBrandRadius.controlAll,
+        child: Container(
+          height: 40,
+          // Ширина ограничена: шесть подписей разной длины не должны
+          // растягивать ряд и выдавливать кнопку фильтров.
+          constraints: const BoxConstraints(maxWidth: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: AppBrandRadius.controlAll,
+            border: Border.all(color: AppBrandColors.neutral15),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  current.$2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppBrandText.caption
+                      .copyWith(color: AppBrandColors.neutral100),
+                ),
+              ),
+              const SizedBox(width: AppBrandSpacing.xs),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: AppBrandColors.neutral60,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pick(
+    BuildContext context,
+    List<(String, String)> options,
+  ) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppBrandColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppBrandRadius.card),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppBrandSpacing.lg,
+                AppBrandSpacing.md,
+                AppBrandSpacing.lg,
+                AppBrandSpacing.sm,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  ctx.t.catalogSort,
+                  style: AppBrandText.h4
+                      .copyWith(color: AppBrandColors.neutral100),
+                ),
+              ),
+            ),
+            for (final (key, label) in options)
+              ListTile(
+                onTap: () => Navigator.pop(ctx, key),
+                title: Text(
+                  label,
+                  style: AppBrandText.body.copyWith(
+                    color: AppBrandColors.neutral100,
+                    fontWeight: key == value
+                        ? AppBrandFont.semibold
+                        : AppBrandFont.regular,
+                  ),
+                ),
+                trailing: key == value
+                    ? const Icon(Icons.check, color: AppBrandColors.green)
+                    : null,
+              ),
+            const SizedBox(height: AppBrandSpacing.sm),
+          ],
+        ),
+      ),
+    );
+
+    if (picked != null) onChanged(picked);
   }
 }

@@ -5,6 +5,7 @@
 
 import '../enums/car_status.dart';
 import '../enums/currency_code.dart';
+import 'car_model.dart';
 
 class FavoriteWithCarModel {
   final String id;
@@ -68,6 +69,34 @@ class FavoriteWithCarModel {
       carPhoto: map['car_photo'] as String?,
     );
   }
+
+  /// Представление закладки как объявления — чтобы «Избранное»
+  /// показывало ту же карточку CarCard, что каталог, а не свою вёрстку.
+  ///
+  /// VIEW favorites_with_car_details отдаёт не все поля cars: нет пробега,
+  /// продвижения и дат. Они заполняются нейтральными значениями — на вид
+  /// карточки в избранном не влияют (бейдж промо там не нужен, пробег
+  /// VIEW не отдаёт). Это преобразование данных, а не запрос: сети тут нет.
+  CarModel toCarModel() => CarModel(
+        id: carId,
+        userId: userId,
+        isForSale: isForSale,
+        isForRent: isForRent,
+        brand: brand,
+        model: model,
+        // В VIEW год необязателен; 0 читается как «не указан» и в карточке
+        // показывается вместе с остальной метой.
+        year: year ?? 0,
+        currency: currency,
+        salePrice: salePrice,
+        rentPriceDaily: rentPriceDaily,
+        city: city,
+        ratingAvg: ratingAvg,
+        reviewsCount: reviewsCount,
+        status: status,
+        createdAt: createdAt,
+        updatedAt: createdAt,
+      );
 
   static double? _toDouble(dynamic v) {
     if (v == null) return null;
