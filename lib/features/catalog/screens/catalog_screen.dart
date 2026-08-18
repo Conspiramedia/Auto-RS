@@ -510,8 +510,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
     // самих токенов и множителя textScaler, поэтому сходится при любом
     // размере шрифта, а сама карточка ужимает фото, если места всё же мало.
     return LayoutBuilder(builder: (context, constraints) {
-      const outerPad = 5.0;   // SliverPadding.all(5)
-      const crossGap = 5.0;   // crossAxisSpacing
+      // Поля страницы и зазор между карточками — как на сайте: там
+      // контейнер каталога имеет px-4, а сетка gap-4, то есть 16 и там,
+      // и там. В приложении раньше стояло 5px: карточки лепились друг к
+      // другу и к краям экрана, а на сайте дышали.
+      const outerPad = AppBrandSpacing.md;   // = 16, px-4 контейнера
+      const crossGap = AppBrandSpacing.md;   // = 16, gap-4 сетки
       const cols = 2;
       // Ширина одной карточки при 2 колонках.
       final cardW =
@@ -525,8 +529,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
           AppBrandText.body.height!;
       final lineCaption = scaler.scale(AppBrandText.caption.fontSize!) *
           AppBrandText.caption.height!;
-      // Вертикальные отступы блока: padding sm сверху и снизу.
-      const blockPadding = AppBrandSpacing.sm * 2;
+      // Вертикальные отступы блока: padding 12 сверху и снизу — то же
+      // значение, что стоит в CarCard (p-3 сайта). Разъедутся эти числа —
+      // вернётся переполнение ячейки.
+      const blockPadding = 12.0 * 2;
       final textBlockH = lineBody * 2 + lineCaption * 2 + blockPadding;
 
       final extent = cardW * 3 / 4 + textBlockH;
@@ -541,7 +547,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: cols,
-                  mainAxisSpacing: 5,
+                  mainAxisSpacing: crossGap,
                   crossAxisSpacing: crossGap,
                   mainAxisExtent: extent, // точная высота вместо соотношения
                 ),

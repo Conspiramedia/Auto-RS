@@ -185,6 +185,7 @@ class AppStrings {
     required this.carCallFailed,
     required this.carSalePrice,
     required this.carRentDaily,
+    required this.carPerDay,
     required this.carOpening,
     // Профиль
     required this.profileGuest,
@@ -361,6 +362,12 @@ class AppStrings {
   final String carCallFailed;
   final String carSalePrice;
   final String carRentDaily;
+
+  /// Короткая единица суточной ставки для строки цены: «45 € / сутки».
+  /// Отдельно от carRentDaily («Аренда в сутки»): полная подпись не
+  /// помещается в карточку каталога и обрезается многоточием.
+  final String carPerDay;
+
   final String carOpening;
 
   final String profileGuest;
@@ -610,6 +617,7 @@ const AppStrings _ru = AppStrings(
   carCallFailed: 'Не удалось открыть набор номера',
   carSalePrice: 'Цена продажи',
   carRentDaily: 'Аренда в сутки',
+  carPerDay: 'сутки',
   carOpening: 'Открываем…',
 
   profileGuest: 'Гость',
@@ -795,6 +803,7 @@ const AppStrings _sr = AppStrings(
   carCallFailed: 'Nije moguće otvoriti biranje broja',
   carSalePrice: 'Cena',
   carRentDaily: 'Najam po danu',
+  carPerDay: 'dan',
   carOpening: 'Otvaramo…',
 
   profileGuest: 'Gost',

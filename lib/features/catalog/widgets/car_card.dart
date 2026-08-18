@@ -27,6 +27,7 @@ import '../../../core/theme/app_brand.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../data/enums/car_status.dart';
+import '../../../shared/widgets/status_badge.dart';
 
 class CarCard extends StatelessWidget {
   const CarCard({
@@ -122,8 +123,11 @@ class CarCard extends StatelessWidget {
     // Какая цена главная. Машина только в аренду — суточная ставка;
     // иначе цена продажи. Нет цены → «Договорная».
     final rentOnly = car.isForRent && !car.isForSale;
+    // Суточная ставка — «45 EUR / сутки», как formatRentPrice на сайте:
+    // единица одним коротким словом (carPerDay), а не подписью «Аренда в
+    // сутки» — она не помещалась в строку и обрезалась многоточием.
     final priceText = rentOnly && car.rentPriceDaily != null
-        ? '${_money(car.rentPriceDaily!)} ${car.currency.value}/${t.carRentDaily.toLowerCase()}'
+        ? '${_money(car.rentPriceDaily!)} ${car.currency.value} / ${t.carPerDay}'
         : car.salePrice != null
             ? '${_money(car.salePrice!)} ${car.currency.value}'
             : t.priceNegotiable;
@@ -174,7 +178,7 @@ class CarCard extends StatelessWidget {
                           Positioned(
                             top: 0,
                             left: 0,
-                            child: _Badge(
+                            child: StatusBadge(
                               label: t.catalogViewed,
                               background: AppBrandColors.neutral60,
                             ),
@@ -185,7 +189,7 @@ class CarCard extends StatelessWidget {
                           Positioned(
                             left: AppBrandSpacing.sm,
                             bottom: AppBrandSpacing.sm,
-                            child: _Badge(
+                            child: StatusBadge(
                               label: t.catalogPromoted,
                               background: AppBrandColors.gold,
                             ),
@@ -197,7 +201,7 @@ class CarCard extends StatelessWidget {
                           Positioned(
                             right: AppBrandSpacing.sm,
                             top: AppBrandSpacing.sm,
-                            child: _Badge(
+                            child: StatusBadge(
                               label: t.filterRent,
                               background: AppBrandColors.blue,
                             ),
@@ -206,7 +210,7 @@ class CarCard extends StatelessWidget {
                           Positioned(
                             right: AppBrandSpacing.sm,
                             bottom: AppBrandSpacing.sm,
-                            child: _Badge(
+                            child: StatusBadge(
                               label: t.carSold,
                               background: AppBrandColors.red,
                             ),
@@ -219,7 +223,9 @@ class CarCard extends StatelessWidget {
                 // Текстовый блок. mainAxisSize.min — занимает ровно свою
                 // высоту; именно это убирает переполнение сетки.
                 Padding(
-                  padding: const EdgeInsets.all(AppBrandSpacing.sm),
+                  // 12px — p-3 карточки на сайте. Ступени sm (8) не хватало:
+                  // текст лип к краям и к фотографии.
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,35 +310,6 @@ class CarCard extends StatelessWidget {
   }
 }
 
-// Бейдж поверх фотографии: radius sm (на плашке ~22px ступень control
-// превратила бы её в капсулу), small semibold белым.
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.background});
-
-  final String label;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppBrandSpacing.sm,
-        vertical: AppBrandSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: AppBrandRadius.smAll,
-      ),
-      child: Text(
-        label,
-        style: AppBrandText.small.copyWith(
-          color: Colors.white,
-          fontWeight: AppBrandFont.semibold,
-        ),
-      ),
-    );
-  }
-}
 
 // Иконка-действие в карточке (избранное, «три точки»). Область нажатия
 // шире самой иконки: 22px — меньше минимальной цели касания.
