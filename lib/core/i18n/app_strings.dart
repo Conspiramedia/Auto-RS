@@ -147,6 +147,25 @@ class AppStrings {
     required this.notificationsTitle,
     required this.notificationsEmpty,
     required this.notificationsReadAll,
+    required this.bodySedan,
+    required this.bodyHatchback,
+    required this.bodySuv,
+    required this.bodyCrossover,
+    required this.bodyCoupe,
+    required this.bodyWagon,
+    required this.bodyMinivan,
+    required this.bodyPickup,
+    required this.bodyConvertible,
+    required this.bodyVan,
+    required this.transmissionManual,
+    required this.transmissionAutomatic,
+    required this.transmissionRobot,
+    required this.transmissionVariator,
+    required this.fuelPetrol,
+    required this.fuelDiesel,
+    required this.fuelHybrid,
+    required this.fuelElectric,
+    required this.fuelGas,
     // Навигация
     required this.navCatalog,
     required this.navFavorites,
@@ -524,6 +543,30 @@ class AppStrings {
   final String notificationsTitle;
   final String notificationsEmpty;
   final String notificationsReadAll;
+
+  /// Подписи характеристик автомобиля. Ключи совпадают с enum в БД
+  /// (body_type, transmission, fuel) и со справочником сайта — сами
+  /// значения в базу не пишутся, туда уходит ключ.
+  final String bodySedan;
+  final String bodyHatchback;
+  final String bodySuv;
+  final String bodyCrossover;
+  final String bodyCoupe;
+  final String bodyWagon;
+  final String bodyMinivan;
+  final String bodyPickup;
+  final String bodyConvertible;
+  final String bodyVan;
+  final String transmissionManual;
+  final String transmissionAutomatic;
+  final String transmissionRobot;
+  final String transmissionVariator;
+  final String fuelPetrol;
+  final String fuelDiesel;
+  final String fuelHybrid;
+  final String fuelElectric;
+  final String fuelGas;
+
 
 
 
@@ -921,6 +964,103 @@ class AppStrings {
   String rangeToValue(String value) =>
       savedSearchTo.replaceAll('{value}', value);
 
+  // ----------------------------------------------------------
+  // Характеристики автомобиля: код БД → подпись пользователю.
+  // ----------------------------------------------------------
+  // Тем же приёмом, что carStatus и transactionType: в базе лежит код
+  // ('sedan'), человеку показывается слово на его языке. Неизвестный код
+  // возвращается как есть — выдача не должна ломаться из-за нового
+  // значения enum, которого клиент ещё не знает.
+
+  String bodyTypeLabel(String key) {
+    switch (key) {
+      case 'sedan':
+        return bodySedan;
+      case 'hatchback':
+        return bodyHatchback;
+      case 'suv':
+        return bodySuv;
+      case 'crossover':
+        return bodyCrossover;
+      case 'coupe':
+        return bodyCoupe;
+      case 'wagon':
+        return bodyWagon;
+      case 'minivan':
+        return bodyMinivan;
+      case 'pickup':
+        return bodyPickup;
+      case 'convertible':
+        return bodyConvertible;
+      case 'van':
+        return bodyVan;
+      default:
+        return key;
+    }
+  }
+
+  String transmissionLabel(String key) {
+    switch (key) {
+      case 'manual':
+        return transmissionManual;
+      case 'automatic':
+        return transmissionAutomatic;
+      case 'robot':
+        return transmissionRobot;
+      case 'variator':
+        return transmissionVariator;
+      default:
+        return key;
+    }
+  }
+
+  String fuelLabel(String key) {
+    switch (key) {
+      case 'petrol':
+        return fuelPetrol;
+      case 'diesel':
+        return fuelDiesel;
+      case 'hybrid':
+        return fuelHybrid;
+      case 'electric':
+        return fuelElectric;
+      case 'gas':
+        return fuelGas;
+      default:
+        return key;
+    }
+  }
+
+  // Готовые словари для пикеров (ключ БД → подпись). Порядок фиксирован
+  // и совпадает со справочником сайта.
+  Map<String, String> get bodyTypes => {
+        'sedan': bodySedan,
+        'hatchback': bodyHatchback,
+        'suv': bodySuv,
+        'crossover': bodyCrossover,
+        'coupe': bodyCoupe,
+        'wagon': bodyWagon,
+        'minivan': bodyMinivan,
+        'pickup': bodyPickup,
+        'convertible': bodyConvertible,
+        'van': bodyVan,
+      };
+
+  Map<String, String> get transmissions => {
+        'manual': transmissionManual,
+        'automatic': transmissionAutomatic,
+        'robot': transmissionRobot,
+        'variator': transmissionVariator,
+      };
+
+  Map<String, String> get fuels => {
+        'petrol': fuelPetrol,
+        'diesel': fuelDiesel,
+        'hybrid': fuelHybrid,
+        'electric': fuelElectric,
+        'gas': fuelGas,
+      };
+
   // Быстрые шаблоны сообщений для чата — порядок фиксирован.
   List<String> get chatTemplateList => [
         chatTemplateStillAvailable,
@@ -1049,6 +1189,25 @@ const AppStrings _ru = AppStrings(
   notificationsTitle: 'Уведомления',
   notificationsEmpty: 'Уведомлений пока нет',
   notificationsReadAll: 'Прочитать все',
+  bodySedan: 'Седан',
+  bodyHatchback: 'Хэтчбек',
+  bodySuv: 'Внедорожник',
+  bodyCrossover: 'Кроссовер',
+  bodyCoupe: 'Купе',
+  bodyWagon: 'Универсал',
+  bodyMinivan: 'Минивэн',
+  bodyPickup: 'Пикап',
+  bodyConvertible: 'Кабриолет',
+  bodyVan: 'Фургон',
+  transmissionManual: 'Механика',
+  transmissionAutomatic: 'Автомат',
+  transmissionRobot: 'Робот',
+  transmissionVariator: 'Вариатор',
+  fuelPetrol: 'Бензин',
+  fuelDiesel: 'Дизель',
+  fuelHybrid: 'Гибрид',
+  fuelElectric: 'Электро',
+  fuelGas: 'Газ',
 
   navCatalog: 'Каталог',
   navFavorites: 'Избранное',
@@ -1401,6 +1560,25 @@ const AppStrings _sr = AppStrings(
   notificationsTitle: 'Obaveštenja',
   notificationsEmpty: 'Još nema obaveštenja',
   notificationsReadAll: 'Označi sve kao pročitano',
+  bodySedan: 'Limuzina',
+  bodyHatchback: 'Hečbek',
+  bodySuv: 'Džip / SUV',
+  bodyCrossover: 'Krosover',
+  bodyCoupe: 'Kupe',
+  bodyWagon: 'Karavan',
+  bodyMinivan: 'Monovolumen',
+  bodyPickup: 'Pikap',
+  bodyConvertible: 'Kabriolet',
+  bodyVan: 'Kombi',
+  transmissionManual: 'Manuelni',
+  transmissionAutomatic: 'Automatik',
+  transmissionRobot: 'Automatizovani',
+  transmissionVariator: 'CVT',
+  fuelPetrol: 'Benzin',
+  fuelDiesel: 'Dizel',
+  fuelHybrid: 'Hibrid',
+  fuelElectric: 'Električni',
+  fuelGas: 'Gas (TNG)',
 
   navCatalog: 'Katalog',
   navFavorites: 'Omiljeno',

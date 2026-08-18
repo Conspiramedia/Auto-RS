@@ -648,11 +648,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             // ---------- Кузов / КПП / Топливо (необязательные) ----------
             _pickerField(
               label: context.t.formBodyType,
-              value: _bodyType == null ? null : ReferenceData.bodyTypes[_bodyType],
+              value: _bodyType == null ? null : context.t.bodyTypeLabel(_bodyType!),
               hint: context.t.formNotSet,
               onTap: () => _pickMap(
                 title: context.t.formBodyType,
-                items: ReferenceData.bodyTypes,
+                items: context.t.bodyTypes,
                 current: _bodyType,
                 onPicked: (v) => setState(() => _bodyType = v),
               ),
@@ -662,11 +662,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               label: context.t.formTransmission,
               value: _transmission == null
                   ? null
-                  : ReferenceData.transmissions[_transmission],
+                  : context.t.transmissionLabel(_transmission!),
               hint: context.t.formNotSet,
               onTap: () => _pickMap(
                 title: context.t.formTransmission,
-                items: ReferenceData.transmissions,
+                items: context.t.transmissions,
                 current: _transmission,
                 onPicked: (v) => setState(() => _transmission = v),
               ),
@@ -674,11 +674,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             const SizedBox(height: 12),
             _pickerField(
               label: context.t.carFuel,
-              value: _fuel == null ? null : ReferenceData.fuels[_fuel],
+              value: _fuel == null ? null : context.t.fuelLabel(_fuel!),
               hint: context.t.formNotSet,
               onTap: () => _pickMap(
                 title: context.t.carFuel,
-                items: ReferenceData.fuels,
+                items: context.t.fuels,
                 current: _fuel,
                 onPicked: (v) => setState(() => _fuel = v),
               ),

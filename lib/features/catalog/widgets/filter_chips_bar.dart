@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/config/reference_data.dart';
 import '../../../core/i18n/app_strings.dart';
 import '../../../core/theme/app_brand.dart';
 import '../models/car_filters.dart';
@@ -135,20 +134,19 @@ class FilterChipsBar extends StatelessWidget {
     if (filters.bodyType != null) {
       items.add(_ChipItem(
         CarFilterKind.bodyType,
-        ReferenceData.bodyTypes[filters.bodyType] ?? filters.bodyType!,
+        t.bodyTypeLabel(filters.bodyType!),
       ));
     }
     if (filters.transmission != null) {
       items.add(_ChipItem(
         CarFilterKind.transmission,
-        ReferenceData.transmissions[filters.transmission] ??
-            filters.transmission!,
+        t.transmissionLabel(filters.transmission!),
       ));
     }
     if (filters.fuel != null) {
       items.add(_ChipItem(
         CarFilterKind.fuel,
-        ReferenceData.fuels[filters.fuel] ?? filters.fuel!,
+        t.fuelLabel(filters.fuel!),
       ));
     }
 

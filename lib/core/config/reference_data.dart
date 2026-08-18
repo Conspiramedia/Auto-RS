@@ -35,34 +35,6 @@ class ReferenceData {
     'Valjevo', 'Kruševac', 'Vranje', 'Šabac', 'Užice', 'Sombor',
   ];
 
-  // Типы кузова (value = enum body_type в БД, label — для показа)
-  static const Map<String, String> bodyTypes = {
-    'sedan': 'Седан',
-    'hatchback': 'Хэтчбек',
-    'suv': 'Внедорожник',
-    'crossover': 'Кроссовер',
-    'coupe': 'Купе',
-    'wagon': 'Универсал',
-    'minivan': 'Минивэн',
-    'pickup': 'Пикап',
-    'convertible': 'Кабриолет',
-    'van': 'Фургон',
-  };
 
-  // Коробка передач
-  static const Map<String, String> transmissions = {
-    'manual': 'Механика',
-    'automatic': 'Автомат',
-    'robot': 'Робот',
-    'variator': 'Вариатор',
-  };
 
-  // Тип топлива
-  static const Map<String, String> fuels = {
-    'petrol': 'Бензин',
-    'diesel': 'Дизель',
-    'hybrid': 'Гибрид',
-    'electric': 'Электро',
-    'gas': 'Газ',
-  };
 }

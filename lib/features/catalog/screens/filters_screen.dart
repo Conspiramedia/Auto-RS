@@ -370,7 +370,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _mapPickerField(
             label: context.t.formBodyType,
             value: _bodyType,
-            items: ReferenceData.bodyTypes,
+            items: context.t.bodyTypes,
             hint: context.t.formAny,
             onPicked: (v) => setState(() => _bodyType = v),
           ),
@@ -378,7 +378,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _mapPickerField(
             label: context.t.formTransmission,
             value: _transmission,
-            items: ReferenceData.transmissions,
+            items: context.t.transmissions,
             hint: context.t.formAny,
             onPicked: (v) => setState(() => _transmission = v),
           ),
@@ -386,7 +386,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           _mapPickerField(
             label: context.t.carFuel,
             value: _fuel,
-            items: ReferenceData.fuels,
+            items: context.t.fuels,
             hint: context.t.formAny,
             onPicked: (v) => setState(() => _fuel = v),
           ),
