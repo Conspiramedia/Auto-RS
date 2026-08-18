@@ -3,5 +3,5 @@
     <!-- Фон adaptive-иконки: брендовый primary. Белый оставлял вокруг
          знака светлую подложку, из-за чего на светлых обоях иконка
          теряла границы. -->
-    <color name="ic_launcher_background">#1565C0</color>
+    <color name="ic_launcher_background">#0B3C7A</color>
 </resources>

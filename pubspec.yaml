@@ -61,10 +61,17 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
-  # Белый фон-подложка для adaptive-иконки Android (у логотипа белый фон)
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  image_path: "assets/images/app_icon.png"
+  # Фон adaptive-иконки Android — тёмно-синий из самого знака, а не белый:
+  # логотип нарисован на синем, и белая подложка давала бы светлую рамку
+  # вокруг него под масками производителей.
+  adaptive_icon_background: "#0B3C7A"
+  # Отдельный foreground с безопасными полями: Android обрезает adaptive-
+  # иконку по маске, и логотип во весь холст лишился бы углов.
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
+  # iOS не поддерживает прозрачность в иконке — убираем альфа-канал,
+  # иначе App Store отклоняет сборку.
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
