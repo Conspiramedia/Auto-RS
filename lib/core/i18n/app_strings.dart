@@ -23,6 +23,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'app_language.dart';
+import 'plural.dart';
 
 // ------------------------------------------------------------
 // Набор строк одного языка. Все поля обязательны: пропуск строки в одном
@@ -60,12 +61,157 @@ class AppStrings {
     required this.filterSearch,
     required this.filterSearchHint,
     required this.filterRent,
+    required this.badgeRent,
+    required this.formBrand,
+    required this.formModel,
+    required this.formCity,
+    required this.formBodyType,
+    required this.formTransmission,
+    required this.formMileage,
+    required this.formPrice,
+    required this.formRentPrice,
+    required this.formListingType,
+    required this.formSelect,
+    required this.formAny,
+    required this.formAll,
+    required this.formOptional,
+    required this.formNotSet,
+    required this.formSearchHint,
+    required this.formSearchOrEnter,
+    required this.formSetCustom,
+    required this.formNoModels,
+    required this.formRangeFrom,
+    required this.formRangeTo,
+    required this.filtersShowResults,
+    required this.carDescriptionHint,
+    required this.createTitleNew,
+    required this.createTitleEdit,
+    required this.createTitleCopy,
+    required this.createPublish,
+    required this.createSaveAndSend,
+    required this.createSaving,
+    required this.createSentToModeration,
+    required this.createEditSent,
+    required this.createTypeRequired,
+    required this.createWaitPhotos,
+    required this.createPhotosTitle,
+    required this.createPhotoLimit,
+    required this.createPhotoTrimmed,
+    required this.createPhotoFailed,
+    required this.createPublishFailed,
+    required this.createConfirmPhoneTitle,
+    required this.createConfirmPhoneBody,
+    required this.createPhoneRequired,
+    required this.createSessionExpired,
+    required this.commonOk,
+    required this.profileLogin,
+    required this.profileLogoutFull,
+    required this.profileLoggingOut,
+    required this.profileAddName,
+    required this.profileSave,
+    required this.profileMyListings,
+    required this.profileModeration,
+    required this.profileLegal,
+    required this.profilePhoneCopied,
+    required this.profilePhotoFailed,
+    required this.profileNameFailed,
+    required this.carTransmissionShort,
+    required this.carSoldNotice,
+    required this.moderationReasonPhotoMismatch,
+    required this.moderationReasonCustom,
+    required this.moderationRejectReason,
+    required this.moderationReasonPrefix,
+    required this.validateCityRequired,
+    required this.validateBrandRequired,
+    required this.validateModelRequired,
+    required this.validateYearRequired,
+    required this.validateYearTooOld,
+    required this.validateYearFuture,
+    required this.validatePricePositive,
+    required this.validatePhotoRequired,
+    required this.validatePhoneRequired,
+    required this.validatePhoneFormat,
+    required this.createAfterPublishNote,
+    required this.createPriceLabel,
+    required this.createPricePositive,
+    required this.createDuplicateExists,
+    required this.createPhoneNoteSuffix,
+    required this.catalogFavoriteFailed,
+    required this.catalogHideCarFailed,
+    required this.catalogHideCityFailed,
+    required this.authOtpLimit,
+    required this.savedSearchAll,
+    required this.savedSearchFrom,
+    required this.savedSearchTo,
+    required this.savedSearchYearSuffix,
+    required this.notificationsTitle,
+    required this.notificationsEmpty,
+    required this.notificationsReadAll,
     // Навигация
     required this.navCatalog,
     required this.navFavorites,
     required this.navCreate,
     required this.navSell,
     required this.navMenu,
+    required this.commonUser,
+    required this.commonNoName,
+    required this.commonYesterday,
+    required this.commonNothingFound,
+    required this.commonErrorGeneric,
+    required this.commonErrorNetwork,
+    required this.chatsGuest,
+    required this.chatsEmptyTitle,
+    required this.chatsEmptyBody,
+    required this.chatsSearchEmptyBody,
+    required this.chatNoMessages,
+    required this.chatPin,
+    required this.chatUnpin,
+    required this.chatUnblock,
+    required this.chatPinFailed,
+    required this.chatBlockFailed,
+    required this.chatUnblockFailed,
+    required this.chatSendFailed,
+    required this.chatBlockedSuffix,
+    required this.chatUnblockedSuffix,
+    required this.loginTitle,
+    required this.loginPhoneLabel,
+    required this.loginHint,
+    required this.loginSendCode,
+    required this.loginSending,
+    required this.loginCodeLabel,
+    required this.loginCodeSentTo,
+    required this.loginChangeNumber,
+    required this.loginResend,
+    required this.loginResendIn,
+    required this.loginResent,
+    required this.loginChecking,
+    required this.loginAsGuest,
+    required this.loginPhoneInvalid,
+    required this.loginCodeInvalid,
+    required this.loginCodeExpired,
+    required this.loginVerifyFailed,
+    required this.loginPhoneConfirmed,
+    required this.moderationTitle,
+    required this.moderationDenied,
+    required this.moderationTabNew,
+    required this.moderationTabRejected,
+    required this.moderationEmptyNew,
+    required this.moderationEmptyRejected,
+    required this.moderationApprove,
+    required this.moderationReject,
+    required this.moderationApproved,
+    required this.moderationRejected,
+    required this.moderationNoPhoto,
+    required this.moderationReasonTitle,
+    required this.moderationReasonRequired,
+    required this.moderationReasonOther,
+    required this.moderationReasonPhotos,
+    required this.moderationReasonDuplicate,
+    required this.moderationReasonForbidden,
+    required this.moderationReasonContacts,
+    required this.moderationReasonPrice,
+    required this.moderationReasonDescription,
+    required this.moderationReasonFraud,
     required this.navMessages,
     required this.navProfile,
     // Онбординг
@@ -124,6 +270,11 @@ class AppStrings {
     required this.dealerRecentlySold,
     required this.dealerNoListings,
     required this.monthNames,
+    required this.monthNamesShort,
+    required this.weekdayNamesShort,
+    required this.listingOne,
+    required this.listingFew,
+    required this.listingMany,
     // Кабинет продавца
     required this.myCarsTitle,
     required this.myCarsEmpty,
@@ -254,6 +405,129 @@ class AppStrings {
   final String filterSearchHint;
   final String filterRent;
 
+  /// Бейдж «Аренда» на фотографии в карточке каталога. Отдельно от
+  /// filterRent: тот — вариант фильтра, этот — метка на объявлении, и
+  /// при правке одного второй меняться не должен.
+  final String badgeRent;
+  final String formBrand;
+  final String formModel;
+  final String formCity;
+  final String formBodyType;
+  final String formTransmission;
+  final String formMileage;
+  final String formPrice;
+  final String formRentPrice;
+  final String formListingType;
+
+  /// Плейсхолдер незаполненного поля-пикера.
+  final String formSelect;
+
+  /// Значение фильтра «любой» — фильтр не применяется.
+  final String formAny;
+  final String formAll;
+  final String formOptional;
+  final String formNotSet;
+  final String formSearchHint;
+
+  /// Пикер, где можно выбрать из списка или ввести своё.
+  final String formSearchOrEnter;
+
+  /// Подставляется введённое значение: «Указать „Zastava“».
+  final String formSetCustom;
+  final String formNoModels;
+
+  /// Подставляется подпись поля: «Год от».
+  final String formRangeFrom;
+  final String formRangeTo;
+  final String filtersShowResults;
+  final String carDescriptionHint;
+  final String createTitleNew;
+  final String createTitleEdit;
+  final String createTitleCopy;
+  final String createPublish;
+  final String createSaveAndSend;
+  final String createSaving;
+  final String createSentToModeration;
+  final String createEditSent;
+  final String createTypeRequired;
+  final String createWaitPhotos;
+
+  /// Подставляются загруженное и максимальное число.
+  final String createPhotosTitle;
+  final String createPhotoLimit;
+
+  /// Часть выбранных фото не поместилась в лимит.
+  final String createPhotoTrimmed;
+  final String createPhotoFailed;
+  final String createPublishFailed;
+  final String createConfirmPhoneTitle;
+
+  /// Подставляется номер.
+  final String createConfirmPhoneBody;
+  final String createPhoneRequired;
+  final String createSessionExpired;
+  final String commonOk;
+  final String profileLogin;
+  final String profileLogoutFull;
+  final String profileLoggingOut;
+  final String profileAddName;
+  final String profileSave;
+  final String profileMyListings;
+  final String profileModeration;
+  final String profileLegal;
+  final String profilePhoneCopied;
+  final String profilePhotoFailed;
+  final String profileNameFailed;
+
+  /// Компактная подпись в таблице характеристик.
+  final String carTransmissionShort;
+  final String carSoldNotice;
+  final String moderationReasonPhotoMismatch;
+  final String moderationReasonCustom;
+  final String moderationRejectReason;
+
+  /// Подставляется текст причины от модератора.
+  final String moderationReasonPrefix;
+  final String validateCityRequired;
+  final String validateBrandRequired;
+  final String validateModelRequired;
+  final String validateYearRequired;
+  final String validateYearTooOld;
+  final String validateYearFuture;
+  final String validatePricePositive;
+  final String validatePhotoRequired;
+  final String validatePhoneRequired;
+
+  /// Подсказка формата сербского номера.
+  final String validatePhoneFormat;
+  final String createAfterPublishNote;
+  final String createPriceLabel;
+  final String createPricePositive;
+  final String createDuplicateExists;
+
+  /// Вторая часть подсказки о подтверждении номера.
+  final String createPhoneNoteSuffix;
+  final String catalogFavoriteFailed;
+  final String catalogHideCarFailed;
+  final String catalogHideCityFailed;
+
+  /// Подставляется дневной лимит запросов кода.
+  final String authOtpLimit;
+
+  /// Подписка без фильтров — на всю выдачу.
+  final String savedSearchAll;
+  final String savedSearchFrom;
+  final String savedSearchTo;
+
+  /// Приписка после года: «2015–2020 г.».
+  final String savedSearchYearSuffix;
+  final String notificationsTitle;
+  final String notificationsEmpty;
+  final String notificationsReadAll;
+
+
+
+
   final String navCatalog;
   final String navFavorites;
   final String navCreate;
@@ -265,6 +539,76 @@ class AppStrings {
 
   /// Заголовок боковой шторки меню (nav_menu сайта).
   final String navMenu;
+
+  /// Подпись собеседника, у которого не заполнено имя.
+  final String commonUser;
+  final String commonNoName;
+  final String commonYesterday;
+  final String commonNothingFound;
+
+  /// Текст на замену техническому сообщению, которое человеку ничего не говорит.
+  final String commonErrorGeneric;
+  final String commonErrorNetwork;
+  final String chatsGuest;
+  final String chatsEmptyTitle;
+  final String chatsEmptyBody;
+  final String chatsSearchEmptyBody;
+  final String chatNoMessages;
+  final String chatPin;
+  final String chatUnpin;
+  final String chatUnblock;
+  final String chatPinFailed;
+  final String chatBlockFailed;
+  final String chatUnblockFailed;
+  final String chatSendFailed;
+
+  /// Подставляется имя: «Иван заблокирован».
+  final String chatBlockedSuffix;
+  final String chatUnblockedSuffix;
+  final String loginTitle;
+  final String loginPhoneLabel;
+  final String loginHint;
+  final String loginSendCode;
+  final String loginSending;
+  final String loginCodeLabel;
+
+  /// Подставляется номер в международном формате.
+  final String loginCodeSentTo;
+  final String loginChangeNumber;
+  final String loginResend;
+
+  /// Подставляется остаток секунд.
+  final String loginResendIn;
+  final String loginResent;
+  final String loginChecking;
+  final String loginAsGuest;
+  final String loginPhoneInvalid;
+  final String loginCodeInvalid;
+  final String loginCodeExpired;
+  final String loginVerifyFailed;
+  final String loginPhoneConfirmed;
+  final String moderationTitle;
+  final String moderationDenied;
+  final String moderationTabNew;
+  final String moderationTabRejected;
+  final String moderationEmptyNew;
+  final String moderationEmptyRejected;
+  final String moderationApprove;
+  final String moderationReject;
+  final String moderationApproved;
+  final String moderationRejected;
+  final String moderationNoPhoto;
+  final String moderationReasonTitle;
+  final String moderationReasonRequired;
+  final String moderationReasonOther;
+  final String moderationReasonPhotos;
+  final String moderationReasonDuplicate;
+  final String moderationReasonForbidden;
+  final String moderationReasonContacts;
+  final String moderationReasonPrice;
+  final String moderationReasonDescription;
+  final String moderationReasonFraud;
+
   final String navMessages;
   final String navProfile;
 
@@ -327,6 +671,20 @@ class AppStrings {
   // Держим в словаре, а не берём из intl: пакет не содержит русской локали,
   // и DateFormat с 'ru' падает в рантайме. [[intl-no-russian-locale]]
   final List<String> monthNames;
+
+  /// Короткие названия месяцев, янв..дек. Для отметок времени в списке
+  /// диалогов, где полное название не помещается.
+  final List<String> monthNamesShort;
+
+  /// Короткие дни недели, пн..вс. Там же.
+  final List<String> weekdayNamesShort;
+
+  /// Формы слова «объявление» для счётчика результатов. Держим тремя
+  /// строками, а не одним словом: русский и сербский меняют форму по
+  /// числу, и «Найдено: 11 объявление» выдало бы машинный перевод.
+  final String listingOne;
+  final String listingFew;
+  final String listingMany;
 
   final String myCarsTitle;
   final String myCarsEmpty;
@@ -481,6 +839,88 @@ class AppStrings {
     }
   }
 
+  // «Найдено: 35 объявлений» — с правильной формой существительного.
+  // Правило склонения общее для ru и sr (CLDR one/few/many), логика
+  // перенесена дословно из lib/plural.ts сайта.
+  String foundCount(int count) {
+    final forms = PluralForms(
+      one: listingOne,
+      few: listingFew,
+      many: listingMany,
+    );
+    return '$catalogFound: ${withPlural(count, forms)}';
+  }
+
+  // «Иван заблокирован» / «Иван разблокирован».
+  String userBlocked(String name) =>
+      chatBlockedSuffix.replaceAll('{name}', name);
+
+  String userUnblocked(String name) =>
+      chatUnblockedSuffix.replaceAll('{name}', name);
+
+  // «Мы отправили код на номер +381 6X XXX XXX».
+  String codeSentTo(String phone) =>
+      loginCodeSentTo.replaceAll('{phone}', phone);
+
+  // «Отправить снова (42)» — обратный отсчёт до повторной отправки.
+  String resendIn(int seconds) =>
+      loginResendIn.replaceAll('{seconds}', '$seconds');
+
+  // «Причина: не тот автомобиль на фото».
+  String rejectionReason(String text) =>
+      moderationReasonPrefix.replaceAll('{text}', text);
+
+  // Причины отклонения объявления — порядок фиксирован, последним
+  // идёт «Другое», где модератор пишет текст сам.
+  List<String> get moderationReasons => [
+        moderationReasonPhotos,
+        moderationReasonPhotoMismatch,
+        moderationReasonDuplicate,
+        moderationReasonForbidden,
+        moderationReasonContacts,
+        moderationReasonPrice,
+        moderationReasonDescription,
+        moderationReasonFraud,
+      ];
+
+  // «Указать „Zastava“» — предложение задать значение, которого нет
+  // в справочнике.
+  String setCustom(String value) =>
+      formSetCustom.replaceAll('{value}', value);
+
+  // «Год от» / «Год до» — подписи полей диапазона.
+  String rangeFrom(String label) => formRangeFrom.replaceAll('{label}', label);
+  String rangeTo(String label) => formRangeTo.replaceAll('{label}', label);
+
+  // «Фотографии (3/10)»
+  String photosTitle(int current, int max) => createPhotosTitle
+      .replaceAll('{current}', '$current')
+      .replaceAll('{max}', '$max');
+
+  // «Можно добавить не более 10 фото»
+  String photoLimit(int max) =>
+      createPhotoLimit.replaceAll('{max}', '$max');
+
+  // «Добавлены первые 3 из 12 — лимит 10 фото»
+  String photoTrimmed(int added, int total, int max) => createPhotoTrimmed
+      .replaceAll('{added}', '$added')
+      .replaceAll('{total}', '$total')
+      .replaceAll('{max}', '$max');
+
+  // «Подтвердите свой номер +381 6X XXX XXX — мы отправим код в SMS.»
+  String confirmPhoneBody(String phone) =>
+      createConfirmPhoneBody.replaceAll('{phone}', phone);
+
+  // «Превышен лимит запросов кода (5 в сутки)…»
+  String otpLimit(int count) =>
+      authOtpLimit.replaceAll('{count}', '$count');
+
+  // «от 2015» / «до 2020» — границы диапазона в описании подписки.
+  String rangeFromValue(String value) =>
+      savedSearchFrom.replaceAll('{value}', value);
+  String rangeToValue(String value) =>
+      savedSearchTo.replaceAll('{value}', value);
+
   // Быстрые шаблоны сообщений для чата — порядок фиксирован.
   List<String> get chatTemplateList => [
         chatTemplateStillAvailable,
@@ -523,12 +963,157 @@ const AppStrings _ru = AppStrings(
   filterSearch: 'Поиск',
   filterSearchHint: 'Марка, модель или город',
   filterRent: 'Аренда',
+  badgeRent: 'Аренда',
+  formBrand: 'Марка',
+  formModel: 'Модель',
+  formCity: 'Город',
+  formBodyType: 'Тип кузова',
+  formTransmission: 'Коробка передач',
+  formMileage: 'Пробег, км',
+  formPrice: 'Цена, €',
+  formRentPrice: 'Цена аренды в сутки, EUR',
+  formListingType: 'Тип объявления',
+  formSelect: 'Выберите',
+  formAny: 'Не важно',
+  formAll: 'Все',
+  formOptional: 'Необязательно',
+  formNotSet: 'Не указано',
+  formSearchHint: 'Поиск…',
+  formSearchOrEnter: 'Поиск или ввод своего…',
+  formSetCustom: 'Указать «{value}»',
+  formNoModels: 'Нет моделей для этой марки',
+  formRangeFrom: '{label} от',
+  formRangeTo: '{label} до',
+  filtersShowResults: 'Показать объявления',
+  carDescriptionHint: 'Состояние, комплектация, история…',
+  createTitleNew: 'Новое объявление',
+  createTitleEdit: 'Редактирование',
+  createTitleCopy: 'Копия объявления',
+  createPublish: 'Опубликовать',
+  createSaveAndSend: 'Сохранить и отправить',
+  createSaving: 'Сохраняем…',
+  createSentToModeration: 'Объявление отправлено на модерацию',
+  createEditSent: 'Изменения отправлены на модерацию',
+  createTypeRequired: 'Выберите тип объявления: продажа или аренда',
+  createWaitPhotos: 'Дождитесь загрузки фото',
+  createPhotosTitle: 'Фотографии ({current}/{max})',
+  createPhotoLimit: 'Можно добавить не более {max} фото',
+  createPhotoTrimmed: 'Добавлены первые {added} из {total} — лимит {max} фото',
+  createPhotoFailed: 'Не удалось загрузить часть фото',
+  createPublishFailed: 'Ошибка публикации',
+  createConfirmPhoneTitle: 'Подтвердите номер телефона',
+  createConfirmPhoneBody: 'Подтвердите свой номер {phone} — мы отправим код в SMS.',
+  createPhoneRequired: 'Для размещения объявления нужно подтвердить номер телефона',
+  createSessionExpired: 'Сессия истекла — добавьте фото заново, чтобы подтвердить номер',
+  commonOk: 'Хорошо',
+  profileLogin: 'Войти',
+  profileLogoutFull: 'Выйти из аккаунта',
+  profileLoggingOut: 'Выходим…',
+  profileAddName: 'Добавьте имя',
+  profileSave: 'Сохранить',
+  profileMyListings: 'Мои объявления',
+  profileModeration: 'Модерация объявлений',
+  profileLegal: 'Политика и условия',
+  profilePhoneCopied: 'Номер скопирован',
+  profilePhotoFailed: 'Не удалось обновить фото',
+  profileNameFailed: 'Не удалось сохранить имя',
+  carTransmissionShort: 'КПП',
+  carSoldNotice: 'Объявление продано — связь с продавцом закрыта',
+  moderationReasonPhotoMismatch: 'Фото не соответствуют: чужие снимки, не тот автомобиль или плохое качество',
+  moderationReasonCustom: 'Своя причина',
+  moderationRejectReason: 'Причина отклонения',
+  moderationReasonPrefix: 'Причина: {text}',
+  validateCityRequired: 'Укажите город',
+  validateBrandRequired: 'Укажите марку автомобиля',
+  validateModelRequired: 'Укажите модель автомобиля',
+  validateYearRequired: 'Укажите год выпуска',
+  validateYearTooOld: 'Год выпуска не может быть раньше 1900',
+  validateYearFuture: 'Год выпуска не может быть в будущем',
+  validatePricePositive: 'Цена должна быть больше нуля',
+  validatePhotoRequired: 'Добавьте хотя бы одно фото автомобиля',
+  validatePhoneRequired: 'Укажите контактный телефон',
+  validatePhoneFormat: 'Введите корректный номер: моб. +381 6X XXX XXX или гор. +381 11 XXX XXX',
+  createAfterPublishNote: 'После публикации объявление уходит на модерацию и появится в каталоге после одобрения.',
+  createPriceLabel: 'Цена, EUR',
+  createPricePositive: 'Цена должна быть больше нуля или оставьте поле пустым',
+  createDuplicateExists: 'Уже есть такое объявление',
+  createPhoneNoteSuffix: 'мы отправим код в SMS.',
+  catalogFavoriteFailed: 'Не удалось обновить избранное',
+  catalogHideCarFailed: 'Не удалось скрыть объявление',
+  catalogHideCityFailed: 'Не удалось скрыть город',
+  authOtpLimit: 'Превышен лимит запросов кода ({count} в сутки). Попробуйте завтра или войдите позже.',
+  savedSearchAll: 'Все объявления',
+  savedSearchFrom: 'от {value}',
+  savedSearchTo: 'до {value}',
+  savedSearchYearSuffix: 'г.',
+  notificationsTitle: 'Уведомления',
+  notificationsEmpty: 'Уведомлений пока нет',
+  notificationsReadAll: 'Прочитать все',
 
   navCatalog: 'Каталог',
   navFavorites: 'Избранное',
   navCreate: 'Разместить',
   navSell: 'Продать авто',
   navMenu: 'Меню',
+  commonUser: 'Пользователь',
+  commonNoName: 'Без имени',
+  commonYesterday: 'Вчера',
+  commonNothingFound: 'Ничего не найдено',
+  commonErrorGeneric: 'Что-то пошло не так. Попробуйте ещё раз.',
+  commonErrorNetwork: 'Нет связи с сервером. Проверьте интернет и попробуйте снова.',
+  chatsGuest: 'Войдите, чтобы видеть диалоги',
+  chatsEmptyTitle: 'Диалогов пока нет',
+  chatsEmptyBody: 'Напишите продавцу со страницы объявления.',
+  chatsSearchEmptyBody: 'Попробуйте изменить запрос: имя собеседника, марка или модель.',
+  chatNoMessages: 'Сообщений пока нет',
+  chatPin: 'Закрепить',
+  chatUnpin: 'Открепить',
+  chatUnblock: 'Разблокировать',
+  chatPinFailed: 'Не удалось изменить закрепление',
+  chatBlockFailed: 'Не удалось заблокировать',
+  chatUnblockFailed: 'Не удалось разблокировать',
+  chatSendFailed: 'Не удалось отправить',
+  chatBlockedSuffix: '{name} заблокирован',
+  chatUnblockedSuffix: '{name} разблокирован',
+  loginTitle: 'Вход по телефону',
+  loginPhoneLabel: 'Телефон',
+  loginHint: 'Введите номер — пришлём код в SMS. Пароль не нужен.',
+  loginSendCode: 'Отправить код',
+  loginSending: 'Отправляем…',
+  loginCodeLabel: 'Введите код из SMS',
+  loginCodeSentTo: 'Мы отправили код на номер {phone}',
+  loginChangeNumber: 'Изменить номер',
+  loginResend: 'Отправить снова',
+  loginResendIn: 'Отправить снова ({seconds})',
+  loginResent: 'Код отправлен повторно',
+  loginChecking: 'Проверяем код…',
+  loginAsGuest: 'Продолжить как гость',
+  loginPhoneInvalid: 'Введите корректный номер телефона',
+  loginCodeInvalid: 'Неверный код из SMS',
+  loginCodeExpired: 'Срок действия кода истёк. Запросите новый',
+  loginVerifyFailed: 'Не удалось подтвердить код. Попробуйте ещё раз',
+  loginPhoneConfirmed: 'Номер подтверждён',
+  moderationTitle: 'Модерация',
+  moderationDenied: 'Доступ только для администраторов',
+  moderationTabNew: 'Новые',
+  moderationTabRejected: 'Отклонённые',
+  moderationEmptyNew: 'Новых объявлений нет',
+  moderationEmptyRejected: 'Отклонённых объявлений нет',
+  moderationApprove: 'Одобрить',
+  moderationReject: 'Отклонить',
+  moderationApproved: 'Объявление опубликовано',
+  moderationRejected: 'Объявление отклонено',
+  moderationNoPhoto: 'Без фото',
+  moderationReasonTitle: 'Опишите, что не так с объявлением',
+  moderationReasonRequired: 'Укажите причину отклонения',
+  moderationReasonOther: 'Другое (указать причину вручную)…',
+  moderationReasonPhotos: 'Данные не совпадают с фото (марка, модель, год или состояние)',
+  moderationReasonDuplicate: 'Дубликат: такое же объявление уже размещено',
+  moderationReasonForbidden: 'Запрещённый объект: не легковой автомобиль, авто в розыске/аресте/залоге',
+  moderationReasonContacts: 'Контакты в описании или на фото (укажите телефон в отдельном поле)',
+  moderationReasonPrice: 'Недостоверная цена (заниженная/ложная для привлечения внимания)',
+  moderationReasonDescription: 'Некорректное описание: оскорбления, спам или реклама сторонних сайтов',
+  moderationReasonFraud: 'Признаки мошенничества (предоплата, «пригон под заказ», подозрительная схема)',
   navMessages: 'Сообщения',
   navProfile: 'Профиль',
 
@@ -588,6 +1173,14 @@ const AppStrings _ru = AppStrings(
   dealerSoldCars: 'Продано',
   dealerRecentlySold: 'Недавно проданные',
   dealerNoListings: 'Пока нет активных объявлений',
+  monthNamesShort: [
+    'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+    'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+  ],
+  weekdayNamesShort: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  listingOne: 'объявление',
+  listingFew: 'объявления',
+  listingMany: 'объявлений',
   monthNames: [
     'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
@@ -722,12 +1315,157 @@ const AppStrings _sr = AppStrings(
   filterSearch: 'Pretraga',
   filterSearchHint: 'Marka, model ili grad',
   filterRent: 'Iznajmljivanje',
+  badgeRent: 'Iznajmljivanje',
+  formBrand: 'Marka',
+  formModel: 'Model',
+  formCity: 'Grad',
+  formBodyType: 'Tip karoserije',
+  formTransmission: 'Menjač',
+  formMileage: 'Kilometraža, km',
+  formPrice: 'Cena, €',
+  formRentPrice: 'Cena najma po danu, EUR',
+  formListingType: 'Tip oglasa',
+  formSelect: 'Izaberite',
+  formAny: 'Nije važno',
+  formAll: 'Sve',
+  formOptional: 'Opciono',
+  formNotSet: 'Nije navedeno',
+  formSearchHint: 'Pretraga…',
+  formSearchOrEnter: 'Pretraga ili unos…',
+  formSetCustom: 'Postavi „{value}“',
+  formNoModels: 'Nema modela za ovu marku',
+  formRangeFrom: '{label} od',
+  formRangeTo: '{label} do',
+  filtersShowResults: 'Prikaži oglase',
+  carDescriptionHint: 'Stanje, oprema, istorija…',
+  createTitleNew: 'Novi oglas',
+  createTitleEdit: 'Izmena',
+  createTitleCopy: 'Kopija oglasa',
+  createPublish: 'Objavi',
+  createSaveAndSend: 'Sačuvaj i pošalji',
+  createSaving: 'Čuvamo…',
+  createSentToModeration: 'Oglas je poslat na moderaciju',
+  createEditSent: 'Izmene su poslate na moderaciju',
+  createTypeRequired: 'Izaberite tip oglasa: prodaja ili najam',
+  createWaitPhotos: 'Sačekajte da se fotografije otpreme',
+  createPhotosTitle: 'Fotografije ({current}/{max})',
+  createPhotoLimit: 'Možete dodati najviše {max} fotografija',
+  createPhotoTrimmed: 'Dodato prvih {added} od {total} — ograničenje {max} fotografija',
+  createPhotoFailed: 'Otpremanje dela fotografija nije uspelo',
+  createPublishFailed: 'Greška pri objavi',
+  createConfirmPhoneTitle: 'Potvrdite broj telefona',
+  createConfirmPhoneBody: 'Potvrdite svoj broj {phone} — poslaćemo kod SMS-om.',
+  createPhoneRequired: 'Za objavu oglasa potrebno je potvrditi broj telefona',
+  createSessionExpired: 'Sesija je istekla — dodajte fotografije ponovo da potvrdite broj',
+  commonOk: 'U redu',
+  profileLogin: 'Prijava',
+  profileLogoutFull: 'Odjavi se sa naloga',
+  profileLoggingOut: 'Odjavljujemo…',
+  profileAddName: 'Dodajte ime',
+  profileSave: 'Sačuvaj',
+  profileMyListings: 'Moji oglasi',
+  profileModeration: 'Moderacija oglasa',
+  profileLegal: 'Politika i uslovi',
+  profilePhoneCopied: 'Broj je kopiran',
+  profilePhotoFailed: 'Ažuriranje fotografije nije uspelo',
+  profileNameFailed: 'Čuvanje imena nije uspelo',
+  carTransmissionShort: 'Menjač',
+  carSoldNotice: 'Oglas je prodat — kontakt sa prodavcem je zatvoren',
+  moderationReasonPhotoMismatch: 'Fotografije se ne poklapaju: tuđe slike, pogrešan automobil ili loš kvalitet',
+  moderationReasonCustom: 'Sopstveni razlog',
+  moderationRejectReason: 'Razlog odbijanja',
+  moderationReasonPrefix: 'Razlog: {text}',
+  validateCityRequired: 'Unesite grad',
+  validateBrandRequired: 'Unesite marku automobila',
+  validateModelRequired: 'Unesite model automobila',
+  validateYearRequired: 'Unesite godište',
+  validateYearTooOld: 'Godište ne može biti pre 1900',
+  validateYearFuture: 'Godište ne može biti u budućnosti',
+  validatePricePositive: 'Cena mora biti veća od nule',
+  validatePhotoRequired: 'Dodajte bar jednu fotografiju automobila',
+  validatePhoneRequired: 'Unesite kontakt telefon',
+  validatePhoneFormat: 'Unesite ispravan broj: mob. +381 6X XXX XXX ili fiksni +381 11 XXX XXX',
+  createAfterPublishNote: 'Nakon objave oglas ide na moderaciju i pojaviće se u katalogu posle odobrenja.',
+  createPriceLabel: 'Cena, EUR',
+  createPricePositive: 'Cena mora biti veća od nule ili ostavite polje prazno',
+  createDuplicateExists: 'Takav oglas već postoji',
+  createPhoneNoteSuffix: 'poslaćemo kod SMS-om.',
+  catalogFavoriteFailed: 'Ažuriranje omiljenih nije uspelo',
+  catalogHideCarFailed: 'Sakrivanje oglasa nije uspelo',
+  catalogHideCityFailed: 'Sakrivanje grada nije uspelo',
+  authOtpLimit: 'Prekoračen je limit zahteva za kod ({count} dnevno). Pokušajte sutra ili se prijavite kasnije.',
+  savedSearchAll: 'Svi oglasi',
+  savedSearchFrom: 'od {value}',
+  savedSearchTo: 'do {value}',
+  savedSearchYearSuffix: 'god.',
+  notificationsTitle: 'Obaveštenja',
+  notificationsEmpty: 'Još nema obaveštenja',
+  notificationsReadAll: 'Označi sve kao pročitano',
 
   navCatalog: 'Katalog',
   navFavorites: 'Omiljeno',
   navCreate: 'Postavi',
   navSell: 'Prodaj auto',
   navMenu: 'Meni',
+  commonUser: 'Korisnik',
+  commonNoName: 'Bez imena',
+  commonYesterday: 'Juče',
+  commonNothingFound: 'Nema rezultata',
+  commonErrorGeneric: 'Nešto nije u redu. Pokušajte ponovo.',
+  commonErrorNetwork: 'Nema veze sa serverom. Proverite internet i pokušajte ponovo.',
+  chatsGuest: 'Prijavite se da biste videli poruke',
+  chatsEmptyTitle: 'Još nema poruka',
+  chatsEmptyBody: 'Pišite prodavcu sa stranice oglasa.',
+  chatsSearchEmptyBody: 'Promenite upit: ime sagovornika, marka ili model.',
+  chatNoMessages: 'Još nema poruka',
+  chatPin: 'Zakači',
+  chatUnpin: 'Otkači',
+  chatUnblock: 'Odblokiraj',
+  chatPinFailed: 'Zakačivanje nije uspelo',
+  chatBlockFailed: 'Blokiranje nije uspelo',
+  chatUnblockFailed: 'Odblokiranje nije uspelo',
+  chatSendFailed: 'Slanje nije uspelo',
+  chatBlockedSuffix: '{name} je blokiran',
+  chatUnblockedSuffix: '{name} je odblokiran',
+  loginTitle: 'Prijava telefonom',
+  loginPhoneLabel: 'Telefon',
+  loginHint: 'Unesite broj — poslaćemo kod SMS-om. Lozinka nije potrebna.',
+  loginSendCode: 'Pošalji kod',
+  loginSending: 'Šaljemo…',
+  loginCodeLabel: 'Unesite kod iz SMS-a',
+  loginCodeSentTo: 'Poslali smo kod na broj {phone}',
+  loginChangeNumber: 'Promeni broj',
+  loginResend: 'Pošalji ponovo',
+  loginResendIn: 'Pošalji ponovo ({seconds})',
+  loginResent: 'Kod je ponovo poslat',
+  loginChecking: 'Proveravamo kod…',
+  loginAsGuest: 'Nastavi kao gost',
+  loginPhoneInvalid: 'Unesite ispravan broj telefona',
+  loginCodeInvalid: 'Pogrešan kod iz SMS-a',
+  loginCodeExpired: 'Kod je istekao. Zatražite novi',
+  loginVerifyFailed: 'Potvrda koda nije uspela. Pokušajte ponovo',
+  loginPhoneConfirmed: 'Broj je potvrđen',
+  moderationTitle: 'Moderacija',
+  moderationDenied: 'Pristup samo za administratore',
+  moderationTabNew: 'Novi',
+  moderationTabRejected: 'Odbijeni',
+  moderationEmptyNew: 'Nema novih oglasa',
+  moderationEmptyRejected: 'Nema odbijenih oglasa',
+  moderationApprove: 'Odobri',
+  moderationReject: 'Odbij',
+  moderationApproved: 'Oglas je objavljen',
+  moderationRejected: 'Oglas je odbijen',
+  moderationNoPhoto: 'Bez fotografije',
+  moderationReasonTitle: 'Opišite šta nije u redu sa oglasom',
+  moderationReasonRequired: 'Navedite razlog odbijanja',
+  moderationReasonOther: 'Drugo (navedite razlog)…',
+  moderationReasonPhotos: 'Podaci se ne poklapaju sa fotografijama (marka, model, godište ili stanje)',
+  moderationReasonDuplicate: 'Duplikat: isti oglas već postoji',
+  moderationReasonForbidden: 'Zabranjen predmet: nije putnički automobil, vozilo je traženo/zaplenjeno/pod hipotekom',
+  moderationReasonContacts: 'Kontakti u opisu ili na fotografiji (unesite telefon u posebno polje)',
+  moderationReasonPrice: 'Netačna cena (spuštena/lažna radi privlačenja pažnje)',
+  moderationReasonDescription: 'Neprikladan opis: uvrede, spam ili reklama drugih sajtova',
+  moderationReasonFraud: 'Znaci prevare (avans, „dovoz po porudžbini“, sumnjiva šema)',
   navMessages: 'Poruke',
   navProfile: 'Profil',
 
@@ -786,6 +1524,14 @@ const AppStrings _sr = AppStrings(
   dealerSoldCars: 'Prodato',
   dealerRecentlySold: 'Nedavno prodato',
   dealerNoListings: 'Još nema aktivnih oglasa',
+  monthNamesShort: [
+    'jan', 'feb', 'mar', 'apr', 'maj', 'jun',
+    'jul', 'avg', 'sep', 'okt', 'nov', 'dec',
+  ],
+  weekdayNamesShort: ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'],
+  listingOne: 'oglas',
+  listingFew: 'oglasa',
+  listingMany: 'oglasa',
   monthNames: [
     'januar', 'februar', 'mart', 'april', 'maj', 'jun',
     'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar',

@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/i18n/app_strings.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/auth_repository.dart';
@@ -139,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendCode() async {
     final e164 = serbianPhoneToE164(_phoneCtrl.text);
     if (e164 == null) {
-      _snack('Введите корректный номер телефона');
+      _snack(context.t.loginPhoneInvalid);
       return;
     }
 
@@ -167,11 +168,14 @@ class _LoginScreenState extends State<LoginScreen> {
   // Повторная отправка кода (когда таймер истёк).
   Future<void> _resendCode() async {
     if (_resendIn > 0) return;
+    // Строку берём ДО await: после него виджет мог быть снят с дерева,
+    // и обращение к context стало бы небезопасным.
+    final sentMessage = context.t.loginResent;
     setState(() => _loading = true);
     try {
       await _auth.resendOtp(_sentToE164);
       _startResendTimer();
-      _snack('Код отправлен повторно', success: true);
+      _snack(sentMessage, success: true);
     } catch (e) {
       _snack(humanizeError(e));
     } finally {
@@ -184,11 +188,14 @@ class _LoginScreenState extends State<LoginScreen> {
     final code = _codeCtrl.text.trim();
     if (code.length < _codeLength || _verifying) return;
 
+    // Строки берём ДО await — см. пояснение в _resendCode.
+    final verifyFailed = context.t.loginVerifyFailed;
+
     setState(() => _verifying = true);
     try {
       final res = await _auth.verifyOtp(phone: _sentToE164, token: code);
       if (res.session == null) {
-        _snack('Не удалось подтвердить код. Попробуйте ещё раз');
+        _snack(verifyFailed);
         _codeCtrl.clear(); // даём ввести заново
         return;
       }
@@ -199,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await ConsentService.instance.migrateGuestToUser(uid);
       }
       if (!mounted) return;
-      _snack('Номер подтверждён', success: true); // зелёный фон — успех
+      _snack(context.t.loginPhoneConfirmed, success: true); // зелёный фон — успех
       // Экран открыт поверх формы объявления (Navigator.push) — возвращаем true,
       // чтобы вызывающий продолжил свой сценарий (загрузка фото / публикация).
       // Если возвращаться некуда (вход через редирект-гард роутера) — в каталог.
@@ -220,9 +227,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // Человеческие тексты для типичных ошибок OTP.
   String _humanOtpError(Object e) {
     final s = e.toString().toLowerCase();
-    if (s.contains('expired')) return 'Срок действия кода истёк. Запросите новый';
+    if (s.contains('expired')) return context.t.loginCodeExpired;
     if (s.contains('invalid') || s.contains('incorrect')) {
-      return 'Неверный код из SMS';
+      return context.t.loginCodeInvalid;
     }
     return humanizeError(e);
   }
@@ -255,15 +262,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _codeStage ? 'Введите код из SMS' : 'Вход по телефону',
+                  _codeStage ? context.t.loginCodeLabel : context.t.loginTitle,
                   style: Theme.of(context).textTheme.headlineSmall,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _codeStage
-                      ? 'Мы отправили код на номер $_sentToE164'
-                      : 'Введите номер — пришлём код в SMS. Пароль не нужен.',
+                      ? context.t.codeSentTo(_sentToE164)
+                      : context.t.loginHint,
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -276,7 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Гостевой режим — сразу в каталог
                 TextButton(
                   onPressed: _loading ? null : () => context.go('/catalog'),
-                  child: const Text('Продолжить как гость'),
+                  child: Text(context.t.loginAsGuest),
                 ),
               ],
             ),
@@ -294,18 +301,18 @@ class _LoginScreenState extends State<LoginScreen> {
           keyboardType: TextInputType.phone,
           inputFormatters: [SerbianPhoneFormatter()],
           onSubmitted: (_) => _sendCode(),
-          decoration: const InputDecoration(
-            labelText: 'Телефон',
+          decoration: InputDecoration(
+            labelText: context.t.loginPhoneLabel,
             hintText: '+381 6X XXX XXX',
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 20),
         // Главное действие — фирменная плашка-пилюля (зелёный вариант),
         // как «Опубликовать»/«Позвонить» в остальном приложении.
         DarkPillButton(
-          label: _loading ? 'Отправляем…' : 'Отправить код',
+          label: _loading ? context.t.loginSending : context.t.loginSendCode,
           variant: PillVariant.green,
           expand: true,
           onTap: _loading ? null : _sendCode,
@@ -335,12 +342,12 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(
           height: 24,
           child: _verifying
-              ? const Row(
+              ? Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _Spinner(),
-                    SizedBox(width: 10),
-                    Text('Проверяем код…'),
+                    const _Spinner(),
+                    const SizedBox(width: 10),
+                    Text(context.t.loginChecking),
                   ],
                 )
               : const SizedBox.shrink(),
@@ -351,15 +358,15 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             TextButton(
               onPressed: _verifying ? null : _changeNumber,
-              child: const Text('Изменить номер'),
+              child: Text(context.t.loginChangeNumber),
             ),
             TextButton(
               onPressed:
                   (_verifying || _loading || _resendIn > 0) ? null : _resendCode,
               child: Text(
                 _resendIn > 0
-                    ? 'Отправить снова ($_resendIn)'
-                    : 'Отправить снова',
+                    ? context.t.resendIn(_resendIn)
+                    : context.t.loginResend,
               ),
             ),
           ],

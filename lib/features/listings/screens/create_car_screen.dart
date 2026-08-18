@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../core/theme/app_brand.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/reference_data.dart';
@@ -95,11 +96,12 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
   // и сбрасывается при новой попытке.
   String? _validationError;
 
-  // Подписи типа для пикера (ключ БД → текст пользователю).
-  static const Map<String, String> _listingTypeLabels = {
-    'sale': 'Продажа',
-    'rent': 'Аренда',
-  };
+  // Подписи типа для сегмента (ключ БД → текст пользователю). Метод, а
+  // не константа: подписи зависят от языка и берутся из словаря.
+  Map<String, String> _listingTypeLabels(BuildContext context) => {
+        'sale': context.t.filterSale,
+        'rent': context.t.filterRent,
+      };
 
   // Загруженные публичные URL фото (по порядку)
   final List<String> _photoUrls = [];
@@ -283,10 +285,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     final currentLabel = current == null ? null : items[current];
     await _pick(
       title: title,
-      options: [if (allowNone) '— Не указано —', ...items.values],
+      options: [if (allowNone) context.t.formNotSet, ...items.values],
       current: currentLabel,
       onPicked: (picked) {
-        if (picked == null || picked == '— Не указано —') {
+        if (picked == null || picked == context.t.formNotSet) {
           onPicked(null);
           return;
         }
@@ -327,10 +329,14 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     if (!await _ensureAuth()) return;
     if (!mounted) return;
 
+    // Тексты берём ДО await: после него виджет мог быть снят с дерева.
+    final photoFailed = context.t.createPhotoFailed;
+    final t = context.t;
+
     // Сколько ещё можно добавить до лимита
     final remaining = _maxPhotos - _photoUrls.length;
     if (remaining <= 0) {
-      _snack('Можно добавить не более $_maxPhotos фото');
+      _snack(context.t.photoLimit(_maxPhotos));
       return;
     }
 
@@ -344,8 +350,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     // Клиент мог выбрать больше лимита — берём только первые `remaining`.
     final selected = files.take(remaining).toList();
     if (files.length > remaining) {
-      _snack('Добавлены первые $remaining из ${files.length} — лимит '
-          '$_maxPhotos фото');
+      _snack(t.photoTrimmed(remaining, files.length, _maxPhotos));
     }
 
     setState(() => _uploading = true);
@@ -362,7 +367,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
         setState(() => _photoUrls.add(url));
       }
     } catch (e) {
-      _snack('Не удалось загрузить часть фото: ${humanizeError(e)}');
+      _snack('$photoFailed: ${humanizeError(e)}');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -377,21 +382,21 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Подтвердите номер телефона'),
+        title: Text(context.t.createConfirmPhoneTitle),
         content: Text(
           hasPhone
-              ? 'Подтвердите свой номер $phone — мы отправим код в SMS.'
-              : 'Для размещения объявления нужно подтвердить номер телефона — '
-                  'мы отправим код в SMS.',
+              ? context.t.confirmPhoneBody(phone)
+              : '${context.t.createPhoneRequired} — '
+                  '${context.t.createPhoneNoteSuffix}',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
+            child: Text(context.t.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Хорошо'),
+            child: Text(context.t.commonOk),
           ),
         ],
       ),
@@ -403,9 +408,15 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     // Новая попытка — снимаем прежнюю ошибку: иначе старый текст висел бы
     // под кнопкой уже после того, как причину устранили.
     if (_validationError != null) setState(() => _validationError = null);
+
+    // Текст успеха берём ДО сетевых вызовов: после await виджет мог быть
+    // снят с дерева, и обращение к context стало бы небезопасным.
+    final sentMessage =
+        _isEdit ? context.t.createEditSent : context.t.createSentToModeration;
+    final publishFailed = context.t.createPublishFailed;
     // Тип объявления обязателен (первое поле формы) — сервер требует 'sale'/'rent'.
     if (_listingType == null) {
-      _failValidation('Выберите тип объявления: продажа или аренда');
+      _failValidation(context.t.createTypeRequired);
       return;
     }
     final year = int.tryParse(_year ?? '');
@@ -423,6 +434,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       _city,
       _photoUrls,
       _phoneCtrl.text,
+      t: context.t,
     );
     if (err != null) {
       _failValidation(err);
@@ -430,11 +442,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     }
     // Если цена введена, но некорректна (например, 0) — предупреждаем.
     if (priceDigits.isNotEmpty && (price == null || price <= 0)) {
-      _failValidation('Цена должна быть больше нуля или оставьте поле пустым');
+      _failValidation(context.t.createPricePositive);
       return;
     }
     if (_uploading) {
-      _failValidation('Дождитесь загрузки фото');
+      _failValidation(context.t.createWaitPhotos);
       return;
     }
 
@@ -443,7 +455,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     // _ensureAuth. Отдельный запрос кода здесь не нужен — оставляем лишь
     // страховку на случай пропавшей сессии (тогда просто не публикуем).
     if (_auth.currentUser == null) {
-      _snack('Сессия истекла — добавьте фото заново, чтобы подтвердить номер');
+      _snack(context.t.createSessionExpired);
       return;
     }
 
@@ -456,7 +468,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
     // пробелы («+381 64 123 456») — приводим к слитному виду перед отправкой.
     final phoneE164 = serbianPhoneToE164(_phoneCtrl.text);
     if (phoneE164 == null) {
-      _snack('Введите корректный номер телефона');
+      _snack(context.t.loginPhoneInvalid);
       return;
     }
 
@@ -502,19 +514,22 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       }
       // Готово: фото привязаны к объявлению — при уходе с экрана не удаляем.
       _published = true;
-      _snack(_isEdit
-          ? 'Изменения отправлены на модерацию'
-          : 'Объявление отправлено на модерацию');
+      _snack(sentMessage);
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) context.pop(id);
       }
     } catch (e) {
       final msg = humanizeError(e);
-      // Сообщение о дубле уже самодостаточное («У вас уже есть такое…») —
+      // Сообщение о дубле приходит с сервера уже самодостаточным —
       // показываем как есть, без префикса «Ошибка публикации».
-      final isDuplicate = msg.contains('уже есть такое объявление');
-      _snack(isDuplicate ? msg : 'Ошибка публикации: $msg');
+      //
+      // Признак ищем по коду ошибки Postgres, а не по русской подстроке:
+      // раньше проверка была на текст «уже есть такое объявление» и на
+      // сербском интерфейсе не срабатывала.
+      final isDuplicate = e.toString().contains('23505') ||
+          e.toString().contains('duplicate');
+      _snack(isDuplicate ? msg : '$publishFailed: $msg');
     } finally {
       if (mounted) setState(() => _publishing = false);
     }
@@ -526,12 +541,12 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
       appBar: AppBar(
           leading: const PillBackButton(),
           title: Text(_isEdit
-              ? 'Редактирование'
+              ? context.t.createTitleEdit
               : _isDuplicate
                   // Копия — это новое объявление, но пользователю важно
                   // понимать, что поля заполнены не случайно.
-                  ? 'Копия объявления'
-                  : 'Новое объявление')),
+                  ? context.t.createTitleCopy
+                  : context.t.createTitleNew)),
       body: AbsorbPointer(
         absorbing: _publishing,
         child: ListView(
@@ -543,16 +558,16 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             // на форме подачи сайта.
             _ListingTypeSegment(
               value: _listingType,
-              labels: _listingTypeLabels,
+              labels: _listingTypeLabels(context),
               onChanged: (v) => setState(() => _listingType = v),
             ),
             const SizedBox(height: 12),
             // ---------- Город (справочник + ручной ввод) ----------
             _pickerField(
-              label: 'Город',
+              label: context.t.formCity,
               value: _city,
               onTap: () => _pick(
-                title: 'Город',
+                title: context.t.formCity,
                 options: ReferenceData.cities,
                 current: _city,
                 allowCustom: true,
@@ -563,10 +578,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             // ---------- Марка (справочник + ручной ввод) ----------
             _pickerField(
-              label: 'Марка',
+              label: context.t.formBrand,
               value: _brand,
               onTap: () => _pick(
-                title: 'Марка',
+                title: context.t.formBrand,
                 options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
                 current: _brand,
                 allowCustom: true,
@@ -591,11 +606,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
                 )
               else
                 _pickerField(
-                  label: 'Модель',
+                  label: context.t.formModel,
                   value: _model,
-                  hint: 'Выберите',
+                  hint: context.t.formSelect,
                   onTap: () => _pick(
-                    title: 'Модель',
+                    title: context.t.formModel,
                     options: _models,
                     current: _model,
                     allowCustom: true,
@@ -607,10 +622,10 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
 
             // ---------- Год выпуска ----------
             _pickerField(
-              label: 'Год выпуска',
+              label: context.t.carYear,
               value: _year,
               onTap: () => _pick(
-                title: 'Год выпуска',
+                title: context.t.carYear,
                 options: _years,
                 current: _year,
                 onPicked: (v) => setState(() => _year = v),
@@ -619,24 +634,24 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             const SizedBox(height: 12),
 
             // ---------- Пробег (свободный ввод) ----------
-            _numField(_mileageCtrl, 'Пробег, км', hint: 'Необязательно'),
+            _numField(_mileageCtrl, context.t.formMileage, hint: context.t.formOptional),
             const SizedBox(height: 12),
 
             // ---------- Цена (свободный ввод) ----------
             _numField(
               _priceCtrl,
-              _listingType == 'rent' ? 'Цена аренды в сутки, EUR' : 'Цена, EUR',
-              hint: 'Договорная',
+              _listingType == 'rent' ? context.t.formRentPrice : context.t.createPriceLabel,
+              hint: context.t.priceNegotiable,
             ),
             const SizedBox(height: 12),
 
             // ---------- Кузов / КПП / Топливо (необязательные) ----------
             _pickerField(
-              label: 'Тип кузова',
+              label: context.t.formBodyType,
               value: _bodyType == null ? null : ReferenceData.bodyTypes[_bodyType],
-              hint: 'Не указано',
+              hint: context.t.formNotSet,
               onTap: () => _pickMap(
-                title: 'Тип кузова',
+                title: context.t.formBodyType,
                 items: ReferenceData.bodyTypes,
                 current: _bodyType,
                 onPicked: (v) => setState(() => _bodyType = v),
@@ -644,13 +659,13 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             ),
             const SizedBox(height: 12),
             _pickerField(
-              label: 'Коробка передач',
+              label: context.t.formTransmission,
               value: _transmission == null
                   ? null
                   : ReferenceData.transmissions[_transmission],
-              hint: 'Не указано',
+              hint: context.t.formNotSet,
               onTap: () => _pickMap(
-                title: 'Коробка передач',
+                title: context.t.formTransmission,
                 items: ReferenceData.transmissions,
                 current: _transmission,
                 onPicked: (v) => setState(() => _transmission = v),
@@ -658,11 +673,11 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             ),
             const SizedBox(height: 12),
             _pickerField(
-              label: 'Топливо',
+              label: context.t.carFuel,
               value: _fuel == null ? null : ReferenceData.fuels[_fuel],
-              hint: 'Не указано',
+              hint: context.t.formNotSet,
               onTap: () => _pickMap(
-                title: 'Топливо',
+                title: context.t.carFuel,
                 items: ReferenceData.fuels,
                 current: _fuel,
                 onPicked: (v) => setState(() => _fuel = v),
@@ -682,9 +697,9 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               // форматтер, гарантирующий результат независимо от неё.
               textCapitalization: TextCapitalization.sentences,
               inputFormatters: [_SentenceCaseFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Описание',
-                hintText: 'Состояние, комплектация, история…',
+              decoration: InputDecoration(
+                labelText: context.t.carDescription,
+                hintText: context.t.carDescriptionHint,
                 alignLabelWithHint: true,
                 floatingLabelBehavior: FloatingLabelBehavior.always,
               ),
@@ -698,8 +713,8 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
               focusNode: _phoneFocus,
               keyboardType: TextInputType.phone,
               inputFormatters: [SerbianPhoneFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Телефон',
+              decoration: InputDecoration(
+                labelText: context.t.loginPhoneLabel,
                 hintText: '+381 6X XXX XXX',
                 floatingLabelBehavior: FloatingLabelBehavior.always,
               ),
@@ -708,7 +723,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             const SizedBox(height: 16),
 
             // ---------- Фото (до 10) ----------
-            Text('Фотографии (${_photoUrls.length}/$_maxPhotos)',
+            Text(context.t.photosTitle(_photoUrls.length, _maxPhotos),
                 style: AppBrandText.h4
                     .copyWith(color: AppBrandColors.neutral100)),
             const SizedBox(height: 8),
@@ -739,16 +754,15 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             // Главное действие формы: зелёный CTA на всю ширину.
             DarkPillButton(
               label: _publishing
-                  ? 'Сохраняем…'
-                  : (_isEdit ? 'Сохранить и отправить' : 'Опубликовать'),
+                  ? context.t.createSaving
+                  : (_isEdit ? context.t.createSaveAndSend : context.t.createPublish),
               variant: PillVariant.green,
               expand: true,
               onTap: _publishing ? null : _publish,
             ),
             const SizedBox(height: 8),
             Text(
-              'После публикации объявление уходит на модерацию и появится '
-              'в каталоге после одобрения.',
+              context.t.createAfterPublishNote,
               style: AppBrandText.caption
                   .copyWith(color: AppBrandColors.neutral60),
               textAlign: TextAlign.center,
@@ -782,7 +796,7 @@ class _CreateCarScreenState extends State<CreateCarScreen> {
             children: [
               Expanded(
                 child: Text(
-                  value ?? (hint ?? 'Выберите'),
+                  value ?? (hint ?? context.t.formSelect),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppBrandText.body.copyWith(
@@ -915,7 +929,7 @@ class _SelectScreenState extends State<_SelectScreen> {
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
               decoration: InputDecoration(
-                hintText: widget.allowCustom ? 'Поиск или ввод своего…' : 'Поиск…',
+                hintText: widget.allowCustom ? context.t.formSearchOrEnter : context.t.formSearchHint,
                 prefixIcon: const Icon(Icons.search),
               ),
             ),
@@ -927,7 +941,7 @@ class _SelectScreenState extends State<_SelectScreen> {
                 if (showCustom)
                   ListTile(
                     leading: const Icon(Icons.add),
-                    title: Text('Указать «$trimmed»'),
+                    title: Text(context.t.setCustom(trimmed)),
                     onTap: () => Navigator.pop(context, trimmed),
                   ),
                 if (showCustom) const Divider(height: 1),

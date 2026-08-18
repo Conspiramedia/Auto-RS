@@ -196,24 +196,24 @@ class _CarDetailScreenState extends State<CarDetailScreen> {
               // ---------- Цены (нет цены → «Договорная») ----------
               if (car.isForSale)
                 _PriceLine(
-                  label: 'Цена продажи',
+                  label: context.t.carSalePrice,
                   value: car.salePrice != null
                       ? '${_money(car.salePrice!)} ${car.currency.value}'
-                      : 'Договорная',
+                      : context.t.priceNegotiable,
                 ),
               if (car.isForRent)
                 _PriceLine(
-                  label: 'Аренда в сутки',
+                  label: context.t.carRentDaily,
                   value: car.rentPriceDaily != null
                       ? '${_money(car.rentPriceDaily!)} ${car.currency.value}'
-                      : 'Договорная',
+                      : context.t.priceNegotiable,
                 ),
 
               // ---------- Описание ----------
               if (car.description != null &&
                   car.description!.trim().isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('Описание',
+                Text(context.t.carDescription,
                     style: AppBrandText.h4
                         .copyWith(color: AppBrandColors.neutral100)),
                 const SizedBox(height: 4),
@@ -493,11 +493,11 @@ class _SpecsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final specs = <MapEntry<String, String>>[
       if (car.mileage != null)
-        MapEntry('Пробег', '${_money(car.mileage!)} км'),
-      if (car.bodyType != null) MapEntry('Кузов', car.bodyType!.value),
+        MapEntry(context.t.carMileage, '${_money(car.mileage!)} км'),
+      if (car.bodyType != null) MapEntry(context.t.carBody, car.bodyType!.value),
       if (car.transmission != null)
-        MapEntry('КПП', car.transmission!.value),
-      if (car.fuel != null) MapEntry('Топливо', car.fuel!.value),
+        MapEntry(context.t.carTransmissionShort, car.transmission!.value),
+      if (car.fuel != null) MapEntry(context.t.carFuel, car.fuel!.value),
     ];
     if (specs.isEmpty) return const SizedBox.shrink();
 
@@ -611,7 +611,7 @@ class _SoldNotice extends StatelessWidget {
           const SizedBox(width: AppBrandSpacing.sm),
           Flexible(
             child: Text(
-              'Объявление продано — связь с продавцом закрыта',
+              context.t.carSoldNotice,
               textAlign: TextAlign.center,
               style: AppBrandText.caption.copyWith(
                 fontWeight: AppBrandFont.medium,

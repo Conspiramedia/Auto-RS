@@ -64,7 +64,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       _reload();
     } catch (_) {
       if (mounted) {
-        showAppSnack(context, 'Не удалось обновить избранное');
+        showAppSnack(context, context.t.catalogFavoriteFailed);
       }
     }
   }

@@ -17,6 +17,7 @@
 // Зависимость: supabase_flutter (уже в проекте).
 // -----------------------------------------------------------------
 
+import '../../../core/i18n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -96,7 +97,7 @@ class _ChatMessagesListState extends State<ChatMessagesList> {
           _scrollToBottom();
 
           if (messages.isEmpty) {
-            return const Center(child: Text('Сообщений пока нет'));
+            return Center(child: Text(context.t.chatNoMessages));
           }
 
           return ListView.builder(

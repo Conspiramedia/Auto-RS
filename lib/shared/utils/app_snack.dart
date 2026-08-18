@@ -14,7 +14,16 @@ import '../../core/theme/app_brand.dart';
 /// Supabase кидает PostgrestException/AuthException, чей toString() содержит
 /// «message: …, code: …, details: …, hint: …». Пользователю нужен только
 /// message. Обычный Exception отдаёт «Exception: текст» — префикс срезаем.
-String humanizeError(Object? error) {
+String humanizeError(
+  Object? error, {
+  // Тексты по умолчанию приходят снаружи: функция чистая и вызывается
+  // в том числе из репозиториев, где BuildContext недоступен. Экраны
+  // передают строки из словаря, остальные — получают русский запасной
+  // вариант, который виден только в логах.
+  String genericFallback = 'Что-то пошло не так. Попробуйте ещё раз.',
+  String networkFallback =
+      'Нет связи с сервером. Проверьте интернет и попробуйте снова.',
+}) {
   final raw = error?.toString() ?? '';
 
   // 1) Supabase-исключения: вытаскиваем содержимое «message: …» до запятой,
@@ -29,14 +38,14 @@ String humanizeError(Object? error) {
 
   // 2) Обычный Exception: «Exception: текст» → «текст».
   var s = raw.replaceFirst(RegExp(r'^\w*Exception:\s*'), '').trim();
-  if (s.isEmpty) return 'Что-то пошло не так. Попробуйте ещё раз.';
+  if (s.isEmpty) return genericFallback;
 
   // 3) Явно технические строки (сеть) — приводим к дружелюбному виду.
   if (s.contains('Failed to fetch') ||
       s.contains('SocketException') ||
       s.contains('Connection') ||
       s.contains('timeout')) {
-    return 'Нет связи с сервером. Проверьте интернет и попробуйте снова.';
+    return networkFallback;
   }
   return s;
 }

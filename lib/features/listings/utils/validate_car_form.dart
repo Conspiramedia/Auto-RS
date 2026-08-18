@@ -26,6 +26,8 @@
 // в Action Flow проверяем "результат == null" и берём этот же текст в SnackBar.
 // -----------------------------------------------------------------
 
+import '../../../core/i18n/app_strings.dart';
+
 String? validateCarForm(
   String? brand,
   String? model,
@@ -33,8 +35,11 @@ String? validateCarForm(
   double? price,
   String? city,
   List<String>? photoUrls,
-  String? phone,
-) {
+  String? phone, {
+  // Словарь передаётся параметром: функция чистая и не имеет доступа к
+  // BuildContext, а тексты ошибок обязаны быть на языке интерфейса.
+  required AppStrings t,
+}) {
   // Текущий год для проверки корректности года выпуска
   final int currentYear = DateTime.now().year;
 
@@ -44,29 +49,29 @@ String? validateCarForm(
 
   // ---------- Город ----------
   if (city == null || city.trim().isEmpty) {
-    return 'Укажите город';
+    return t.validateCityRequired;
   }
 
   // ---------- Марка ----------
   if (brand == null || brand.trim().isEmpty) {
-    return 'Укажите марку автомобиля';
+    return t.validateBrandRequired;
   }
 
   // ---------- Модель ----------
   if (model == null || model.trim().isEmpty) {
-    return 'Укажите модель автомобиля';
+    return t.validateModelRequired;
   }
 
   // ---------- Год выпуска ----------
   if (year == null) {
-    return 'Укажите год выпуска';
+    return t.validateYearRequired;
   }
   if (year < 1900) {
-    return 'Год выпуска не может быть раньше 1900';
+    return t.validateYearTooOld;
   }
   // Допускаем текущий год и следующий (новые модели), но не дальше в будущее
   if (year > currentYear + 1) {
-    return 'Год выпуска не может быть в будущем';
+    return t.validateYearFuture;
   }
 
   // ---------- Цена ----------
@@ -74,12 +79,12 @@ String? validateCarForm(
   // валидная величина, а фактическая проверка введённой цены выполняется
   // отдельно в _publish. Блок оставлен для консистентности порядка полей.
   if (price == null || price <= 0) {
-    return 'Цена должна быть больше нуля';
+    return t.validatePricePositive;
   }
 
   // ---------- Телефон (сербский, обязательный) ----------
   if (phone == null || phone.trim().isEmpty) {
-    return 'Укажите контактный телефон';
+    return t.validatePhoneRequired;
   }
   // Оставляем только цифры (убираем +, пробелы, скобки, дефисы)
   final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
@@ -101,13 +106,12 @@ String? validateCarForm(
   final isMobile = RegExp(r'^6\d{7,8}$').hasMatch(national);
   final isLandline = RegExp(r'^[1-3]\d{7,8}$').hasMatch(national);
   if (!isMobile && !isLandline) {
-    return 'Введите корректный номер: '
-        'моб. +381 6X XXX XXX или гор. +381 11 XXX XXX';
+    return t.validatePhoneFormat;
   }
 
   // ---------- Фотографии (последнее поле формы) ----------
   if (photoUrls == null || photoUrls.isEmpty) {
-    return 'Добавьте хотя бы одно фото автомобиля';
+    return t.validatePhotoRequired;
   }
 
   // Всё в порядке — ошибок нет

@@ -202,7 +202,7 @@ class CarCard extends StatelessWidget {
                             right: AppBrandSpacing.sm,
                             top: AppBrandSpacing.sm,
                             child: StatusBadge(
-                              label: t.filterRent,
+                              label: t.badgeRent,
                               background: AppBrandColors.blue,
                             ),
                           ),

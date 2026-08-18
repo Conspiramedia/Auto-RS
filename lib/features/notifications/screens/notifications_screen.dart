@@ -83,14 +83,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         leading: const PillBackButton(),
         title: Text(
-          'Уведомления',
+          context.t.notificationsTitle,
           style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.done_all,
                 color: AppBrandColors.neutral60),
-            tooltip: 'Прочитать все',
+            tooltip: context.t.notificationsReadAll,
             onPressed: () => _repo.markAllRead(),
           ),
         ],
@@ -116,7 +116,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                     const SizedBox(height: AppBrandSpacing.md),
                     Text(
-                      'Уведомлений пока нет',
+                      context.t.notificationsEmpty,
                       textAlign: TextAlign.center,
                       style: AppBrandText.body
                           .copyWith(color: AppBrandColors.neutral60),

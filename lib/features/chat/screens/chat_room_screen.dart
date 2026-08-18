@@ -62,7 +62,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       if (mounted && _showTemplates) setState(() => _showTemplates = false);
     } catch (e) {
       if (mounted) {
-        showAppSnack(context, 'Не удалось отправить: ${humanizeError(e)}');
+        showAppSnack(context,
+            '${context.t.chatSendFailed}: ${humanizeError(e)}');
       }
     } finally {
       if (mounted) setState(() => _sending = false);

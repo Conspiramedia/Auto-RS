@@ -9,6 +9,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../core/i18n/app_strings.dart';
 import '../../../data/models/car_image_model.dart';
 import '../../../data/models/car_model.dart';
 import '../../../data/repositories/admin_repository.dart';
@@ -55,10 +56,13 @@ class _ModerationScreenState extends State<ModerationScreen> {
 
   // Одобрить объявление
   Future<void> _approve(CarModel car) async {
+    // Строку берём ДО await: после него виджет мог быть снят с дерева.
+    final approved = context.t.moderationApproved;
+
     setState(() => _busy = true);
     try {
       await _repo.approveCar(car.id);
-      _snack('Объявление опубликовано');
+      _snack(approved);
       _reload();
     } catch (e) {
       _snack(_humanError(e));
@@ -69,17 +73,21 @@ class _ModerationScreenState extends State<ModerationScreen> {
 
   // Отклонить с причиной (диалог ввода)
   Future<void> _reject(CarModel car) async {
+    // Строки берём ДО await — см. пояснение в _approve.
+    final reasonRequired = context.t.moderationReasonRequired;
+    final rejected = context.t.moderationRejected;
+
     final comment = await _askReason();
     if (comment == null) return; // отменили диалог
     if (comment.trim().isEmpty) {
-      _snack('Укажите причину отклонения');
+      _snack(reasonRequired);
       return;
     }
 
     setState(() => _busy = true);
     try {
       await _repo.rejectCar(car.id, comment.trim());
-      _snack('Объявление отклонено');
+      _snack(rejected);
       _reload();
     } catch (e) {
       _snack(_humanError(e));
@@ -89,27 +97,17 @@ class _ModerationScreenState extends State<ModerationScreen> {
   }
 
   // Готовые причины отклонения (типовые для авто-маркетплейса). Модератор
-  // выбирает из списка; «Другое» открывает поле свободного ввода. Возвращаемая
-  // строка уходит в reject_car как комментарий и показывается продавцу.
-  static const List<String> _rejectReasons = [
-    'Фото не соответствуют: чужие снимки, не тот автомобиль или плохое качество',
-    'Недостоверная цена (заниженная/ложная для привлечения внимания)',
-    'Некорректное описание: оскорбления, спам или реклама сторонних сайтов',
-    'Данные не совпадают с фото (марка, модель, год или состояние)',
-    'Запрещённый объект: не легковой автомобиль, авто в розыске/аресте/залоге',
-    'Дубликат: такое же объявление уже размещено',
-    'Контакты в описании или на фото (укажите телефон в отдельном поле)',
-    'Признаки мошенничества (предоплата, «пригон под заказ», подозрительная схема)',
-  ];
-
+  // выбирает из списка; «Другое» открывает поле свободного ввода.
+  // Возвращаемая строка уходит в reject_car как комментарий и
+  // показывается продавцу — поэтому берётся из словаря на его языке.
   // Диалог выбора причины отклонения из списка + вариант «Другое».
   Future<String?> _askReason() {
     return showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Причина отклонения'),
+        title: Text(context.t.moderationRejectReason),
         children: [
-          for (final reason in _rejectReasons)
+          for (final reason in context.t.moderationReasons)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, reason),
               child: Padding(
@@ -128,16 +126,16 @@ class _ModerationScreenState extends State<ModerationScreen> {
                 Navigator.pop(ctx, custom.trim());
               }
             },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: Text('Другое (указать причину вручную)…'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(context.t.moderationReasonOther),
             ),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx), // отмена — null
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: Text('Отмена'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(context.t.commonCancel),
             ),
           ),
         ],
@@ -151,24 +149,24 @@ class _ModerationScreenState extends State<ModerationScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Своя причина'),
+        title: Text(context.t.moderationReasonCustom),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Опишите, что не так с объявлением',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: context.t.moderationReasonTitle,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
+            child: Text(context.t.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Отклонить'),
+            child: Text(context.t.moderationReject),
           ),
         ],
       ),
@@ -178,7 +176,7 @@ class _ModerationScreenState extends State<ModerationScreen> {
   String _humanError(Object e) {
     final s = e.toString();
     if (s.contains('прав') || s.contains('privilege')) {
-      return 'Доступ только для администраторов';
+      return context.t.moderationDenied;
     }
     return humanizeError(e);
   }
@@ -190,11 +188,11 @@ class _ModerationScreenState extends State<ModerationScreen> {
       child: Scaffold(
         appBar: AppBar(
           leading: const PillBackButton(),
-          title: const Text('Модерация'),
-          bottom: const TabBar(
+          title: Text(context.t.moderationTitle),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Новые'),
-              Tab(text: 'Отклонённые'),
+              Tab(text: context.t.moderationTabNew),
+              Tab(text: context.t.moderationTabRejected),
             ],
           ),
         ),
@@ -202,8 +200,8 @@ class _ModerationScreenState extends State<ModerationScreen> {
           absorbing: _busy,
           child: TabBarView(
             children: [
-              _buildList(_newFuture, 'Новых объявлений нет', isRejected: false),
-              _buildList(_rejectedFuture, 'Отклонённых объявлений нет',
+              _buildList(_newFuture, context.t.moderationEmptyNew, isRejected: false),
+              _buildList(_rejectedFuture, context.t.moderationEmptyRejected,
                   isRejected: true),
             ],
           ),
@@ -281,7 +279,7 @@ class _ModerationCard extends StatelessWidget {
     // «От кого»: имя продавца (если задано) + телефон в читаемом виде.
     final sellerName = (item.authorName?.trim().isNotEmpty ?? false)
         ? item.authorName!.trim()
-        : 'Без имени';
+        : context.t.commonNoName;
     final sellerPhone = (car.contactPhone?.trim().isNotEmpty ?? false)
         ? serbianPhoneDisplay(car.contactPhone!)
         : null;
@@ -344,7 +342,7 @@ class _ModerationCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Причина: ${car.moderationComment!.trim()}',
+                  context.t.rejectionReason(car.moderationComment!.trim()),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -357,14 +355,14 @@ class _ModerationCard extends StatelessWidget {
                 if (onReject != null) ...[
                   OutlinedButton(
                     onPressed: onReject,
-                    child: const Text('Отклонить'),
+                    child: Text(context.t.moderationReject),
                   ),
                   const SizedBox(width: 8),
                 ],
                 FilledButton(
                   onPressed: onApprove,
                   // В «Отклонённых» одобрение = повторная публикация.
-                  child: const Text('Одобрить'),
+                  child: Text(context.t.moderationApprove),
                 ),
               ],
             ),
@@ -417,7 +415,7 @@ class _ModerationPhotosState extends State<_ModerationPhotos> {
               color: Colors.black12,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text('Без фото'),
+            child: Text(context.t.moderationNoPhoto),
           );
         }
         return SizedBox(

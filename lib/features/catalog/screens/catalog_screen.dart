@@ -224,7 +224,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             _favoriteIds.remove(carId);
           }
         });
-        showAppSnack(context, 'Не удалось обновить избранное');
+        showAppSnack(context, context.t.catalogFavoriteFailed);
       }
     }
   }
@@ -245,7 +245,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       await _repo.hideCar(car.id);
     } catch (_) {
       if (mounted) {
-        showAppSnack(context, 'Не удалось скрыть объявление');
+        showAppSnack(context, context.t.catalogHideCarFailed);
       }
     }
   }
@@ -259,7 +259,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       await _repo.hideCity(car.city);
     } catch (_) {
       if (mounted) {
-        showAppSnack(context, 'Не удалось скрыть город');
+        showAppSnack(context, context.t.catalogHideCityFailed);
       }
     }
   }
@@ -662,7 +662,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '${context.t.catalogFound}: ${_totalCount!}',
+                  context.t.foundCount(_totalCount!),
                   style: AppBrandText.caption
                       .copyWith(color: AppBrandColors.neutral60),
                 ),

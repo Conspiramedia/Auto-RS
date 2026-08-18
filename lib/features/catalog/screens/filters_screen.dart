@@ -51,11 +51,12 @@ class _FiltersScreenState extends State<FiltersScreen> {
   // Тип объявления: null (любой/«Все») | 'sale' | 'rent'.
   String? _listingType;
 
-  // Подписи типа для пикера (ключ → текст пользователю).
-  static const Map<String, String> _listingTypeLabels = {
-    'sale': 'Продажа',
-    'rent': 'Аренда',
-  };
+  // Подписи типа для пикера (ключ → текст пользователю). Метод, а не
+  // константа: подписи зависят от языка и берутся из словаря.
+  Map<String, String> _listingTypeLabels(BuildContext context) => {
+        'sale': context.t.filterSale,
+        'rent': context.t.filterRent,
+      };
   String? _city;
   String? _brand;
   String? _model;
@@ -204,7 +205,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
   // Значение: null (Все) | 'sale' | 'rent'.
   Future<void> _pickListingType() async {
     // Пары (значение, подпись); null-значение кодируем пустой строкой.
-    const options = [('', 'Все'), ('sale', 'Продажа'), ('rent', 'Аренда')];
+    final options = [
+      ('', context.t.formAll),
+      ('sale', context.t.filterSale),
+      ('rent', context.t.filterRent),
+    ];
     final current = _listingType ?? '';
 
     final picked = await showModalBottomSheet<String>(
@@ -236,7 +241,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
       appBar: AppBar(
         leading: const PillBackButton(),
         title: Text(
-          'Фильтры',
+          context.t.catalogFilters,
           style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
         ),
         actions: [
@@ -248,7 +253,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
               foregroundColor: AppBrandColors.red,
             ),
             child: Text(
-              'Сбросить',
+              context.t.catalogFiltersReset,
               style: AppBrandText.caption
                   .copyWith(fontWeight: AppBrandFont.medium),
             ),
@@ -281,20 +286,20 @@ class _FiltersScreenState extends State<FiltersScreen> {
           // 0) Тип объявления — поле-пикер (как «Город»). Выбор из трёх:
           // Все / Продажа / Аренда. null (Все) → сервер отдаёт оба типа.
           _pickerField(
-            label: 'Тип объявления',
-            value: _listingType == null ? null : _listingTypeLabels[_listingType],
-            hint: 'Все',
+            label: context.t.formListingType,
+            value: _listingType == null ? null : _listingTypeLabels(context)[_listingType],
+            hint: context.t.formAll,
             onTap: _pickListingType,
           ),
           const SizedBox(height: 12),
 
           // 1) Город
           _pickerField(
-            label: 'Город',
+            label: context.t.formCity,
             value: _city,
-            hint: 'Не важно',
+            hint: context.t.formAny,
             onTap: () => _pickFromList(
-              title: 'Город',
+              title: context.t.formCity,
               options: ReferenceData.cities,
               current: _city,
               onPicked: (v) => setState(() => _city = v),
@@ -304,11 +309,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
           // 2) Марка
           _pickerField(
-            label: 'Марка',
+            label: context.t.formBrand,
             value: _brand,
-            hint: 'Не важно',
+            hint: context.t.formAny,
             onTap: () => _pickFromList(
-              title: 'Марка',
+              title: context.t.formBrand,
               options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
               current: _brand,
               onPicked: (v) {
@@ -332,19 +337,19 @@ class _FiltersScreenState extends State<FiltersScreen> {
               )
             else if (_models.isEmpty)
               _pickerField(
-                label: 'Модель',
+                label: context.t.formModel,
                 value: null,
                 enabled: false,
-                hint: 'Нет моделей для этой марки',
+                hint: context.t.formNoModels,
                 onTap: () {},
               )
             else
               _pickerField(
-                label: 'Модель',
+                label: context.t.formModel,
                 value: _model,
-                hint: 'Не важно',
+                hint: context.t.formAny,
                 onTap: () => _pickFromList(
-                  title: 'Модель',
+                  title: context.t.formModel,
                   options: _models,
                   current: _model,
                   onPicked: (v) => setState(() => _model = v),
@@ -353,36 +358,36 @@ class _FiltersScreenState extends State<FiltersScreen> {
           ],
           const SizedBox(height: 12),
 
-          _rangeRow('Год', _yearFromCtrl, _yearToCtrl,
-              hintFrom: 'Не важно', hintTo: 'Не важно'),
+          _rangeRow(context.t.carYear, _yearFromCtrl, _yearToCtrl,
+              hintFrom: context.t.formAny, hintTo: context.t.formAny),
           const SizedBox(height: 12),
-          _numField(_mileageCtrl, 'Пробег, км', hint: 'Не важно'),
+          _numField(_mileageCtrl, context.t.formMileage, hint: context.t.formAny),
           const SizedBox(height: 12),
-          _rangeRow('Цена, €', _priceFromCtrl, _priceToCtrl,
-              hintFrom: 'Не важно', hintTo: 'Не важно'),
+          _rangeRow(context.t.formPrice, _priceFromCtrl, _priceToCtrl,
+              hintFrom: context.t.formAny, hintTo: context.t.formAny),
           const SizedBox(height: 12),
 
           _mapPickerField(
-            label: 'Тип кузова',
+            label: context.t.formBodyType,
             value: _bodyType,
             items: ReferenceData.bodyTypes,
-            hint: 'Не важно',
+            hint: context.t.formAny,
             onPicked: (v) => setState(() => _bodyType = v),
           ),
           const SizedBox(height: 12),
           _mapPickerField(
-            label: 'Коробка передач',
+            label: context.t.formTransmission,
             value: _transmission,
             items: ReferenceData.transmissions,
-            hint: 'Не важно',
+            hint: context.t.formAny,
             onPicked: (v) => setState(() => _transmission = v),
           ),
           const SizedBox(height: 12),
           _mapPickerField(
-            label: 'Топливо',
+            label: context.t.carFuel,
             value: _fuel,
             items: ReferenceData.fuels,
-            hint: 'Не важно',
+            hint: context.t.formAny,
             onPicked: (v) => setState(() => _fuel = v),
           ),
 
@@ -390,7 +395,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
           // Главное действие экрана: зелёный CTA на всю ширину — так же
           // выглядит «Показать результаты» на сайте.
           DarkPillButton(
-            label: 'Показать объявления',
+            label: context.t.filtersShowResults,
             expand: true,
             variant: PillVariant.green,
             onTap: () => Navigator.pop(
@@ -433,7 +438,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
             children: [
               Expanded(
                 child: Text(
-                  value ?? (hint ?? 'Не важно'),
+                  value ?? (hint ?? context.t.formAny),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   // Незаполненное значение — подсказка neutral30, как
@@ -520,9 +525,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
       {String? hintFrom, String? hintTo}) {
     return Row(
       children: [
-        Expanded(child: _numField(from, '$label от', hint: hintFrom)),
+        Expanded(child: _numField(from, context.t.rangeFrom(label), hint: hintFrom)),
         const SizedBox(width: 12),
-        Expanded(child: _numField(to, '$label до', hint: hintTo)),
+        Expanded(child: _numField(to, context.t.rangeTo(label), hint: hintTo)),
       ],
     );
   }
@@ -575,9 +580,9 @@ class _PickerScreenState extends State<_PickerScreen> {
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
               style: AppBrandText.body,
-              decoration: const InputDecoration(
-                hintText: 'Поиск…',
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                hintText: context.t.formSearchHint,
+                prefixIcon: const Icon(Icons.search),
               ),
             ),
           ),
@@ -585,7 +590,7 @@ class _PickerScreenState extends State<_PickerScreen> {
             child: ListView(
               children: [
                 ListTile(
-                  title: const Text('Не важно'),
+                  title: Text(context.t.formAny),
                   trailing: widget.current == null
                       ? const Icon(Icons.check, color: AppBrandColors.green)
                       : null,

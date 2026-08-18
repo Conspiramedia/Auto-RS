@@ -23,6 +23,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/i18n/app_strings.dart';
+import '../../../core/theme/app_brand.dart';
 import '../../../data/models/chat_with_details_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
@@ -102,7 +103,8 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
       _reload();
     } catch (e) {
       if (!mounted) return;
-      showAppSnack(context, 'Не удалось изменить закрепление: ${humanizeError(e)}');
+      showAppSnack(context,
+          '${context.t.chatPinFailed}: ${humanizeError(e)}');
     }
   }
 
@@ -110,18 +112,19 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
   // Заблокировать (с подтверждением) либо разблокировать собеседника.
   // ----------------------------------------------------------
   Future<void> _toggleBlock(ChatWithDetailsModel chat) async {
-    final name = chat.opponentName ?? 'Пользователь';
+    final name = chat.opponentName ?? context.t.commonUser;
 
     // Разблокировка — обратимое действие, выполняем сразу.
     if (chat.peerBlocked) {
       try {
         await _repo.unblockUser(chat.opponentId);
         if (!mounted) return;
-        showAppSnack(context, '$name разблокирован', success: true);
+        showAppSnack(context, context.t.userUnblocked(name), success: true);
         _reload();
       } catch (e) {
         if (!mounted) return;
-        showAppSnack(context, 'Не удалось разблокировать: ${humanizeError(e)}');
+        showAppSnack(context,
+            '${context.t.chatUnblockFailed}: ${humanizeError(e)}');
       }
       return;
     }
@@ -161,11 +164,12 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
     try {
       await _repo.blockUser(chat.opponentId);
       if (!mounted) return;
-      showAppSnack(context, '$name заблокирован');
+      showAppSnack(context, context.t.userBlocked(name));
       _reload();
     } catch (e) {
       if (!mounted) return;
-      showAppSnack(context, 'Не удалось заблокировать: ${humanizeError(e)}');
+      showAppSnack(context,
+          '${context.t.chatBlockFailed}: ${humanizeError(e)}');
     }
   }
 
@@ -173,8 +177,10 @@ class _ChatsListScreenState extends State<ChatsListScreen> {
   Widget build(BuildContext context) {
     if (_auth.currentUser == null) {
       return Scaffold(
-        appBar: AppBar(leading: const PillBackButton(), title: const Text('Диалоги')),
-        body: const Center(child: Text('Войдите, чтобы видеть диалоги')),
+        appBar: AppBar(
+            leading: const PillBackButton(),
+            title: Text(context.t.chatsTitle)),
+        body: Center(child: Text(context.t.chatsGuest)),
       );
     }
 
@@ -372,7 +378,7 @@ class _SlidableChatTile extends StatelessWidget {
             backgroundColor: AppButtonColors.green,
             foregroundColor: Colors.white,
             icon: chat.pinned ? Icons.push_pin_outlined : Icons.push_pin,
-            label: chat.pinned ? 'Открепить' : 'Закрепить',
+            label: chat.pinned ? context.t.chatUnpin : context.t.chatPin,
           ),
         ],
       ),
@@ -387,7 +393,7 @@ class _SlidableChatTile extends StatelessWidget {
                 chat.peerBlocked ? AppButtonColors.dark : AppButtonColors.red,
             foregroundColor: Colors.white,
             icon: chat.peerBlocked ? Icons.lock_open : Icons.block,
-            label: chat.peerBlocked ? 'Разблокировать' : 'Заблокировать',
+            label: chat.peerBlocked ? context.t.chatUnblock : context.t.chatBlock,
           ),
         ],
       ),
@@ -406,30 +412,23 @@ class _ChatTile extends StatelessWidget {
   final ChatWithDetailsModel chat;
   final VoidCallback onTap;
 
-  // Сокращения дней недели и месяцев (DateTime.weekday: 1=Пн … 7=Вс).
-  // Задаём вручную: русские локальные данные intl в проекте не
-  // инициализируются (нет flutter_localizations/initializeDateFormatting),
-  // поэтому DateFormat('EEE', 'ru') упал бы в рантайме.
-  static const List<String> _weekdaysRu = [
-    'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс',
-  ];
-  static const List<String> _monthsRu = [
-    'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-    'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
-  ];
-
   /// Время превью: «14:24» сегодня, «Вчера», «Пн», иначе «5 июн».
-  String _formatTime(DateTime? dt) {
+  ///
+  /// Названия дней и месяцев берём из словаря, а не из intl: русской
+  /// локали пакет не содержит, DateFormat('EEE', 'ru') падает в
+  /// рантайме. [[intl-no-russian-locale]]
+  String _formatTime(BuildContext context, DateTime? dt) {
     if (dt == null) return '';
+    final t = context.t;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(dt.year, dt.month, dt.day);
     final diff = today.difference(d).inDays;
 
     if (diff == 0) return DateFormat('HH:mm').format(dt); // формат без локали
-    if (diff == 1) return 'Вчера';
-    if (diff < 7) return _weekdaysRu[dt.weekday - 1];     // Пн, Вт…
-    return '${dt.day} ${_monthsRu[dt.month - 1]}';        // 5 июн
+    if (diff == 1) return t.commonYesterday;
+    if (diff < 7) return t.weekdayNamesShort[dt.weekday - 1];
+    return '${dt.day} ${t.monthNamesShort[dt.month - 1]}';
   }
 
   @override
@@ -440,7 +439,7 @@ class _ChatTile extends StatelessWidget {
     // Превью: текст последнего сообщения, иначе подпись объявления.
     final preview = (chat.lastMessage?.trim().isNotEmpty ?? false)
         ? chat.lastMessage!.trim()
-        : 'Сообщений пока нет';
+        : context.t.chatNoMessages;
 
     return InkWell(
       onTap: onTap,
@@ -460,7 +459,7 @@ class _ChatTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          chat.opponentName ?? 'Пользователь',
+                          chat.opponentName ?? context.t.commonUser,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -483,7 +482,7 @@ class _ChatTile extends StatelessWidget {
                         const SizedBox(width: 4),
                       ],
                       Text(
-                        _formatTime(chat.lastMessageAt),
+                        _formatTime(context, chat.lastMessageAt),
                         style: TextStyle(
                           fontSize: 12,
                           color: hasUnread
@@ -643,13 +642,16 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(Icons.forum_outlined, size: 56, color: scheme.onSurfaceVariant),
           const SizedBox(height: 16),
-          const Text(
-            'Диалогов пока нет',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Text(
+            context.t.chatsEmptyTitle,
+            style: AppBrandText.body.copyWith(
+              color: AppBrandColors.neutral100,
+              fontWeight: AppBrandFont.semibold,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Напишите продавцу со страницы объявления.',
+            context.t.chatsEmptyBody,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
           ),
@@ -675,13 +677,16 @@ class _NoMatchState extends StatelessWidget {
         children: [
           Icon(Icons.search_off, size: 52, color: scheme.onSurfaceVariant),
           const SizedBox(height: 16),
-          const Text(
-            'Ничего не найдено',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Text(
+            context.t.commonNothingFound,
+            style: AppBrandText.body.copyWith(
+              color: AppBrandColors.neutral100,
+              fontWeight: AppBrandFont.semibold,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Попробуйте изменить запрос: имя собеседника, марка или модель.',
+            context.t.chatsSearchEmptyBody,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
           ),

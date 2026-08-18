@@ -63,6 +63,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // context нельзя — экран мог быть закрыт.
     if (!mounted) return;
     final okMessage = context.t.profilePhotoUpdated;
+    // Текст ошибки тоже берём ДО await: в catch context уже мог стать
+    // недействительным, если экран закрыли во время загрузки.
+    final failMessage = context.t.profilePhotoFailed;
 
     setState(() => _savingAvatar = true);
     try {
@@ -72,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _snack(okMessage, success: true);
       _reload();
     } catch (e) {
-      _snack('Не удалось обновить фото: ${humanizeError(e)}');
+      _snack('$failMessage: ${humanizeError(e)}');
     } finally {
       if (mounted) setState(() => _savingAvatar = false);
     }
@@ -97,11 +100,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
+            child: Text(context.t.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Сохранить'),
+            child: Text(context.t.profileSave),
           ),
         ],
       ),
@@ -109,13 +112,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (name == null) return; // отмена
     if (!mounted) return;
     final savedMessage = context.t.profileNameSaved;
+    final failMessage = context.t.profileNameFailed;
 
     try {
       await _profileRepo.updateProfile(fullName: name);
       _snack(savedMessage, success: true);
       _reload();
     } catch (e) {
-      _snack('Не удалось сохранить имя: ${humanizeError(e)}');
+      _snack('$failMessage: ${humanizeError(e)}');
     }
   }
 
@@ -182,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
+            child: Text(context.t.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -237,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: () => context.go('/login'),
-                child: const Text('Войти'),
+                child: Text(context.t.profileLogin),
               ),
             ],
           ),
@@ -248,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const PillBackButton(),
-        title: const Text('Профиль'),
+        title: Text(context.t.profileTitle),
         actions: [
           // Глобус — выбор языка (лист «Язык / Jezik»). Стоит слева от
           // колокольчика: колокольчик остаётся на привычном крайнем месте.
@@ -364,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               hasName
                                                   ? data.profile!.fullName!
                                                       .trim()
-                                                  : 'Добавьте имя',
+                                                  : context.t.profileAddName,
                                               style: AppBrandText.h3
                                                   .copyWith(
                                                 color:
@@ -390,10 +394,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             serbianPhoneDisplay(rawPhone);
                                         return InkWell(
                                           onTap: () async {
+                                            // Строку берём ДО await:
+                                            // после него context мог
+                                            // стать недействительным.
+                                            final copied =
+                                                context.t.profilePhoneCopied;
                                             await Clipboard.setData(
                                                 ClipboardData(text: display));
-                                            _snack('Номер скопирован',
-                                                success: true);
+                                            _snack(copied, success: true);
                                           },
                                           borderRadius:
                                               AppBrandRadius.smAll,
@@ -487,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 12),
                             // Плашки-пилюли одной ширины (expand: на всю ширину).
                             DarkPillButton(
-                              label: 'Мои объявления',
+                              label: context.t.profileMyListings,
                               variant: PillVariant.green,
                               expand: true,
                               onTap: () async {
@@ -500,7 +508,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             if (_isAdmin) ...[
                               const SizedBox(height: 12),
                               DarkPillButton(
-                                label: 'Модерация объявлений',
+                                label: context.t.profileModeration,
                                 variant: PillVariant.blue,
                                 expand: true,
                                 onTap: () => context.push('/moderation'),
@@ -511,7 +519,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             // без обязательного принятия). Нейтральная тёмная
                             // плашка, той же ширины.
                             DarkPillButton(
-                              label: 'Политика и условия',
+                              label: context.t.profileLegal,
                               variant: PillVariant.dark,
                               expand: true,
                               onTap: () => context.push('/policy'),
@@ -525,7 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // «Выйти из аккаунта» — красная плашка, той же ширины, внизу.
                           DarkPillButton(
-                            label: _loading ? 'Выходим…' : 'Выйти из аккаунта',
+                            label: _loading ? context.t.profileLoggingOut : context.t.profileLogoutFull,
                             variant: PillVariant.red,
                             expand: true,
                             onTap: _loading ? null : _signOut,
