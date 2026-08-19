@@ -1023,10 +1023,6 @@ class AppStrings {
   String setCustom(String value) =>
       formSetCustom.replaceAll('{value}', value);
 
-  // «Год от» / «Год до» — подписи полей диапазона.
-  String rangeFrom(String label) => formRangeFrom.replaceAll('{label}', label);
-  String rangeTo(String label) => formRangeTo.replaceAll('{label}', label);
-
   // «Фотографии (3/10)»
   String photosTitle(int current, int max) => createPhotosTitle
       .replaceAll('{current}', '$current')
@@ -1201,22 +1197,22 @@ const AppStrings _ru = AppStrings(
   formCity: 'Город',
   formBodyType: 'Кузов',
   formTransmission: 'Коробка',
-  formMileage: 'Пробег, км',
+  formMileage: 'Пробег до, км',
   formPrice: 'Цена, €',
   formRentPrice: 'Цена за сутки, €',
   formListingType: 'Тип объявления',
   formSelect: 'Выберите',
   formAny: 'Все',
-  formAll: 'Все',
+  formAll: 'Всё',
   formOptional: 'Необязательно',
   formNotSet: 'Не указано',
   formSearchHint: 'Поиск…',
   formSearchOrEnter: 'Поиск или ввод своего…',
   formSetCustom: 'Указать «{value}»',
   formNoModels: 'Нет моделей для этой марки',
-  formRangeFrom: '{label} от',
-  formRangeTo: '{label} до',
-  filtersShowResults: 'Показать объявления',
+  formRangeFrom: 'от',
+  formRangeTo: 'до',
+  filtersShowResults: 'Показать результаты',
   carDescriptionHint: 'Состояние, комплектация, история…',
   sellPhone: 'Номер телефона',
   sellPhotosCover: 'Главная',
@@ -1418,7 +1414,7 @@ const AppStrings _ru = AppStrings(
   catalogTitle: 'Автомобили в Сербии',
   catalogSearchHint: 'Марка, модель или город',
   catalogFilters: 'Фильтры',
-  catalogFiltersReset: 'Сбросить',
+  catalogFiltersReset: 'Сбросить фильтры',
   catalogEmptyTitle: 'Пока ничего не нашлось',
   catalogEmptyBody: 'Попробуйте изменить фильтры или подпишитесь на новые объявления',
   catalogEmptyNotify: 'Сообщить, когда появится',
@@ -1595,7 +1591,7 @@ const AppStrings _sr = AppStrings(
   formCity: 'Grad',
   formBodyType: 'Karoserija',
   formTransmission: 'Menjač',
-  formMileage: 'Kilometraža, km',
+  formMileage: 'Kilometraža do, km',
   formPrice: 'Cena, €',
   formRentPrice: 'Cena po danu, €',
   formListingType: 'Tip oglasa',
@@ -1608,9 +1604,9 @@ const AppStrings _sr = AppStrings(
   formSearchOrEnter: 'Pretraga ili unos…',
   formSetCustom: 'Postavi „{value}“',
   formNoModels: 'Nema modela za ovu marku',
-  formRangeFrom: '{label} od',
-  formRangeTo: '{label} do',
-  filtersShowResults: 'Prikaži oglase',
+  formRangeFrom: 'od',
+  formRangeTo: 'do',
+  filtersShowResults: 'Prikaži rezultate',
   carDescriptionHint: 'Stanje, oprema, istorija…',
   sellPhone: 'Broj telefona',
   sellPhotosCover: 'Naslovna',
@@ -1811,7 +1807,7 @@ const AppStrings _sr = AppStrings(
   catalogTitle: 'Automobili u Srbiji',
   catalogSearchHint: 'Marka, model ili grad',
   catalogFilters: 'Filteri',
-  catalogFiltersReset: 'Poništi',
+  catalogFiltersReset: 'Poništi filtere',
   catalogEmptyTitle: 'Za sada nema rezultata',
   catalogEmptyBody: 'Promenite filtere ili se prijavite na nove oglase',
   catalogEmptyNotify: 'Obavesti me kada se pojavi',

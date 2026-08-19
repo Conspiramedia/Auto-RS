@@ -36,44 +36,56 @@ class FilterChipsBar extends StatelessWidget {
     // Фильтров нет — строка не занимает место.
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        // +1 — кнопка «Сбросить» в хвосте, когда фильтров больше одного:
-        // снимать их по одному дольше, чем сбросить все разом.
-        itemCount: items.length + (items.length > 1 ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (context, i) {
-          if (i == items.length) {
-            return Center(
-              child: TextButton(
-                onPressed: onClearAll,
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppBrandSpacing.sm),
-                  // Сброс — деструктивное действие, красный из бренда.
-                  foregroundColor: AppBrandColors.red,
-                ),
-                child: Text(
-                  t.catalogFiltersReset,
-                  style: AppBrandText.caption
-                      .copyWith(fontWeight: AppBrandFont.medium),
-                ),
+    // ПЕРЕНОС СТРОК, а не горизонтальная прокрутка: на сайте это
+    // flex flex-wrap (FilterChips.tsx), и при пяти-шести условиях видно
+    // сразу все. Прежний горизонтальный ListView прятал хвост списка за
+    // краем экрана — вместе с кнопкой сброса, стоящей последней.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppBrandSpacing.md),
+      // SizedBox во всю ширину: Column каталога центрирует детей, и Wrap,
+      // сжатый по содержимому, вставал серединой экрана. Растянутый на
+      // всю строку, он прижимает чипсы к левому краю — как flex-контейнер
+      // сайта, занимающий ширину родителя.
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          // ВЫКЛЮЧКА ВЛЕВО. Родительский Column каталога не задаёт
+          // crossAxisAlignment, поэтому по умолчанию центрирует детей, и
+          // ряд чипсов вставал серединой экрана вместо левого края.
+          // Соседние блоки (заголовок, «Найдено») спасал Align; здесь ту
+          // же роль играют растянутый SizedBox и явное выравнивание.
+          alignment: WrapAlignment.start,
+          // gap-2 сайта = 8px по обеим осям.
+          spacing: AppBrandSpacing.sm,
+          runSpacing: AppBrandSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final item in items)
+              _FilterChip(
+                label: item.label,
+                onRemove: () => onRemove(item.kind),
               ),
-            );
-          }
-
-          final item = items[i];
-          return Center(
-            child: _FilterChip(
-              label: item.label,
-              onRemove: () => onRemove(item.kind),
+            // Сброс — в хвосте ряда, при ЛЮБОМ числе фильтров, как ссылка
+            // сброса на сайте.
+            TextButton(
+              onPressed: onClearAll,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: AppBrandSpacing.sm),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                // Сброс — деструктивное действие, красный из бренда.
+                foregroundColor: AppBrandColors.red,
+              ),
+              child: Text(
+                t.catalogFiltersReset,
+                style: AppBrandText.caption
+                    .copyWith(fontWeight: AppBrandFont.semibold),
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -176,9 +188,12 @@ class _ChipItem {
   final String label;
 }
 
-// Один чипс применённого фильтра: подпись + «×». Тёмная плашка бренда,
-// капсула — так же выглядит применённый фильтр на сайте: он «включён»,
-// в отличие от неактивных элементов управления.
+// Один чипс применённого фильтра: подпись + «×». СВЕТЛАЯ плашка
+// surfaceActive со скруглением control — один в один с сайтом
+// (FilterChips.tsx: bg-surface-active, rounded-control, text-sm).
+// Раньше здесь стояла тёмная капсула с белым текстом: комментарий
+// утверждал, что так выглядит чипс на сайте, но на сайте он светлый,
+// а тёмная заливка на выдаче спорила с кнопкой «Фильтры».
 class _FilterChip extends StatelessWidget {
   const _FilterChip({required this.label, required this.onRemove});
 
@@ -188,25 +203,37 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppBrandColors.dark,
-      borderRadius: AppBrandRadius.pillAll,
+      color: AppBrandColors.surfaceActive,
+      borderRadius: AppBrandRadius.controlAll,
       child: InkWell(
         onTap: onRemove,
-        borderRadius: AppBrandRadius.pillAll,
+        borderRadius: AppBrandRadius.controlAll,
+        // px-3 py-1.5 сайта: 12 по горизонтали, 6 по вертикали.
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 label,
-                style: AppBrandText.caption.copyWith(
-                  color: Colors.white,
-                  fontWeight: AppBrandFont.medium,
-                ),
+                // Обычное начертание и основной цвет текста: на сайте у
+                // чипса нет ни medium, ни белого — это не «включённая»
+                // плашка, а снимаемое условие отбора.
+                style: AppBrandText.caption
+                    .copyWith(color: AppBrandColors.neutral100),
               ),
-              const SizedBox(width: AppBrandSpacing.xs),
-              const Icon(Icons.close, size: 15, color: Colors.white),
+              // gap-1.5 сайта = 6px.
+              const SizedBox(width: 6),
+              // Крестик — ТЕКСТОВЫЙ символ «×» (U+00D7) тем же кеглем,
+              // что подпись, а не Icons.close: материальная иконка рисует
+              // более толстые штрихи и на пиксель выше, из-за чего чипс
+              // получался крупнее эталонного. На сайте это <span>×</span>
+              // внутри той же строки (FilterChips.tsx).
+              Text(
+                '×',
+                style: AppBrandText.caption
+                    .copyWith(color: AppBrandColors.neutral40),
+              ),
             ],
           ),
         ),

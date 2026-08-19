@@ -11,7 +11,6 @@ import '../../../core/config/reference_data.dart';
 import '../../../data/repositories/cars_repository.dart';
 import '../../../core/i18n/app_strings.dart';
 import '../../../core/theme/app_brand.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/utils/number_formatters.dart';
 import '../../../shared/widgets/app_button_colors.dart';
 import '../../../shared/widgets/dark_pill_button.dart';
@@ -52,12 +51,6 @@ class _FiltersScreenState extends State<FiltersScreen> {
   // Тип объявления: null (любой/«Все») | 'sale' | 'rent'.
   String? _listingType;
 
-  // Подписи типа для пикера (ключ → текст пользователю). Метод, а не
-  // константа: подписи зависят от языка и берутся из словаря.
-  Map<String, String> _listingTypeLabels(BuildContext context) => {
-        'sale': context.t.filterSale,
-        'rent': context.t.filterRent,
-      };
   String? _city;
   String? _brand;
   String? _model;
@@ -161,27 +154,6 @@ class _FiltersScreenState extends State<FiltersScreen> {
     );
   }
 
-  void _reset() {
-    setState(() {
-      _listingType = null;
-      _city = null;
-      _brand = null;
-      _model = null;
-      _models = [];
-      _bodyType = null;
-      _transmission = null;
-      _fuel = null;
-      // Поиск сбрасывается вместе с фильтрами: он такое же условие
-      // отбора, и «Сбросить» должно очищать выдачу целиком.
-      _queryCtrl.clear();
-      _yearFromCtrl.clear();
-      _yearToCtrl.clear();
-      _mileageCtrl.clear();
-      _priceFromCtrl.clear();
-      _priceToCtrl.clear();
-    });
-  }
-
   Future<void> _pickFromList({
     required String title,
     required List<String> options,
@@ -201,265 +173,400 @@ class _FiltersScreenState extends State<FiltersScreen> {
     if (result != null) onPicked(result.isEmpty ? null : result);
   }
 
-  // Выбор типа объявления из трёх вариантов (Все / Продажа / Аренда).
-  // Всего 3 пункта — показываем компактным нижним листом без поиска.
-  // Значение: null (Все) | 'sale' | 'rent'.
-  Future<void> _pickListingType() async {
-    // Пары (значение, подпись); null-значение кодируем пустой строкой.
-    final options = [
+  // Тип объявления — СЕГМЕНТ из трёх кнопок, как на сайте
+  // (FilterPanel.tsx): подложка surfaceActive, активная кнопка белая
+  // с тенью sticky, неактивные — neutral55. Раньше здесь стояло
+  // поле-пикер с нижним листом: на сайте тип выбирается в один тап,
+  // а в приложении требовалось два, и вид поля не совпадал.
+  Widget _listingTypeSegment() {
+    // Пары (значение, подпись); null («Всё») кодируем пустой строкой.
+    final segments = [
       ('', context.t.formAll),
       ('sale', context.t.filterSale),
       ('rent', context.t.filterRent),
     ];
     final current = _listingType ?? '';
 
-    // Оформление листа — по токенам бренда, как у листа сортировки
-    // в каталоге: раньше здесь стоял голый Material-лист с системным
-    // фоном и прямыми углами, и он выпадал из остального интерфейса.
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: AppBrandColors.bg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppBrandRadius.card),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Подпись НАД сегментом — на сайте это <label> над контролом.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            context.t.formListingType,
+            style:
+                AppBrandText.caption.copyWith(color: AppBrandColors.neutral60),
+          ),
+        ),
+        DecoratedBox(
+          decoration: const BoxDecoration(
+            color: AppBrandColors.surfaceActive,
+            borderRadius: AppBrandRadius.controlAll,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              children: [
+                for (final (i, (value, label)) in segments.indexed) ...[
+                  // Зазор 4px между кнопками — gap-1 сегмента на сайте.
+                  // Без него кнопки стояли вплотную, и активная плашка
+                  // выглядела шире эталонной.
+                  if (i > 0) const SizedBox(width: 4),
+                  Expanded(
+                    child: _segmentButton(
+                      label: label,
+                      selected: current == value,
+                      onTap: () => setState(
+                        () => _listingType = value.isEmpty ? null : value,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Одна кнопка сегмента. Активная — белая плашка с тенью sticky,
+  // неактивная — прозрачная с текстом neutral55 (зеркало сайта).
+  Widget _segmentButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    // Тень активной кнопки рисует ВНЕШНИЙ DecoratedBox, а не контейнер
+    // внутри Material: изнутри она ложилась поверх белой заливки и
+    // читалась как серая рамка, которой на сайте нет.
+    return DecoratedBox(
+      decoration: selected
+          ? const BoxDecoration(
+              borderRadius: AppBrandRadius.controlAll,
+              boxShadow: AppBrandElevation.sticky,
+            )
+          : const BoxDecoration(),
+      child: Material(
+        color: selected ? AppBrandColors.bg : Colors.transparent,
+        borderRadius: AppBrandRadius.controlAll,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppBrandRadius.controlAll,
+          child: Container(
+            height: 36,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppBrandText.caption.copyWith(
+                fontWeight: AppBrandFont.semibold,
+                color: selected
+                    ? AppBrandColors.neutral100
+                    : AppBrandColors.neutral55,
+              ),
+            ),
+          ),
         ),
       ),
-      builder: (ctx) => SafeArea(
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // СОДЕРЖИМОЕ ШТОРКИ, а не отдельный экран. Открывается снизу поверх
+    // каталога — так же, как панель фильтров на сайте (FilterPanel.tsx:
+    // fixed inset-0 + items-end + rounded-t-card).
+    return Padding(
+      // Отступ снизу равен высоте клавиатуры: без него поля ввода
+      // (поиск, цена, год, пробег) уезжали бы под неё.
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: ConstrainedBox(
+        // Высота как max-h-[90vh] на сайте: над шторкой остаётся полоска
+        // каталога, и видно, что слой модальный, а не новая страница.
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Шапка листа: заголовок и явный выход. Свайп вниз работает,
-            // но полагаться только на него нельзя — жест невидим.
+            // ШАПКА ОДИН В ОДИН С САЙТОМ (FilterPanel.tsx): заголовок
+            // слева, крестик справа, между ними распор. Кнопки «Сбросить»
+            // здесь НЕТ — на сайте сброс живёт в ряду чипсов над выдачей
+            // (FilterChips.tsx), и держать его ещё и в шапке значило бы
+            // иметь два разных места для одного действия.
+            //
+            // Отступы p-4 и mb-4 сайта: 16 по краям и 16 под шапкой.
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppBrandSpacing.lg,
-                AppBrandSpacing.sm,
-                AppBrandSpacing.sm,
-                AppBrandSpacing.sm,
+                AppBrandSpacing.md,
+                AppBrandSpacing.md,
+                AppBrandSpacing.md,
+                AppBrandSpacing.md,
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
-                      ctx.t.formListingType,
+                      context.t.catalogFilters,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      // h4 = 18px/600 — размер text-lg font-semibold
+                      // заголовка шторки на сайте. h3 (20px) был на 2px
+                      // крупнее эталона.
                       style: AppBrandText.h4
                           .copyWith(color: AppBrandColors.neutral100),
                     ),
                   ),
                   AppCloseButton(
-                    tooltip: ctx.t.commonClose,
-                    onPressed: () => Navigator.pop(ctx),
+                    tooltip: context.t.commonClose,
+                    onPressed: () => Navigator.maybePop(context),
                   ),
                 ],
               ),
             ),
-            for (final (value, label) in options)
-              ListTile(
-                title: Text(
-                  label,
-                  style: AppBrandText.body.copyWith(
-                    color: AppBrandColors.neutral100,
-                    fontWeight: current == value
-                        ? AppBrandFont.semibold
-                        : AppBrandFont.regular,
+
+            // Поля прокручиваются внутри шторки; shrinkWrap нужен,
+            // чтобы короткая форма не растягивала слой на все 90%.
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // ПОРЯДОК ПОЛЕЙ ПОВТОРЯЕТ САЙТ (components/FilterPanel.tsx):
+                  // тип → поиск → марка+модель → город → цена+год → пробег →
+                  // кузов+коробка+топливо. Раньше порядок был свой (поиск и тип
+                  // переставлены, город перед маркой, цена после пробега), и два
+                  // клиента одного каталога выглядели по-разному.
+
+                  // 1) Тип объявления — сегмент, определяющий саму выдачу,
+                  // поэтому стоит первым, а не сужает её по признаку.
+                  _listingTypeSegment(),
+                  const SizedBox(height: 12),
+
+                  // 2) Поиск — единственное поле свободного ввода.
+                  _labeledField(
+                    label: context.t.filterSearch,
+                    child: TextField(
+                      controller: _queryCtrl,
+                      textInputAction: TextInputAction.search,
+                      style: AppBrandText.body
+                          .copyWith(color: AppBrandColors.neutral100),
+                      decoration: InputDecoration(
+                        hintText: context.t.filterSearchHint,
+                      ),
+                    ),
                   ),
-                ),
-                trailing: current == value
-                    ? const Icon(Icons.check, color: AppBrandColors.green)
-                    : null,
-                onTap: () => Navigator.pop(ctx, value),
+                  const SizedBox(height: 12),
+
+                  // 3) Марка и Модель — в один ряд, как grid-cols-2 на сайте.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _labeledField(
+                          label: context.t.formBrand,
+                          child: _pickerField(
+                            value: _brand,
+                            hint: context.t.formAny,
+                            onTap: () => _pickFromList(
+                              title: context.t.formBrand,
+                              options: _brands.isNotEmpty
+                                  ? _brands
+                                  : ReferenceData.brands,
+                              current: _brand,
+                              onPicked: (v) {
+                                setState(() {
+                                  _brand = v;
+                                  _model = null; // сброс модели при смене марки
+                                  _models = [];
+                                });
+                                if (v != null) _loadModels(v);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        // Модель ВСЕГДА видна — на сайте поле не исчезает, а
+                        // становится неактивным с подсказкой «Сначала выберите
+                        // марку». Прежде поля просто не было, пока нет марки,
+                        // и ряд разъезжался.
+                        child: _labeledField(
+                          label: context.t.formModel,
+                          child: _pickerField(
+                            value: _brand == null ? null : _model,
+                            enabled: _brand != null &&
+                                !_loadingModels &&
+                                _models.isNotEmpty,
+                            hint: _brand == null
+                                ? context.t.pickerModelNoBrand
+                                : _loadingModels
+                                    ? context.t.formSearchHint
+                                    : _models.isEmpty
+                                        ? context.t.formNoModels
+                                        : context.t.formAny,
+                            onTap: () => _pickFromList(
+                              title: context.t.formModel,
+                              options: _models,
+                              current: _model,
+                              onPicked: (v) => setState(() => _model = v),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 4) Город — на всю ширину, как на сайте.
+                  _labeledField(
+                    label: context.t.formCity,
+                    child: _pickerField(
+                      value: _city,
+                      hint: context.t.formAny,
+                      onTap: () => _pickFromList(
+                        title: context.t.formCity,
+                        options: ReferenceData.cities,
+                        current: _city,
+                        onPicked: (v) => setState(() => _city = v),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 5) Цена и Год — два блока в ряд, внутри каждого «от/до».
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _rangeField(
+                          label: context.t.formPrice,
+                          from: _priceFromCtrl,
+                          to: _priceToCtrl,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _rangeField(
+                          label: context.t.carYear,
+                          from: _yearFromCtrl,
+                          to: _yearToCtrl,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 6) Пробег — на всю ширину.
+                  _labeledField(
+                    label: context.t.formMileage,
+                    child: _numField(_mileageCtrl),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 7) Кузов, Коробка, Топливо — три поля в ряд (grid-cols-3).
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _mapPickerField(
+                          label: context.t.formBodyType,
+                          value: _bodyType,
+                          items: context.t.bodyTypes,
+                          hint: context.t.formAny,
+                          onPicked: (v) => setState(() => _bodyType = v),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _mapPickerField(
+                          label: context.t.formTransmission,
+                          value: _transmission,
+                          items: context.t.transmissions,
+                          hint: context.t.formAny,
+                          onPicked: (v) => setState(() => _transmission = v),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _mapPickerField(
+                          label: context.t.carFuel,
+                          value: _fuel,
+                          items: context.t.fuels,
+                          hint: context.t.formAny,
+                          onPicked: (v) => setState(() => _fuel = v),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+                  // Главное действие: зелёный CTA на всю ширину — так же
+                  // выглядит «Показать результаты» на сайте. Кнопка
+                  // прокручивается вместе с полями, как в форме сайта,
+                  // а не приколота к низу слоя.
+                  SafeArea(
+                    top: false,
+                    child: DarkPillButton(
+                      label: context.t.filtersShowResults,
+                      expand: true,
+                      variant: PillVariant.green,
+                      onTap: () => Navigator.pop(
+                        context,
+                        FiltersResult(
+                          filters: _build(),
+                          query: _queryCtrl.text.trim(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            const SizedBox(height: AppBrandSpacing.sm),
+            ),
           ],
         ),
       ),
     );
-    if (picked == null) return; // закрыли лист без выбора
-    setState(() => _listingType = picked.isEmpty ? null : picked);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppBrandColors.bg,
-      appBar: AppBar(
-        leading: const PillBackButton(),
-        title: Text(
-          context.t.catalogFilters,
-          style: AppBrandText.h3.copyWith(color: AppBrandColors.neutral100),
+  // ------------------------------------------------------------
+  // ПОДПИСЬ НАД ПОЛЕМ — как <label> на сайте.
+  // ------------------------------------------------------------
+  // Раньше подписи врезались в рамку (floatingLabelBehavior.always),
+  // и «Год выпуска от» читалось внутри контура, тогда как на сайте над
+  // парой полей стоит один заголовок «Год выпуска». Обёртка выносит
+  // подпись наружу и применяется ко ВСЕМ полям экрана разом.
+  Widget _labeledField({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style:
+                AppBrandText.caption.copyWith(color: AppBrandColors.neutral60),
+          ),
         ),
-        actions: [
-          // Сброс — ghost-кнопка: деструктивное действие красным, но без
-          // заливки, чтобы не спорить с зелёным CTA внизу экрана.
-          TextButton(
-            onPressed: _reset,
-            style: TextButton.styleFrom(
-              foregroundColor: AppBrandColors.red,
-            ),
-            child: Text(
-              context.t.catalogFiltersReset,
-              style: AppBrandText.caption
-                  .copyWith(fontWeight: AppBrandFont.medium),
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Свободный поиск — первое поле формы, как на сайте: это самый
-          // частый способ отбора («Golf 7», «Beograd»), и прятать его за
-          // остальными условиями незачем.
-          TextField(
-            controller: _queryCtrl,
-            textInputAction: TextInputAction.search,
-            style: AppBrandText.body
-                .copyWith(color: AppBrandColors.neutral100),
-            decoration: InputDecoration(
-              labelText: context.t.filterSearch,
-              hintText: context.t.filterSearchHint,
-              prefixIcon: const Icon(
-                Icons.search,
-                color: AppBrandColors.neutral60,
-              ),
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 0) Тип объявления — поле-пикер (как «Город»). Выбор из трёх:
-          // Все / Продажа / Аренда. null (Все) → сервер отдаёт оба типа.
-          _pickerField(
-            label: context.t.formListingType,
-            value: _listingType == null ? null : _listingTypeLabels(context)[_listingType],
-            hint: context.t.formAll,
-            onTap: _pickListingType,
-          ),
-          const SizedBox(height: 12),
-
-          // 1) Город
-          _pickerField(
-            label: context.t.formCity,
-            value: _city,
-            hint: context.t.formAny,
-            onTap: () => _pickFromList(
-              title: context.t.formCity,
-              options: ReferenceData.cities,
-              current: _city,
-              onPicked: (v) => setState(() => _city = v),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 2) Марка
-          _pickerField(
-            label: context.t.formBrand,
-            value: _brand,
-            hint: context.t.formAny,
-            onTap: () => _pickFromList(
-              title: context.t.formBrand,
-              options: _brands.isNotEmpty ? _brands : ReferenceData.brands,
-              current: _brand,
-              onPicked: (v) {
-                setState(() {
-                  _brand = v;
-                  _model = null; // сбрасываем модель при смене марки
-                  _models = [];
-                });
-                if (v != null) _loadModels(v);
-              },
-            ),
-          ),
-
-          // 3) Модель — появляется только когда выбрана марка
-          if (_brand != null) ...[
-            const SizedBox(height: 12),
-            if (_loadingModels)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: LinearProgressIndicator(),
-              )
-            else if (_models.isEmpty)
-              _pickerField(
-                label: context.t.formModel,
-                value: null,
-                enabled: false,
-                hint: context.t.formNoModels,
-                onTap: () {},
-              )
-            else
-              _pickerField(
-                label: context.t.formModel,
-                value: _model,
-                hint: context.t.formAny,
-                onTap: () => _pickFromList(
-                  title: context.t.formModel,
-                  options: _models,
-                  current: _model,
-                  onPicked: (v) => setState(() => _model = v),
-                ),
-              ),
-          ],
-          const SizedBox(height: 12),
-
-          _rangeRow(context.t.carYear, _yearFromCtrl, _yearToCtrl,
-              hintFrom: context.t.formAny, hintTo: context.t.formAny),
-          const SizedBox(height: 12),
-          _numField(_mileageCtrl, context.t.formMileage, hint: context.t.formAny),
-          const SizedBox(height: 12),
-          _rangeRow(context.t.formPrice, _priceFromCtrl, _priceToCtrl,
-              hintFrom: context.t.formAny, hintTo: context.t.formAny),
-          const SizedBox(height: 12),
-
-          _mapPickerField(
-            label: context.t.formBodyType,
-            value: _bodyType,
-            items: context.t.bodyTypes,
-            hint: context.t.formAny,
-            onPicked: (v) => setState(() => _bodyType = v),
-          ),
-          const SizedBox(height: 12),
-          _mapPickerField(
-            label: context.t.formTransmission,
-            value: _transmission,
-            items: context.t.transmissions,
-            hint: context.t.formAny,
-            onPicked: (v) => setState(() => _transmission = v),
-          ),
-          const SizedBox(height: 12),
-          _mapPickerField(
-            label: context.t.carFuel,
-            value: _fuel,
-            items: context.t.fuels,
-            hint: context.t.formAny,
-            onPicked: (v) => setState(() => _fuel = v),
-          ),
-
-          const SizedBox(height: 24),
-          // Главное действие экрана: зелёный CTA на всю ширину — так же
-          // выглядит «Показать результаты» на сайте.
-          DarkPillButton(
-            label: context.t.filtersShowResults,
-            expand: true,
-            variant: PillVariant.green,
-            onTap: () => Navigator.pop(
-              context,
-              FiltersResult(
-                filters: _build(),
-                query: _queryCtrl.text.trim(),
-              ),
-            ),
-          ),
-        ],
-      ),
+        child,
+      ],
     );
   }
 
   // Поле-пикер: выглядит как поле ввода, но открывает список выбора.
+  // Подпись сюда больше не передаётся — её рисует _labeledField снаружи.
   // Рамка, радиус и фокус приходят из inputDecorationTheme (пакет А1) —
   // здесь они НЕ переопределяются, иначе поле разъедется с формой подачи.
   Widget _pickerField({
-    required String label,
     required String? value,
     required VoidCallback onTap,
     bool enabled = true,
@@ -470,37 +577,38 @@ class _FiltersScreenState extends State<FiltersScreen> {
       borderRadius: AppBrandRadius.controlAll,
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
           enabled: enabled,
+          // isDense + плотные отступы дают компактную высоту панели
+          // фильтров: на сайте это h-10 (40px) против h-11 в формах.
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
         ),
-        child: SizedBox(
-          // Высота контрола из темы: поля и кнопки в одном столбце
-          // обязаны совпадать по ритму.
-          height: AppTheme.controlHeight - 24,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  value ?? (hint ?? context.t.formAny),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  // Незаполненное значение — подсказка neutral30, как
-                  // hintStyle полей; выбранное — основной текст.
-                  style: AppBrandText.body.copyWith(
-                    color: value == null
-                        ? AppBrandColors.neutral30
-                        : AppBrandColors.neutral100,
-                  ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                value ?? (hint ?? context.t.formAny),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                // Незаполненное значение — подсказка neutral30, как
+                // hintStyle полей; выбранное — основной текст.
+                style: AppBrandText.body.copyWith(
+                  color: value == null
+                      ? AppBrandColors.neutral30
+                      : AppBrandColors.neutral100,
                 ),
               ),
-              if (enabled)
-                const Icon(
-                  Icons.arrow_drop_down,
-                  color: AppBrandColors.neutral60,
-                ),
-            ],
-          ),
+            ),
+            if (enabled)
+              const Icon(
+                Icons.arrow_drop_down,
+                color: AppBrandColors.neutral60,
+              ),
+          ],
         ),
       ),
     );
@@ -508,7 +616,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
   // Поле-пикер для справочника-Map (кузов/КПП/топливо). Использует ТОТ ЖЕ
   // _pickerField и полноэкранный выбор, что «Город»/«Марка», поэтому шрифт
-  // значения «Любой» гарантированно совпадает. Хранится ключ БД (items.key),
+  // значения «Все» гарантированно совпадает. Хранится ключ БД (items.key),
   // а пользователю показывается подпись (items.value).
   Widget _mapPickerField({
     required String label,
@@ -520,59 +628,67 @@ class _FiltersScreenState extends State<FiltersScreen> {
     // Текущая подпись по сохранённому ключу (null → hint внутри _pickerField)
     final currentLabel = value == null ? null : items[value];
 
-    return _pickerField(
+    return _labeledField(
       label: label,
-      value: currentLabel,
-      hint: hint,
-      onTap: () => _pickFromList(
-        title: label,
-        options: items.values.toList(),
-        current: currentLabel,
-        onPicked: (picked) {
-          // picked — подпись (или null для «Любой»); возвращаем ключ БД
-          if (picked == null) {
-            onPicked(null);
-            return;
-          }
-          final key = items.entries
-              .firstWhere((e) => e.value == picked)
-              .key;
-          onPicked(key);
-        },
+      child: _pickerField(
+        value: currentLabel,
+        hint: hint,
+        onTap: () => _pickFromList(
+          title: label,
+          options: items.values.toList(),
+          current: currentLabel,
+          onPicked: (picked) {
+            // picked — подпись (или null для «Все»); возвращаем ключ БД
+            if (picked == null) {
+              onPicked(null);
+              return;
+            }
+            final key = items.entries.firstWhere((e) => e.value == picked).key;
+            onPicked(key);
+          },
+        ),
       ),
     );
   }
 
-  // Числовое поле: лейбл в разрыве рамки (всегда), подсказка внутри.
-  // Рамка/радиус/фокус — из темы (пакет А1). Разряды разделяются
-  // пробелом тем же форматтером, что в форме подачи: «10 000».
-  Widget _numField(TextEditingController ctrl, String label, {String? hint}) {
+  // Числовое поле БЕЗ подписи: её рисует _labeledField снаружи.
+  // Разряды разделяются пробелом тем же форматтером, что в форме
+  // подачи: «10 000».
+  Widget _numField(TextEditingController ctrl, {String? hint}) {
     return TextField(
       controller: ctrl,
       keyboardType: TextInputType.number,
       inputFormatters: const [ThousandsFormatter()],
       style: AppBrandText.body.copyWith(color: AppBrandColors.neutral100),
       decoration: InputDecoration(
-        labelText: label,
         hintText: hint,
-        floatingLabelBehavior: FloatingLabelBehavior.always,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
       ),
     );
   }
 
-  // Диапазон «от/до»: два поля в ряд, у каждого лейбл в рамке — без
-  // отдельного заголовка сверху, чтобы вид совпадал с остальными полями.
-  // hintFrom/hintTo — серые подсказки-плейсхолдеры внутри каждого поля,
-  // намекающие на границу диапазона («с любого» / «по любой»).
-  Widget _rangeRow(
-      String label, TextEditingController from, TextEditingController to,
-      {String? hintFrom, String? hintTo}) {
-    return Row(
-      children: [
-        Expanded(child: _numField(from, context.t.rangeFrom(label), hint: hintFrom)),
-        const SizedBox(width: 12),
-        Expanded(child: _numField(to, context.t.rangeTo(label), hint: hintTo)),
-      ],
+  // Диапазон «от/до»: ОДНА подпись над парой полей, внутри полей —
+  // плейсхолдеры «от» и «до». Ровно так устроены «Цена, €» и «Год
+  // выпуска» на сайте; прежде подпись дублировалась в каждом поле
+  // («Год выпуска от» / «Год выпуска до»).
+  Widget _rangeField({
+    required String label,
+    required TextEditingController from,
+    required TextEditingController to,
+  }) {
+    return _labeledField(
+      label: label,
+      child: Row(
+        children: [
+          Expanded(child: _numField(from, hint: context.t.formRangeFrom)),
+          const SizedBox(width: 8),
+          Expanded(child: _numField(to, hint: context.t.formRangeTo)),
+        ],
+      ),
     );
   }
 }
@@ -614,7 +730,8 @@ class _PickerScreenState extends State<_PickerScreen> {
         : widget.options.where((o) => o.toLowerCase().contains(q)).toList();
 
     return Scaffold(
-      appBar: AppBar(leading: const PillBackButton(), title: Text(widget.title)),
+      appBar:
+          AppBar(leading: const PillBackButton(), title: Text(widget.title)),
       body: Column(
         children: [
           Padding(

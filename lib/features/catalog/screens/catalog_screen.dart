@@ -424,17 +424,34 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
-  // Открыть экран фильтров и применить результат
+  // Открыть фильтры и применить результат
   Future<void> _openFilters() async {
-    // Экран фильтров возвращает и условия отбора, и строку поиска: с
-    // переносом поиска в форму фильтров это одно действие пользователя.
-    final result = await Navigator.push<FiltersResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FiltersScreen(
-          initial: _filters,
-          initialQuery: _query,
+    // ШТОРКА СНИЗУ, А НЕ ОТДЕЛЬНЫЙ ЭКРАН — как на сайте, где фильтры
+    // это модальный слой поверх каталога (FilterPanel.tsx: fixed inset-0
+    // + items-end). Прежний MaterialPageRoute уводил на полноэкранную
+    // страницу с переходом вбок: выдача пропадала из виду, и связь
+    // «меняю условия — вижу, к чему они применяются» терялась.
+    //
+    // Форма возвращает и условия отбора, и строку поиска: с переносом
+    // поиска в фильтры это одно действие пользователя.
+    final result = await showModalBottomSheet<FiltersResult>(
+      context: context,
+      // Шторка обязана поднимать содержимое над клавиатурой: в форме
+      // есть текстовые поля (поиск, цена, год, пробег).
+      isScrollControlled: true,
+      backgroundColor: AppBrandColors.bg,
+      // Скругление только сверху — низ прижат к краю экрана
+      // (rounded-t-card на сайте).
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppBrandRadius.card),
         ),
+      ),
+      // Затемнение фона той же плотности, что surface.overlay сайта.
+      barrierColor: AppBrandColors.surfaceOverlay,
+      builder: (_) => FiltersScreen(
+        initial: _filters,
+        initialQuery: _query,
       ),
     );
     if (result != null) {
@@ -607,9 +624,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           ),
 
-          // Ряд управления выдачей — как на сайте под заголовком раздела:
-          // тёмная кнопка «Фильтры» со значком регуляторов и счётчиком
-          // применённых условий. Свободный поиск живёт внутри этой формы.
+          // ПОРЯДОК БЛОКОВ КАК НА САЙТЕ (CatalogView.tsx):
+          // ряд «Фильтры + Сортировка» → «Найдено: N» → чипсы.
+          // Раньше счётчик стоял ПОД чипсами, и число результатов
+          // отрывалось от кнопки, которая его меняет.
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppBrandSpacing.md,
@@ -637,38 +655,39 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           ),
 
-          const SizedBox(height: 8),
-
-          // Применённые фильтры чипсами. Показывают СОСТАВ фильтра (бейдж с
-          // числом на кнопке говорит только «их три»), тап по × снимает
-          // фильтр без открытия экрана фильтров.
-          FilterChipsBar(
-            filters: _filters,
-            onRemove: _removeFilter,
-            onClearAll: _resetFilters,
-          ),
-
           // «Найдено: N» — сколько объявлений подходит под фильтры целиком,
-          // а не сколько уже подгружено лентой. Формулировка и место — как
-          // на сайте. Показывается только когда число получено (RPC могла
-          // не ответить — тогда строки просто нет).
+          // а не сколько уже подгружено лентой. Отдельной строкой сразу под
+          // рядом управления — как мобильная версия сайта (mt-2). Цвет
+          // neutral50: на сайте у счётчика text-neutral-50, а не 60.
+          // Показывается только когда число получено (RPC могла не
+          // ответить — тогда строки просто нет).
           if (_totalCount != null && !_loading)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppBrandSpacing.md,
                 AppBrandSpacing.sm,
                 AppBrandSpacing.md,
-                AppBrandSpacing.xs,
+                0,
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   context.t.foundCount(_totalCount!),
                   style: AppBrandText.caption
-                      .copyWith(color: AppBrandColors.neutral60),
+                      .copyWith(color: AppBrandColors.neutral50),
                 ),
               ),
             ),
+
+          // Применённые фильтры чипсами. Показывают СОСТАВ фильтра (бейдж с
+          // числом на кнопке говорит только «их три»), тап по × снимает
+          // фильтр без открытия шторки. Отступ сверху mt-3 сайта = 12.
+          const SizedBox(height: 12),
+          FilterChipsBar(
+            filters: _filters,
+            onRemove: _removeFilter,
+            onClearAll: _resetFilters,
+          ),
 
           // Список результатов (продажа и аренда вперемешку; тип — в фильтрах)
           Expanded(child: _buildList()),
@@ -743,8 +762,15 @@ class _FiltersButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppBrandSpacing.sm),
-              // Значок регуляторов — справа от подписи, как на сайте.
-              const Icon(Icons.tune, size: 16, color: Colors.white),
+              // Значок регуляторов — справа от подписи. Рисуется вручную
+              // по той же геометрии, что inline-SVG сайта: Icons.tune даёт
+              // ДВЕ дорожки с засечками по краям, а на сайте их три, и
+              // бегунки стоят на разной высоте.
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CustomPaint(painter: _FiltersIconPainter()),
+              ),
               if (count > 0) ...[
                 const SizedBox(width: AppBrandSpacing.sm),
                 Container(
@@ -771,6 +797,42 @@ class _FiltersButton extends StatelessWidget {
       ),
     );
   }
+}
+
+// Значок фильтров: три горизонтальные дорожки с круглыми бегунками на
+// разной высоте. Геометрия перенесена из inline-SVG сайта (FilterPanel.tsx)
+// в системе координат 24×24, которая масштабируется под размер виджета:
+// линии y=6/12/18 от x=4 до x=20, бегунки в (9,6), (15,12), (8,18) радиусом 2.
+class _FiltersIconPainter extends CustomPainter {
+  const _FiltersIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Коэффициент перевода координат SVG (24×24) в размер виджета.
+    final k = size.width / 24;
+
+    final stroke = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2 * k
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final fill = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    for (final y in [6.0, 12.0, 18.0]) {
+      canvas.drawLine(Offset(4 * k, y * k), Offset(20 * k, y * k), stroke);
+    }
+
+    for (final (cx, cy) in [(9.0, 6.0), (15.0, 12.0), (8.0, 18.0)]) {
+      canvas.drawCircle(Offset(cx * k, cy * k), 2 * k, fill);
+    }
+  }
+
+  // Значок статичен: перерисовка не нужна.
+  @override
+  bool shouldRepaint(_FiltersIconPainter oldDelegate) => false;
 }
 
 // ============================================================
@@ -815,9 +877,13 @@ class _SortSelect extends StatelessWidget {
         borderRadius: AppBrandRadius.controlAll,
         child: Container(
           height: 40,
-          // Ширина ограничена: шесть подписей разной длины не должны
-          // растягивать ряд и выдавливать кнопку фильтров.
-          constraints: const BoxConstraints(maxWidth: 200),
+          // Ширина ограничена долей экрана, как max-w-[52vw] на сайте:
+          // шесть подписей разной длины не должны растягивать ряд и
+          // выдавливать кнопку фильтров. Жёсткие 200px вели себя иначе
+          // на узких и широких телефонах.
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.52,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             borderRadius: AppBrandRadius.controlAll,
