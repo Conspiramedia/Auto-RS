@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Фон adaptive-иконки: брендовый primary. Белый оставлял вокруг
-         знака светлую подложку, из-за чего на светлых обоях иконка
-         теряла границы. -->
-    <color name="ic_launcher_background">#0B3C7A</color>
+    <!-- Фон adaptive-иконки: брендовый primary (#1565C0, lib/brand.ts
+         сайта → AppBrand.primary). Ровно этот цвет залит по краям
+         maskable-иконки, поэтому знак на домашнем экране Android и в
+         PWA выглядит одинаково. Белый оставлял вокруг знака светлую
+         подложку, из-за чего на светлых обоях иконка теряла границы. -->
+    <color name="ic_launcher_background">#1565C0</color>
 </resources>
